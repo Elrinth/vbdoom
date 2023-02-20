@@ -19,23 +19,23 @@ pre requisieigiwsetion:
 4. Click the wrench with play icon
 
 Shout outs to all people who either helped with the project or gave motivation to get this far:
-GuyPerfect
-Mellott
-Kr155E
-BLiTTER
-Enthusi
-Jorgeche
-Untitled-1
-SpeedyInc
-LayerCake
-Moritari
-Raycearoni
-VirtualChris(t)
-Mumphy
-Dasi
-FWOW13
-TheredMenance
-ThunderStruck
-DreamBean
+- GuyPerfect
+- Mellott
+- Kr155E
+- BLiTTER
+- Enthusi
+- Jorgeche
+- Untitled-1
+- SpeedyInc
+- LayerCake
+- Moritari
+- Raycearoni
+- VirtualChris(t)
+- Mumphy
+- Dasi
+- FWOW13
+- TheredMenance
+- ThunderStruck
+- DreamBean
 
 If I forgot anyone, please remind me on discords! :)
