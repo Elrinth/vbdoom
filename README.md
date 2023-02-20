@@ -1,6 +1,7 @@
 # vbdoom
 Virtual Boy Doom Project
 
+Runs like shit slow on real hardware as I'm doing float math and divisions and multiplications etc.
 Currently trying to get fixed-point math work (it's commited like NOT running with fixed-point atm, incase anyone wanted to experience it).
 Simply flip switch in top of gameLoop.c where it says: u8 isFixed = 0; and set that to 1 instead.
 
