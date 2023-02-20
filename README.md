@@ -1,6 +1,9 @@
 # vbdoom
 Virtual Boy Doom Project
 
+Currently trying to get fixed-point math work (it's commited like NOT running with fixed-point atm, incase anyone wanted to experience it).
+Simply flip switch in top of gameLoop.c where it says: u8 isFixed = 0; and set that to 1 instead.
+
 ![Image of VBDoom](https://raw.githubusercontent.com/Elrinth/vbdoom/main/2023-02-20_screen.png)
 
 # to build:
