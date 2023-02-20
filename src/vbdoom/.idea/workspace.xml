@@ -1,0 +1,515 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ChangeListManager">
+    <list default="true" id="01989b41-c5d7-416e-b48f-ef72adc98476" name="Default Changelist" comment="" />
+    <ignored path="$PROJECT_DIR$/../../../libs/libgccvb/.idea/" />
+    <ignored path="$PROJECT_DIR$/.idea/" />
+    <ignored path="$PROJECT_DIR$/.make-release/" />
+    <ignored path="$PROJECT_DIR$/build/" />
+    <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FUSProjectUsageTrigger">
+    <session id="-1854838499">
+      <usages-collector id="statistics.lifecycle.project">
+        <counts>
+          <entry key="project.closed" value="16" />
+          <entry key="project.open.time.0" value="5" />
+          <entry key="project.open.time.1" value="1" />
+          <entry key="project.open.time.2" value="11" />
+          <entry key="project.open.time.3" value="9" />
+          <entry key="project.open.time.4" value="4" />
+          <entry key="project.open.time.5" value="1" />
+          <entry key="project.opened" value="31" />
+        </counts>
+      </usages-collector>
+      <usages-collector id="statistics.file.extensions.open">
+        <counts>
+          <entry key="bat" value="1" />
+          <entry key="c" value="366" />
+          <entry key="elf" value="3" />
+          <entry key="grit" value="13" />
+          <entry key="h" value="285" />
+          <entry key="header" value="4" />
+          <entry key="html" value="1" />
+          <entry key="iml" value="6" />
+          <entry key="java" value="1" />
+          <entry key="makefile-game" value="1" />
+          <entry key="name" value="3" />
+          <entry key="png" value="9" />
+          <entry key="s" value="1" />
+          <entry key="txt" value="2" />
+          <entry key="xml" value="15" />
+        </counts>
+      </usages-collector>
+      <usages-collector id="statistics.file.types.open">
+        <counts>
+          <entry key="Bat" value="1" />
+          <entry key="C++" value="651" />
+          <entry key="HTML" value="1" />
+          <entry key="IDEA_MODULE" value="6" />
+          <entry key="Image" value="9" />
+          <entry key="JAVA" value="1" />
+          <entry key="PLAIN_TEXT" value="27" />
+          <entry key="XML" value="15" />
+        </counts>
+      </usages-collector>
+      <usages-collector id="statistics.file.extensions.edit">
+        <counts>
+          <entry key="c" value="28536" />
+          <entry key="h" value="1451" />
+          <entry key="xml" value="4" />
+        </counts>
+      </usages-collector>
+      <usages-collector id="statistics.file.types.edit">
+        <counts>
+          <entry key="C++" value="29987" />
+          <entry key="XML" value="4" />
+        </counts>
+      </usages-collector>
+    </session>
+    <session id="977496397">
+      <usages-collector id="statistics.lifecycle.project">
+        <counts>
+          <entry key="project.closed" value="1" />
+          <entry key="project.open.time.0" value="1" />
+          <entry key="project.opened" value="1" />
+        </counts>
+      </usages-collector>
+      <usages-collector id="statistics.file.extensions.edit">
+        <counts>
+          <entry key="c" value="1" />
+        </counts>
+      </usages-collector>
+      <usages-collector id="statistics.file.types.edit">
+        <counts>
+          <entry key="C++" value="1" />
+        </counts>
+      </usages-collector>
+    </session>
+    <session id="-177956188">
+      <usages-collector id="statistics.lifecycle.project">
+        <counts>
+          <entry key="project.closed" value="3" />
+          <entry key="project.open.time.0" value="2" />
+          <entry key="project.open.time.2" value="1" />
+          <entry key="project.opened" value="3" />
+        </counts>
+      </usages-collector>
+    </session>
+  </component>
+  <component name="FileEditorManager">
+    <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/functions/doomstage.c">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="8016">
+              <caret line="334" column="52" selection-start-line="334" selection-start-column="52" selection-end-line="334" selection-end-column="52" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="true">
+        <entry file="file://$PROJECT_DIR$/components/gameLoop.c">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="288">
+              <caret line="30" lean-forward="true" selection-start-line="30" selection-end-line="30" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/functions/doomstage.h">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="888">
+              <caret line="37" column="23" selection-start-line="37" selection-start-column="5" selection-end-line="37" selection-end-column="23" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+    </leaf>
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="VUEngine Class Header File" />
+        <option value="VUEngine Class C File" />
+        <option value="Class" />
+      </list>
+    </option>
+  </component>
+  <component name="FindInProjectRecents">
+    <findStrings>
+      <find>wallsNotDrawn</find>
+      <find>FixedEyeHeight</find>
+      <find>FIX7_9_MUL</find>
+      <find>cyaroof</find>
+      <find>bool</find>
+      <find>isFix</find>
+      <find>printStringprintString</find>
+      <find>printString</find>
+      <find>FontTiles</find>
+      <find>itoa_int</find>
+      <find>ybottom</find>
+      <find>ytop</find>
+      <find>isFixed</find>
+      <find>now</find>
+      <find>drawDoomStage</find>
+      <find>fy1a</find>
+      <find>angleRatio</find>
+      <find>fixedPlayerAngle</find>
+      <find>jawFixed</find>
+      <find>512</find>
+      <find>FTOFIX7_9</find>
+      <find>fixed512</find>
+      <find>drawDoomStageTile</find>
+      <find>roundDown</find>
+      <find>fixedPlayerMoveForward</find>
+      <find>fixed2point13</find>
+      <find>FIX7_9_MULT</find>
+      <find>s64</find>
+      <find>FixedYaw</find>
+      <find>affine_fast_scale</find>
+    </findStrings>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/../.." />
+  </component>
+  <component name="IdeDocumentHistory">
+    <option name="CHANGED_PATHS">
+      <list>
+        <option value="$PROJECT_DIR$/assets/images/AdjustmentScreen.grit" />
+        <option value="$PROJECT_DIR$/functions/doomguy.h" />
+        <option value="$PROJECT_DIR$/functions/doominterface.h" />
+        <option value="$PROJECT_DIR$/assets/languages/languages.h" />
+        <option value="$PROJECT_DIR$/assets/languages/language_en.c" />
+        <option value="$PROJECT_DIR$/assets/languages/language_de.c" />
+        <option value="$PROJECT_DIR$/functions/doominterface.c" />
+        <option value="$PROJECT_DIR$/assets/images/vb_doom_guy_faces.c" />
+        <option value="$PROJECT_DIR$/functions/doomguy.c" />
+        <option value="$PROJECT_DIR$/.idea/misc.xml" />
+        <option value="$PROJECT_DIR$/assets/doom/e1m1.c" />
+        <option value="$PROJECT_DIR$/functions/text.h" />
+        <option value="$PROJECT_DIR$/assets/doom/e1m1.h" />
+        <option value="$PROJECT_DIR$/functions/input.c" />
+        <option value="$PROJECT_DIR$/components/languageSelectionScreen.c" />
+        <option value="$PROJECT_DIR$/components/precautionScreen.c" />
+        <option value="$PROJECT_DIR$/components/adjustmentScreen.c" />
+        <option value="$PROJECT_DIR$/components/components.h" />
+        <option value="$PROJECT_DIR$/functions/virtualboy_pixeldraw.h" />
+        <option value="$PROJECT_DIR$/functions/virtualboy_pixeldraw/c.java" />
+        <option value="$PROJECT_DIR$/functions/virtualboy_pixeldraw.c" />
+        <option value="$PROJECT_DIR$/assets/images/title_screen_384x224.c" />
+        <option value="$PROJECT_DIR$/functions/system.c" />
+        <option value="$PROJECT_DIR$/components/titleScreen.h" />
+        <option value="$PROJECT_DIR$/components/creditsScreen.h" />
+        <option value="$PROJECT_DIR$/components/titleScreen.c" />
+        <option value="$PROJECT_DIR$/components/creditsScreen.c" />
+        <option value="$PROJECT_DIR$/functions/doomgfx.h" />
+        <option value="$PROJECT_DIR$/components/gameLoop.h" />
+        <option value="$PROJECT_DIR$/main.c" />
+        <option value="$PROJECT_DIR$/../../../libs/libgccvb/video.h" />
+        <option value="$PROJECT_DIR$/../../../libs/libgccvb/affine.c" />
+        <option value="$PROJECT_DIR$/../../../libs/libgccvb/affine.h" />
+        <option value="$PROJECT_DIR$/../../../libs/libgccvb/audio.c" />
+        <option value="$PROJECT_DIR$/functions/constants.h" />
+        <option value="$PROJECT_DIR$/functions/doomgfx.c" />
+        <option value="$PROJECT_DIR$/functions/text.c" />
+        <option value="$PROJECT_DIR$/../../../libs/libgccvb/math.h" />
+        <option value="$PROJECT_DIR$/functions/doomstage.h" />
+        <option value="$PROJECT_DIR$/functions/doomstage.c" />
+        <option value="$PROJECT_DIR$/components/gameLoop.c" />
+      </list>
+    </option>
+  </component>
+  <component name="ProjectFrameBounds" extendedState="6">
+    <option name="x" value="2498" />
+    <option name="y" value="508" />
+    <option name="width" value="2558" />
+    <option name="height" value="1390" />
+  </component>
+  <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
+  <component name="ProjectView">
+    <navigator proportions="" version="1">
+      <foldersAlwaysOnTop value="true" />
+    </navigator>
+    <panes>
+      <pane id="ProjectPane">
+        <subPane>
+          <expand>
+            <path>
+              <item name="vbdoom" type="b2602c69:ProjectViewProjectNode" />
+              <item name="vbdoom" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="vbdoom" type="b2602c69:ProjectViewProjectNode" />
+              <item name="vbdoom" type="462c0819:PsiDirectoryNode" />
+              <item name="assets" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="vbdoom" type="b2602c69:ProjectViewProjectNode" />
+              <item name="vbdoom" type="462c0819:PsiDirectoryNode" />
+              <item name="components" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="vbdoom" type="b2602c69:ProjectViewProjectNode" />
+              <item name="vbdoom" type="462c0819:PsiDirectoryNode" />
+              <item name="functions" type="462c0819:PsiDirectoryNode" />
+            </path>
+          </expand>
+          <select />
+        </subPane>
+      </pane>
+      <pane id="Scope" />
+      <pane id="PackagesPane" />
+    </panes>
+  </component>
+  <component name="PropertiesComponent">
+    <property name="last_opened_file_path" value="$PROJECT_DIR$" />
+    <property name="run.code.analysis.last.selected.profile" value="pProject Default" />
+    <property name="settings.editor.selected.configurable" value="preferences.pathVariables" />
+  </component>
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+    </key>
+  </component>
+  <component name="RunDashboard">
+    <option name="ruleStates">
+      <list>
+        <RuleState>
+          <option name="name" value="ConfigurationTypeDashboardGroupingRule" />
+        </RuleState>
+        <RuleState>
+          <option name="name" value="StatusDashboardGroupingRule" />
+        </RuleState>
+      </list>
+    </option>
+  </component>
+  <component name="TodoView">
+    <todo-panel id="selected-file">
+      <is-autoscroll-to-source value="true" />
+    </todo-panel>
+    <todo-panel id="all">
+      <are-packages-shown value="true" />
+      <is-autoscroll-to-source value="true" />
+    </todo-panel>
+  </component>
+  <component name="ToolWindowManager">
+    <frame x="2552" y="-8" width="2576" height="1408" extended-state="6" />
+    <layout>
+      <window_info content_ui="combo" id="Project" order="0" visible="true" weight="0.18636721" />
+      <window_info id="Structure" order="1" side_tool="true" weight="0.25" />
+      <window_info id="Designer" order="2" />
+      <window_info id="Favorites" order="3" side_tool="true" />
+      <window_info anchor="bottom" id="Message" order="0" />
+      <window_info anchor="bottom" id="Find" order="1" />
+      <window_info anchor="bottom" id="Run" order="2" sideWeight="0.49947312" weight="0.31318682" />
+      <window_info anchor="bottom" id="Debug" order="3" weight="0.4" />
+      <window_info anchor="bottom" id="Cvs" order="4" weight="0.25" />
+      <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
+      <window_info anchor="bottom" id="TODO" order="6" weight="0.329718" />
+      <window_info anchor="bottom" id="Version Control" order="7" show_stripe_button="false" />
+      <window_info anchor="bottom" id="Event Log" order="8" sideWeight="0.50052685" side_tool="true" weight="0.329718" />
+      <window_info anchor="bottom" id="Inspection Results" order="9" weight="0.329718" />
+      <window_info anchor="right" id="Commander" order="0" weight="0.4" />
+      <window_info anchor="right" id="Ant Build" order="1" weight="0.25" />
+      <window_info anchor="right" content_ui="combo" id="Hierarchy" order="2" weight="0.25" />
+      <window_info anchor="right" id="Palette&#9;" order="3" />
+    </layout>
+  </component>
+  <component name="VcsContentAnnotationSettings">
+    <option name="myLimit" value="2678400000" />
+  </component>
+  <component name="editorHistoryManager">
+    <entry file="file://$PROJECT_DIR$/functions/virtualboy_pixeldraw.c">
+      <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/components/creditsScreen.c">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="480">
+          <caret line="20" column="8" selection-start-line="20" selection-start-column="8" selection-end-line="20" selection-end-column="66" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/components/titleScreen.h">
+      <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/components/titleScreen.c">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="192">
+          <caret line="8" selection-start-line="8" selection-end-line="8" selection-end-column="33" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/functions/doomgfx.h">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="312">
+          <caret line="13" column="31" lean-forward="true" selection-start-line="13" selection-start-column="31" selection-end-line="13" selection-end-column="31" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/functions/doomguy.c">
+      <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/functions/doomguy.h">
+      <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/functions/doominterface.h">
+      <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/header">
+      <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/functions/constants.c">
+      <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/build/patcheru.bat">
+      <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/assets/images/AdjustmentScreen.c">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="504">
+          <caret line="21" column="49" selection-start-line="21" selection-start-column="49" selection-end-line="21" selection-end-column="49" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/assets/images/selection_head.c">
+      <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/assets/images/ff.c">
+      <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/assets/images/CREDIT_idsoftware.c">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="-12336" />
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/assets/doom/e1m1.c">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="288">
+          <caret line="12" column="8" lean-forward="true" selection-start-line="12" selection-start-column="8" selection-end-line="13" selection-end-column="8" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/functions/doominterface.c">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="192">
+          <caret line="8" selection-start-line="8" selection-end-line="9" selection-end-column="35" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/assets/images/vb_doom_interface.c">
+      <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/assets/languages/languages.c">
+      <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/assets/languages/languages.h">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="312">
+          <caret line="13" column="20" selection-start-line="13" selection-start-column="5" selection-end-line="13" selection-end-column="20" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/assets/languages/language_en.c">
+      <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/assets/images/Font.png">
+      <provider selected="true" editor-type-id="images" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/main.c">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="168">
+          <caret line="7" column="4" selection-start-line="7" selection-start-column="4" selection-end-line="7" selection-end-column="4" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/functions/doomgfx.c">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="360">
+          <caret line="15" selection-start-line="15" selection-end-line="15" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/functions/text.c">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="792">
+          <caret line="33" column="28" selection-start-line="33" selection-start-column="22" selection-end-line="33" selection-end-column="28" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/functions/constants.h">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="192">
+          <caret line="8" selection-start-line="8" selection-end-line="8" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/functions/text.h">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="144">
+          <caret line="6" selection-start-line="6" selection-end-line="6" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/assets/images/Font.c">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="360">
+          <caret line="15" column="33" selection-start-line="15" selection-start-column="29" selection-end-line="15" selection-end-column="33" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/assets/doom/e1m1.h">
+      <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/../../../libs/libgccvb/compiler/crt0.s" />
+    <entry file="file://$PROJECT_DIR$/../../../libs/libgccvb/asm.h" />
+    <entry file="file://$PROJECT_DIR$/../../../libs/libgccvb/asm.c" />
+    <entry file="file://$PROJECT_DIR$/../../../libs/libgccvb/libgccvb.h" />
+    <entry file="file://$PROJECT_DIR$/../../../libs/libgccvb/hw.h" />
+    <entry file="file://$PROJECT_DIR$/../../../libs/libgccvb/bgmap.h" />
+    <entry file="file://$PROJECT_DIR$/../../../libs/libgccvb/stdarg.h" />
+    <entry file="file://$PROJECT_DIR$/../../../libs/libgccvb/object.h" />
+    <entry file="file://$PROJECT_DIR$/../../../libs/libgccvb/misc.h" />
+    <entry file="file://$PROJECT_DIR$/../../../libs/libgccvb/mem.h" />
+    <entry file="file://$PROJECT_DIR$/../../../libs/libgccvb/mem.c" />
+    <entry file="file://$PROJECT_DIR$/components/gameLoop.h">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="120">
+          <caret line="5" selection-start-line="5" selection-end-line="5" selection-end-column="34" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/../../../libs/libgccvb/math.h" />
+    <entry file="file://$PROJECT_DIR$/../../../libs/libgccvb/math.c" />
+    <entry file="file://$PROJECT_DIR$/../../../libs/libgccvb/video.h" />
+    <entry file="file://$PROJECT_DIR$/../../../libs/libgccvb/video.c" />
+    <entry file="file://$PROJECT_DIR$/../../../libs/libgccvb/affine.h" />
+    <entry file="file://$PROJECT_DIR$/../../../libs/libgccvb/types.h" />
+    <entry file="file://$PROJECT_DIR$/../../../libs/libgccvb/affine.c" />
+    <entry file="file://$PROJECT_DIR$/functions/doomstage.c">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="8016">
+          <caret line="334" column="52" selection-start-line="334" selection-start-column="52" selection-end-line="334" selection-end-column="52" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/functions/doomstage.h">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="888">
+          <caret line="37" column="23" selection-start-line="37" selection-start-column="5" selection-end-line="37" selection-end-column="23" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/components/gameLoop.c">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="288">
+          <caret line="30" lean-forward="true" selection-start-line="30" selection-end-line="30" />
+        </state>
+      </provider>
+    </entry>
+  </component>
+</project>

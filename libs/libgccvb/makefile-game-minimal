@@ -1,0 +1,5 @@
+# Minimal makefile, only suited for projects with a single c file
+
+all:
+	v810-gcc *.c -o main.elf -Wall -nodefaultlibs -mv810 -T$(VBDE)/libs/libgccvb/compiler/vb.ld -I$(VBDE)/libs/libgccvb -B$(VBDE)/msys/1.0/v810/v810-win32/v810/lib/
+	v810-objcopy -O binary main.elf output.vb
