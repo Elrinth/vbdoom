@@ -10,4 +10,5 @@ build/release/./functions/doomgfx.o: functions/doomgfx.c C:/vbde/libs/libgccvb/l
  C:/vbde/libs/libgccvb/libgccvb.h C:/vbde/libs/libgccvb/mem.h \
  C:/vbde/libs/libgccvb/video.h C:/vbde/libs/libgccvb/world.h \
  functions/constants.h assets/languages/languages.h functions/doomgfx.h \
- C:/vbde/libs/libgccvb/types.h
+ c:\vbde\system\msys32\v810\v810-win32\bin\../lib/gcc/v810/4.7.4/include/stdbool.h \
+ C:/vbde/libs/libgccvb/types.h functions/enemy.h

@@ -8,17 +8,10 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="01989b41-c5d7-416e-b48f-ef72adc98476" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/../../.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/../../.gitignore" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/output.vb" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/output.vb" beforeDir="false" afterPath="$PROJECT_DIR$/build/output.vb" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/build/release/components/gameLoop.d" beforeDir="false" afterPath="$PROJECT_DIR$/build/release/components/gameLoop.d" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/build/release/functions/doomgfx.d" beforeDir="false" afterPath="$PROJECT_DIR$/build/release/functions/doomgfx.d" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/build/release/main.d" beforeDir="false" afterPath="$PROJECT_DIR$/build/release/main.d" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/components/gameLoop.c" beforeDir="false" afterPath="$PROJECT_DIR$/components/gameLoop.c" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/functions/RayCasterFixed.c" beforeDir="false" afterPath="$PROJECT_DIR$/functions/RayCasterFixed.c" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/functions/RayCasterRenderer.c" beforeDir="false" afterPath="$PROJECT_DIR$/functions/RayCasterRenderer.c" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/functions/enemy.c" beforeDir="false" afterPath="$PROJECT_DIR$/functions/enemy.c" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/functions/enemy.h" beforeDir="false" afterPath="$PROJECT_DIR$/functions/enemy.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.elf" beforeDir="false" afterPath="$PROJECT_DIR$/main.elf" afterDir="false" />
     </list>
     <ignored path="$PROJECT_DIR$/../../../libs/libgccvb/.idea/" />

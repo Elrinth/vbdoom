@@ -10,5 +10,6 @@ build/release/./main.o: main.c C:/vbde/libs/libgccvb/libgccvb.h \
  functions/functions.h functions/input.h C:/vbde/libs/libgccvb/types.h \
  functions/timer.h functions/text.h functions/system.h \
  components/components.h components/titleScreen.h \
+ components/menu_options.h functions/settings.h \
  components/adjustmentScreen.h components/precautionScreen.h \
  components/languageSelectionScreen.h components/gameLoop.h
