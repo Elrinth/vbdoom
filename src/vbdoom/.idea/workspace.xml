@@ -8,46 +8,17 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="01989b41-c5d7-416e-b48f-ef72adc98476" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/components/menu_multiplayer.c" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/components/menu_multiplayer.h" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/components/menu_options.c" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/components/menu_options.h" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/functions/RayCaster.h" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/functions/RayCasterData.h" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/functions/RayCasterFixed.c" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/functions/RayCasterFixed.h" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/functions/RayCasterRenderer.c" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/functions/RayCasterRenderer.h" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/functions/RayCasterTables.h" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/functions/drawlevel.c" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/functions/drawlevel.h" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/functions/settings.h" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/functions/sfx.h" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/functions/sndplay.c" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/functions/sndplay.h" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/functions/voices.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../libs/libgccvb/types.h" beforeDir="false" afterPath="$PROJECT_DIR$/../../libs/libgccvb/types.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/../../.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/doom/e1m1.h" beforeDir="false" afterPath="$PROJECT_DIR$/assets/doom/e1m1.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/title_screen.c" beforeDir="false" afterPath="$PROJECT_DIR$/assets/images/title_screen.c" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/title_screen_options.c" beforeDir="false" afterPath="$PROJECT_DIR$/assets/images/title_screen_options.c" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/vb_doom.c" beforeDir="false" afterPath="$PROJECT_DIR$/assets/images/vb_doom.c" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/build/output.vb" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/build/release/components/gameLoop.d" beforeDir="false" afterPath="$PROJECT_DIR$/build/release/components/gameLoop.d" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/build/release/functions/doomgfx.d" beforeDir="false" afterPath="$PROJECT_DIR$/build/release/functions/doomgfx.d" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/build/release/main.d" beforeDir="false" afterPath="$PROJECT_DIR$/build/release/main.d" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/components/components.h" beforeDir="false" afterPath="$PROJECT_DIR$/components/components.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/components/creditsScreen.c" beforeDir="false" afterPath="$PROJECT_DIR$/components/creditsScreen.c" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/components/gameLoop.c" beforeDir="false" afterPath="$PROJECT_DIR$/components/gameLoop.c" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/components/gameLoop.h" beforeDir="false" afterPath="$PROJECT_DIR$/components/gameLoop.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/components/titleScreen.c" beforeDir="false" afterPath="$PROJECT_DIR$/components/titleScreen.c" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/functions/doomgfx.c" beforeDir="false" afterPath="$PROJECT_DIR$/functions/doomgfx.c" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/functions/doomgfx.h" beforeDir="false" afterPath="$PROJECT_DIR$/functions/doomgfx.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/functions/doominterface.c" beforeDir="false" afterPath="$PROJECT_DIR$/functions/doominterface.c" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/functions/doominterface.h" beforeDir="false" afterPath="$PROJECT_DIR$/functions/doominterface.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/functions/doomstage.c" beforeDir="false" afterPath="$PROJECT_DIR$/functions/doomstage.c" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/functions/doomstage.h" beforeDir="false" afterPath="$PROJECT_DIR$/functions/doomstage.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/main.c" beforeDir="false" afterPath="$PROJECT_DIR$/main.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/functions/RayCasterFixed.c" beforeDir="false" afterPath="$PROJECT_DIR$/functions/RayCasterFixed.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/functions/RayCasterRenderer.c" beforeDir="false" afterPath="$PROJECT_DIR$/functions/RayCasterRenderer.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/functions/enemy.c" beforeDir="false" afterPath="$PROJECT_DIR$/functions/enemy.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/functions/enemy.h" beforeDir="false" afterPath="$PROJECT_DIR$/functions/enemy.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.elf" beforeDir="false" afterPath="$PROJECT_DIR$/main.elf" afterDir="false" />
     </list>
     <ignored path="$PROJECT_DIR$/../../../libs/libgccvb/.idea/" />
@@ -182,8 +153,8 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/functions/RayCasterFixed.c">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="11">
-              <caret line="370" column="34" selection-start-line="370" selection-start-column="34" selection-end-line="370" selection-end-column="34" />
+            <state relative-caret-position="35">
+              <caret line="371" column="34" selection-start-line="371" selection-start-column="34" selection-end-line="371" selection-end-column="34" />
             </state>
           </provider>
         </entry>
@@ -225,8 +196,8 @@
       <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/components/gameLoop.c">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="515">
-              <caret line="137" column="59" lean-forward="true" selection-start-line="137" selection-start-column="59" selection-end-line="137" selection-end-column="59" />
+            <state relative-caret-position="659">
+              <caret line="143" column="124" lean-forward="true" selection-start-line="143" selection-start-column="124" selection-end-line="143" selection-end-column="124" />
             </state>
           </provider>
         </entry>
@@ -706,8 +677,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/functions/RayCasterFixed.c">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="11">
-          <caret line="370" column="34" selection-start-line="370" selection-start-column="34" selection-end-line="370" selection-end-column="34" />
+        <state relative-caret-position="35">
+          <caret line="371" column="34" selection-start-line="371" selection-start-column="34" selection-end-line="371" selection-end-column="34" />
         </state>
       </provider>
     </entry>
@@ -734,8 +705,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/components/gameLoop.c">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="515">
-          <caret line="137" column="59" lean-forward="true" selection-start-line="137" selection-start-column="59" selection-end-line="137" selection-end-column="59" />
+        <state relative-caret-position="659">
+          <caret line="143" column="124" lean-forward="true" selection-start-line="143" selection-start-column="124" selection-end-line="143" selection-end-column="124" />
         </state>
       </provider>
     </entry>

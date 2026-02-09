@@ -15,3 +15,4 @@ src/vbdoom/assets/images/sprites/zombie_sgt/png/
 src/vbdoom/build/release/
 src/vbdoom/build/hfcli.exe
 src/vbdoom/build/output.vb
+src/vbdoom/main.elf

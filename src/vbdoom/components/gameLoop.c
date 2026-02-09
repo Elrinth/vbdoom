@@ -381,6 +381,7 @@ u8 gameLoop()
 					weapons[currentWeapon].ammo--;
 					isShooting = true;
 					drawUpdatedAmmo(weapons[currentWeapon].ammo, weapons[currentWeapon].ammoType);
+					playerShoot(fPlayerX, fPlayerY, fPlayerAng); /* hitscan + alerts all enemies */
 				} else {
 					cycleWeapons();
 				}
@@ -423,7 +424,22 @@ u8 gameLoop()
 			drawDoomStage(0);
 		}*/
 		// we actually only need to call this if x,y,ang changed...
-		//updateEnemies(fPlayerX, fPlayerY, fPlayerAng); /* uncomment to enable enemy AI */
+		updateEnemies(fPlayerX, fPlayerY, fPlayerAng);
+
+		/* Update enemy sprite frames in VRAM (only if frame changed) */
+		{
+			u8 ei;
+			for (ei = 0; ei < MAX_ENEMIES; ei++) {
+				u8 frameIdx;
+				if (!g_enemies[ei].active) continue;
+				frameIdx = getEnemySpriteFrame(ei, fPlayerX, fPlayerY, fPlayerAng);
+				if (frameIdx != g_enemies[ei].lastRenderedFrame) {
+					loadEnemyFrame(ei, ZOMBIE_FRAMES[frameIdx]);
+					g_enemies[ei].lastRenderedFrame = frameIdx;
+				}
+			}
+		}
+
 		TraceFrame(&fPlayerX, &fPlayerY, &fPlayerAng);
 
 
@@ -503,7 +519,9 @@ u8 gameLoop()
 
 		drawPlayerInfo(&fPlayerX, &fPlayerY, &fPlayerAng);
 
-		//vbWaitFrame(1); // use 1 to simulate real hardware:
+		vbWaitFrame(0); /* Sync to VBlank: ~50fps on real hardware.
+		                 * 0 = wait 1 VBlank (~50fps), 1 = wait 2 VBlanks (~25fps).
+		                 * Without this, emulators run the loop uncapped. */
 	}
 	return 0;
 }

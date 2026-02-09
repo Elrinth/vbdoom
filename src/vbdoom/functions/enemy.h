@@ -15,12 +15,33 @@
 #define ENEMY_MIN_DIST     150  /* minimum distance to player (don't walk closer) */
 #define ENEMY_WALK_RATE 6     /* frames between walk animation advances */
 #define ENEMY_SHOOT_RATE 20   /* frames between shots */
+#define ENEMY_SIGHT_DIST 3000 /* squared-distance/256 at which enemies notice player (~7 tiles) */
+
+/* Collision radii (Doom-style AABB box collision).
+ * In 8.8 fixed-point, 256 = 1 tile. These are half-widths.
+ * Doom zombieman radius ~20/64 of a tile = ~80 in our units.
+ * Player radius slightly smaller so you can squeeze through 1-tile gaps.
+ */
+#define ENEMY_RADIUS    80
+#define PLAYER_RADIUS   64
 
 /* Enemy states */
-#define ES_WALK   0
-#define ES_ATTACK 1
-#define ES_PAIN   2
-#define ES_DEAD   3
+#define ES_IDLE   0  /* standing still, unaware of player */
+#define ES_WALK   1  /* alerted, chasing player */
+#define ES_ATTACK 2  /* close enough, shooting */
+#define ES_PAIN   3  /* flinching from damage */
+#define ES_DEAD   4  /* dead */
+
+/* Movement directions (from Doom p_enemy.c) */
+#define DI_EAST       0
+#define DI_NORTHEAST  1
+#define DI_NORTH      2
+#define DI_NORTHWEST  3
+#define DI_WEST       4
+#define DI_SOUTHWEST  5
+#define DI_SOUTH      6
+#define DI_SOUTHEAST  7
+#define DI_NODIR      8
 
 typedef struct {
     u16  x;              /* fixed-point position (8.8: upper=tile, lower=sub) */
@@ -32,6 +53,8 @@ typedef struct {
     u8   stateTimer;     /* general-purpose timer for state transitions */
     u8   lastRenderedFrame; /* last frame index sent to char memory (skip if same) */
     u8   health;
+    u8   movedir;        /* current movement direction (DI_EAST..DI_NODIR) */
+    u8   movecount;      /* frames left before picking new direction */
     bool active;         /* false = don't update or render */
 } EnemyState;
 
@@ -39,35 +62,56 @@ extern EnemyState g_enemies[MAX_ENEMIES];
 
 /*
  * Frame lookup tables.
- * Based on the 49-frame zombie sprite sheet (extracted left-to-right, top-to-bottom).
- * 8 directions: 0=facing player, 1=front-right, 2=right, ... 7=front-left (clockwise).
+ * 49-frame zombie sprite sheet. Exact layout per the extracted sprites:
  *
- * Walk: 2 alternating poses x 8 directions (rows 0 and 3 of the sprite sheet)
- * Shoot: 1 pose x 8 directions (row 2)
- * Death: 6 sequential frames (no direction, rows 5-6)
+ *  Forward:       walk 0,1,2,3     shoot 4,5
+ *  Forward-left:  walk 6,7,8,9     shoot 10,11
+ *  Left:          walk 12,13,14,15 shoot 16,17
+ *  Back-left:     walk 18,19,20,23 shoot 21,22  (note: 23 is walk frame 4!)
+ *  Back:          walk 24,25,26,27 shoot 28,29
  *
- * These can be fine-tuned after seeing them in-game.
+ *  Pain (1 per direction): 30=fwd, 31=fwd-left, 32=left, 33=back-left, 34=back
+ *  Death: 35-39
+ *  Gib:   40-48
+ *
+ *  Directions 5-7 (back-right, right, front-right) mirror 3-1.
  */
-#define WALK_ANIM_FRAMES  2
-#define DEATH_ANIM_FRAMES 6
+#define WALK_ANIM_FRAMES  4
+#define DEATH_ANIM_FRAMES 5
+#define ATTACK_ANIM_FRAMES 2
 
 /* Walk frames: [direction][pose] -> sprite index */
 static const u8 WALK_FRAMES[8][WALK_ANIM_FRAMES] = {
-    { 0, 22},   /* dir 0: front (facing player) */
-    { 1, 23},   /* dir 1: front-right */
-    { 2, 24},   /* dir 2: right */
-    { 3, 25},   /* dir 3: back-right */
-    { 4, 26},   /* dir 4: back */
-    { 5, 27},   /* dir 5: back-left */
-    { 6, 28},   /* dir 6: left */
-    { 7, 29},   /* dir 7: front-left */
+    { 0,  1,  2,  3},   /* dir 0: forward */
+    { 6,  7,  8,  9},   /* dir 1: forward-left */
+    {12, 13, 14, 15},   /* dir 2: left */
+    {18, 19, 20, 23},   /* dir 3: back-left (note: 23 not 21!) */
+    {24, 25, 26, 27},   /* dir 4: back */
+    {18, 19, 20, 23},   /* dir 5: back-right  (mirror of 3) */
+    {12, 13, 14, 15},   /* dir 6: right        (mirror of 2) */
+    { 6,  7,  8,  9},   /* dir 7: front-right  (mirror of 1) */
 };
 
-/* Shoot frames: [direction] -> sprite index */
-static const u8 SHOOT_FRAMES[8] = {15, 16, 17, 18, 19, 20, 21, 15};
+/* Attack frames: [direction][pose] -> sprite index */
+static const u8 ATTACK_FRAMES[8][ATTACK_ANIM_FRAMES] = {
+    { 4,  5},   /* dir 0: forward */
+    {10, 11},   /* dir 1: forward-left */
+    {16, 17},   /* dir 2: left */
+    {21, 22},   /* dir 3: back-left */
+    {28, 29},   /* dir 4: back */
+    {21, 22},   /* dir 5: back-right  (mirror of 3) */
+    {16, 17},   /* dir 6: right        (mirror of 2) */
+    {10, 11},   /* dir 7: front-right  (mirror of 1) */
+};
+
+/* Shoot frames (legacy): first attack pose per direction */
+static const u8 SHOOT_FRAMES[8] = {4, 10, 16, 21, 28, 21, 16, 10};
+
+/* Pain frames: [direction] -> sprite index (one per direction) */
+static const u8 PAIN_FRAMES[8] = {30, 31, 32, 33, 34, 33, 32, 31};
 
 /* Death frames: sequential, no direction */
-static const u8 DEATH_FRAMES[DEATH_ANIM_FRAMES] = {37, 38, 39, 40, 41, 42};
+static const u8 DEATH_FRAMES[DEATH_ANIM_FRAMES] = {35, 36, 37, 38, 39};
 
 /* ---- API ---- */
 
@@ -82,5 +126,19 @@ u8 getEnemySpriteFrame(u8 enemyIdx, u16 playerX, u16 playerY, s16 playerA);
 
 /* Compute direction index (0-7) from enemy toward player, relative to player's view angle. */
 u8 getEnemyDirection(u8 enemyIdx, u16 playerX, u16 playerY, s16 playerA);
+
+/* Doom-style AABB collision: check if position (x,y) with given radius
+ * overlaps any active enemy. skipIdx=255 means don't skip any (use for player).
+ * Returns true if blocked. */
+bool collidesWithAnyEnemy(u16 x, u16 y, u16 myRadius, u8 skipIdx);
+
+/* Alert all enemies (e.g. player fired a weapon). In Doom, gunshots
+ * propagate through connected sectors and wake up nearby enemies. */
+void alertAllEnemies(void);
+
+/* Hitscan: player shoots, checks if any enemy in the aiming cone is hit.
+ * Returns index of hit enemy (0-MAX_ENEMIES-1) or 255 if miss.
+ * Based on Doom's P_AimLineAttack + P_LineAttack (simplified). */
+u8 playerShoot(u16 playerX, u16 playerY, s16 playerA);
 
 #endif

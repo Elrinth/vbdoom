@@ -378,14 +378,28 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
                 /* mxOffset_13.3 = (clipL * Dx_7.9) >> 6 */
                 mxOffset = (clipL > 0) ? (s16)(((s32)clipL * (s32)inverse_fixed(enemyScale)) >> 6) : 0;
 
-                /* Write BGMap entries per-frame (64 writes, trivially cheap safety net) */
+                /* Write BGMap entries per-frame.
+                 * For mirrored directions (5,6,7) we reverse tile column order
+                 * and set BGM_HFLIP (0x2000) so left-facing sprites appear
+                 * correctly as right-facing. */
                 {
                     u16 *bgm = (u16*)BGMap(bgmapIdx);
                     u16 charBase = ZOMBIE_CHAR_START + ei * ENEMY_CHAR_STRIDE;
                     u8 row, c;
-                    for (row = 0; row < ZOMBIE_TILE_H; row++) {
-                        for (c = 0; c < ZOMBIE_TILE_W; c++) {
-                            bgm[row * 64 + c] = charBase + row * ZOMBIE_TILE_W + c;
+                    u8 eDir = getEnemyDirection(ei, _playerX, _playerY, _playerA);
+                    if (eDir >= 5) {
+                        /* Mirrored: reverse columns + HFLP per tile */
+                        for (row = 0; row < ZOMBIE_TILE_H; row++) {
+                            for (c = 0; c < ZOMBIE_TILE_W; c++) {
+                                bgm[row * 64 + c] = (charBase + row * ZOMBIE_TILE_W + (ZOMBIE_TILE_W - 1 - c)) | 0x2000;
+                            }
+                        }
+                    } else {
+                        /* Normal: left-to-right, no flip */
+                        for (row = 0; row < ZOMBIE_TILE_H; row++) {
+                            for (c = 0; c < ZOMBIE_TILE_W; c++) {
+                                bgm[row * 64 + c] = charBase + row * ZOMBIE_TILE_W + c;
+                            }
                         }
                     }
                 }

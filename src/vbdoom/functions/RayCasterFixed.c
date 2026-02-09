@@ -1,5 +1,6 @@
 #include "RayCasterFixed.h"
 #include "RayCasterData.h"
+#include "enemy.h"
 
 #define LOOKUP_STORAGE extern
 #include "RayCasterTables.h"
@@ -832,18 +833,27 @@ void fPlayerMoveForward(u16 *ifPlayerX, u16 *ifPlayerY, s16 ifPlayerAng, s16 iSp
 	tileY = nextY >> 8;
 
 
-	if (IsWall(tileX, tileY) || IsWall(prevTileX, tileY) || IsWall(tileX, prevTileY)) {
-		// move player out
-		if (!IsWall(tileX, prevTileY)) {
+	{
+		bool wallBlocked = IsWall(tileX, tileY) || IsWall(prevTileX, tileY) || IsWall(tileX, prevTileY);
+		bool entityBlocked = collidesWithAnyEnemy((u16)nextX, (u16)nextY, PLAYER_RADIUS, 255);
+
+		if (wallBlocked || entityBlocked) {
+			/* Try sliding along X axis only */
+			bool xOk = !IsWall(tileX, prevTileY) &&
+			           !collidesWithAnyEnemy((u16)nextX, *ifPlayerY, PLAYER_RADIUS, 255);
+			bool yOk = !IsWall(prevTileX, tileY) &&
+			           !collidesWithAnyEnemy(*ifPlayerX, (u16)nextY, PLAYER_RADIUS, 255);
+			if (xOk) {
+				*ifPlayerX = nextX;
+			} else if (yOk) {
+				*ifPlayerY = nextY;
+			}
+			/* else: fully blocked, deny move */
+		} else {
+			/* allow move */
 			*ifPlayerX = nextX;
-		} else if (!IsWall(prevTileX, tileY)) {
 			*ifPlayerY = nextY;
 		}
-		// deny move e
-	} else {
-	 // allow move
-	 *ifPlayerX = nextX;
-	 *ifPlayerY = nextY;
 	}
 }
 
