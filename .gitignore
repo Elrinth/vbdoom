@@ -9,3 +9,9 @@ make_into_4_colors_2/Imp.png
 make_into_4_colors_2/Objects.png
 make_into_4_colors_2/Powerups.png
 make_into_4_colors_2/Weapons Doom Alpha.png
+src/vbdoom/assets/images/sprites/marine/png/
+src/vbdoom/assets/images/sprites/zombie/png/
+src/vbdoom/assets/images/sprites/zombie_sgt/png/
+src/vbdoom/build/release/
+src/vbdoom/build/hfcli.exe
+src/vbdoom/build/output.vb
