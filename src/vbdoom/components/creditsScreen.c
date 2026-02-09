@@ -24,7 +24,7 @@ void drawCredits(u8 iPart) {
 	}
 
 
-	u16 pos = 128 + 8;
+	u16 pos = 0; // 128 + 8;
 	u16 i = 0;
 	u16 y;
 	u16 mapIndex;
@@ -44,27 +44,28 @@ u8 creditsScreen()
 {
 
 	WA[31].head = WRLD_ON|WRLD_OVR;
-	WA[31].w = 384;
-	WA[31].h = 224;
+	WA[31].w = 320;
+	WA[31].h = 200;
 	WA[30].head = WRLD_END;
 /*
 	vbSetWorld(31, 0xC000, 0, 0, 0, 0, 0, 0, 384, 224); // set up the Etch-A-Sketch board
 	vbSetWorld(30, 0x0040, 0, 0, 0, 0, 0, 0, 0, 0); // Blank world and END bit set
 */
 	vbDisplayOn(); // turns the display on
-	vbDisplayShow(); // shows the display
 
 	//vbFXFadeIn(0);
 	//vbWaitFrame(20);
 
 	int count; // counter used for pauses
 
-	for (count=0; count < 200000; count++); // similar to waitframe, except not dependant on display
+	//for (count=0; count < 200000; count++); // similar to waitframe, except not dependant on display
 	u8 creditsPart = 0;
 	drawCredits(creditsPart);
 
-	for (count=0; count < 200000; count++);
-	vbWaitFrame(73);
+	//for (count=0; count < 200000; count++);
+	//vbWaitFrame(73);
+	vbDisplayShow();
+	vbFXFadeIn(0);
 
 	while(1) {
 		if(buttonsPressed(K_STA|K_A|K_B|K_SEL, true)) {
@@ -82,5 +83,7 @@ u8 creditsScreen()
 		vbWaitFrame(0);
 	}
 	vbFXFadeOut(0);
+	setmem((void*)BGMap(0), 0, 8192);
+	vbDisplayHide();
 	return 0;
 }

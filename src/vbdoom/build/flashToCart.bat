@@ -1,0 +1,1 @@
+hfcli.exe --flash output.vb --port COM4 --name output --update

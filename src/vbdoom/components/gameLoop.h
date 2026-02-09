@@ -4,5 +4,9 @@
 
 u8 gameLoop();
 u8 switchWeapon(u8 iFrom, u8 iTo);
+void cycleWeapons();
+void cycleNextWeapon();
+void move(int m, int r);
+void swayWeapon();
 
 #endif

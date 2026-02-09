@@ -44,11 +44,11 @@ void jawPlayer(float iValue);
 void playerMoveForward(float iValue);
 void playerStrafe(float iValue);
 
-void incFixedPlayerAngle(s16 iValue);
-void jawFixedPlayer(s16 iValue);
-void fixedPlayerMoveForward(s16 iValue);
-void fixedPlayerStrafe(s16 iValue);
+void incFixedPlayerAngle(s32 iValue);
+void jawFixedPlayer(s32 iValue);
+void fixedPlayerMoveForward(s32 iValue);
+void fixedPlayerStrafe(s32 iValue);
 
-void affine_fast_scale_fixed(u8 world, s16 scale);
+void affine_fast_scale_fixed(u8 world, s32 scale);
 
 #endif

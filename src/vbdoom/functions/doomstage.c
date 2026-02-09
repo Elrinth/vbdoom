@@ -13,8 +13,8 @@ typedef int64_t s64;
 
 extern BYTE vb_doomMap[];
 extern u16 e1m1Segs[];
-extern s16 e1m1Vertices[];
-extern s16 e1m1Things[];
+extern int e1m1Vertices[];
+extern int e1m1Things[];
 
 extern u16 e1m1SegsLength;
 extern u16 e1m1VerticesLength;
@@ -23,28 +23,28 @@ extern u16 e1m1ThingsLength;
 struct xy { float x,y; } *vertex;
 
 struct secx1x2 { int sec; int sx1,sx2; } now;
-struct fsecx1x2 { s16 sec; s16 sx1,sx2; } fnow;
+struct fsecx1x2 { s32 sec; s32 sx1,sx2; } fnow;
 //now = { sectorno: player.sectorno, sx1: 0, sx2: W - 1 };
 
 int sectorCeil = 128;
 int sectorFloor = 0;
 
-s16 fSectorCeil = ITOFIX13_3(128);
-s16 fSectorFloor = ITOFIX13_3(0);
+s32 fSectorCeil = ITOFIX23_9(128);
+s32 fSectorFloor = ITOFIX23_9(0);
 
-s16 fixedPlayerAngle;
-s16 fixedPlayerX,fixedPlayerY,fixedPlayerZ;
-s16 fixedAngleRatio = FTOFIX13_3(512.0f/360.0f); // 512.0f/
-s16 fixedPlayerAngleCos;
-s16 fixedPlayerAngleSin;
-s16 fixedPlayerYaw;
-s16 fixedNearZ = FTOFIX13_3(1e-4f);
-s16 fixedFarZ = ITOFIX13_3(5);
-s16 fixedNearside = FTOFIX13_3(1e-5f);
-s16 fixedFarside = FTOFIX13_3(20.0f);
+s32 fixedPlayerAngle;
+s32 fixedPlayerX,fixedPlayerY,fixedPlayerZ;
+s32 fixedAngleRatio = FTOFIX23_9(512.0f/360.0f); // 512.0f/
+s32 fixedPlayerAngleCos;
+s32 fixedPlayerAngleSin;
+s32 fixedPlayerYaw;
+s32 fixedNearZ = FTOFIX23_9(1e-4f);
+s32 fixedFarZ = ITOFIX23_9(5);
+s32 fixedNearside = FTOFIX23_9(1e-5f);
+s32 fixedFarside = FTOFIX23_9(20.0f);
 
-s16 fixed512 = FTOFIX13_3(512.0f);
-s16 fixed90 = FTOFIX13_3(90.0f);
+s32 fixed512 = FTOFIX23_9(512.0f);
+s32 fixed90 = FTOFIX23_9(90.0f);
 
 
 float playerAngle;
@@ -53,7 +53,7 @@ float angleRatio = 512.0f/360.0f; // 1.42222
 float playerAngleCos;
 float playerAngleSin;
 float playerYaw;
-#define FixedYaw(y,z) (y + FIX13_3_MULT(z, fixedPlayerYaw))
+#define FixedYaw(y,z) (y + FIX23_9_MULT(z, fixedPlayerYaw))
 #define Yaw(y,z) (y + z*playerYaw)
 float nearz = 1e-4f;
 float farz = 5;
@@ -61,7 +61,7 @@ float nearside = 1e-5f;
 float farside = 20.0f;
 /* Define window size */
 #define EyeHeight 41
-#define FixedEyeHeight ITOFIX13_3(EyeHeight)
+#define FixedEyeHeight ITOFIX23_9(EyeHeight)
 #define W (384) // vb screen width
 #define Wby2 (W/2)
 #define H (224-32) // reduce by interface height which is 32..
@@ -73,8 +73,8 @@ float farside = 20.0f;
 #define hfov (0.7f*H)  // Affects the horizontal field of vision
 #define vfov (.8f*H)    // Affects the vertical field of vision
 
-#define fhfov FTOFIX13_3(hfov)  // Affects the horizontal field of vision
-#define fvfov FTOFIX13_3(vfov)    // Affects the vertical field of vision
+#define fhfov FTOFIX23_9(hfov)  // Affects the horizontal field of vision
+#define fvfov FTOFIX23_9(vfov)    // Affects the vertical field of vision
 
 int ytop[W];
 int ybottom[H];
@@ -85,8 +85,8 @@ void initializeDoomStage() {
 
 	now.sx1 = 0;
 	now.sx2 = W-1;
-	fnow.sx1 = ITOFIX13_3(0);
-	fnow.sx2 = ITOFIX13_3(W-1);
+	fnow.sx1 = ITOFIX23_9(0);
+	fnow.sx2 = ITOFIX23_9(W-1);
 	int x;
 	for(x=0; x<W; x++) {
 		ytop[x] = 0;
@@ -102,19 +102,19 @@ void initializeDoomStage() {
 			playerZ = 0;
 			playerYaw = 0;
 
-			fixedPlayerX = ITOFIX13_3(e1m1Things[i]);
-			fixedPlayerY = ITOFIX13_3(e1m1Things[i+1]);
-			fixedPlayerZ = ITOFIX13_3(0);
-			fixedPlayerYaw = ITOFIX13_3(0);
+			fixedPlayerX = ITOFIX23_9(e1m1Things[i]);
+			fixedPlayerY = ITOFIX23_9(e1m1Things[i+1]);
+			fixedPlayerZ = ITOFIX23_9(0);
+			fixedPlayerYaw = ITOFIX23_9(0);
 
 			playerAngle = e1m1Things[i+2]*angleRatio;
 			playerAngleCos = COSF((int)playerAngle);
 			playerAngleSin = SINF((int)playerAngle);
 
 
-			fixedPlayerAngle = FIX13_3_MULT(ITOFIX13_3(e1m1Things[i+2]), fixedAngleRatio);
-			fixedPlayerAngleCos = COS(FIX13_3TOI(fixedPlayerAngle));
-			fixedPlayerAngleSin = SIN(FIX13_3TOI(fixedPlayerAngle));
+			fixedPlayerAngle = FIX23_9_MULT(ITOFIX23_9(e1m1Things[i+2]), fixedAngleRatio);
+			fixedPlayerAngleCos = COS(FIX23_9TOI(fixedPlayerAngle));
+			fixedPlayerAngleSin = SIN(FIX23_9TOI(fixedPlayerAngle));
 		}
 	}
 }
@@ -132,34 +132,35 @@ void clearDoomStage(u8 bgmap) {
 }
 
 /*
-s32 MM_ITOFIX13_3(n) {
+s32 MM_ITOFIX23_9(n) {
   return (n << 19 >> 16);
 }
-s32 MM_FIX13_3_MULT(a, b) {
+s32 MM_FIX23_9_MULT(a, b) {
   return (a * b << 16) >> 19;
 }
-int MM_FIX13_3TOI(n) {
+int MM_FIX23_9TOI(n) {
   return (n << 16 >> 19);
 }*/
 
 void fixedDrawDoomStage(u8 bgmap) {
-	s16 fvx1=0;
-	s16 fvx2=0;
-	s16 fvy1=0;
-	s16 fvy2=0;
 
-	s16 ftx1=0;
-	s16 ftz1=0;
-	s16 ftx2=0;
-	s16 ftz2=0;
+	s32 fvx1=0;
+	s32 fvx2=0;
+	s32 fvy1=0;
+	s32 fvy2=0;
+
+	s32 ftx1=0;
+	s32 ftz1=0;
+	s32 ftx2=0;
+	s32 ftz2=0;
 
 	int fy1a = 0;
 	int fy1b = 0;
 	int fy2a = 0;
 	int fy2b = 0;
 
-	s16 fyceil = 0;
-	s16 fyfloor = 0;
+	s32 fyceil = 0;
+	s32 fyfloor = 0;
 	int x = 0;
 	int wallsNotDrawn = 0;
 	int index = 0;
@@ -169,37 +170,38 @@ void fixedDrawDoomStage(u8 bgmap) {
 	u16 vertexIndex1 = 0;
 	u16 vertexIndex2 = 0;
 
-	s16 fixedWBy2 = ITOFIX13_3(Wby2);
-	s16 fixedHBy2 = ITOFIX13_3(Hby2);
-	s16 fixedZero = ITOFIX13_3(0);
+	s32 fixedWBy2 = ITOFIX23_9(Wby2);
+	s32 fixedHBy2 = ITOFIX23_9(Hby2);
+	s32 fixedZero = ITOFIX23_9(0);
 
-	s16 fixedPlayerZPlusEyeHeight = (fixedPlayerZ + FixedEyeHeight);
+	s32 fixedPlayerZPlusEyeHeight = (fixedPlayerZ + FixedEyeHeight);
 
 	u16 i = 0;
 	// iterate walls
 	for (i = 0; i < e1m1SegsLength; i+= 2) {
+
 		vertexIndex1 = e1m1Segs[i]<<1;
 		vertexIndex2 = e1m1Segs[i+1]<<1;
 
-		fvx1 = fixedPlayerX - ITOFIX13_3(e1m1Vertices[ vertexIndex1 ]);
-		fvy1 = ITOFIX13_3(e1m1Vertices[ vertexIndex1+1 ]) - fixedPlayerY;
+		fvx1 = fixedPlayerX - ITOFIX23_9(e1m1Vertices[ vertexIndex1 ]);
+		fvy1 = ITOFIX23_9(e1m1Vertices[ vertexIndex1+1 ]) - fixedPlayerY;
 
-		fvx2 = fixedPlayerX - ITOFIX13_3(e1m1Vertices[ vertexIndex2 ]);
-		fvy2 = ITOFIX13_3(e1m1Vertices[ vertexIndex2+1 ]) - fixedPlayerY;
+		fvx2 = fixedPlayerX - ITOFIX23_9(e1m1Vertices[ vertexIndex2 ]);
+		fvy2 = ITOFIX23_9(e1m1Vertices[ vertexIndex2+1 ]) - fixedPlayerY;
 
-		ftx1 = FIX13_3_MULT(fvx1, fixedPlayerAngleSin) - FIX13_3_MULT(fvy1, fixedPlayerAngleCos);
-		ftz1 = FIX13_3_MULT(fvx1, fixedPlayerAngleCos) + FIX13_3_MULT(fvy1, fixedPlayerAngleSin);
+		ftx1 = FIX23_9_MULT(fvx1, fixedPlayerAngleSin) - FIX23_9_MULT(fvy1, fixedPlayerAngleCos);
+		ftz1 = FIX23_9_MULT(fvx1, fixedPlayerAngleCos) + FIX23_9_MULT(fvy1, fixedPlayerAngleSin);
 
-		ftx2 = FIX13_3_MULT(fvx2, fixedPlayerAngleSin) - FIX13_3_MULT(fvy2, fixedPlayerAngleCos);
-		ftz2 = FIX13_3_MULT(fvx2, fixedPlayerAngleCos) + FIX13_3_MULT(fvy2, fixedPlayerAngleSin);
+		ftx2 = FIX23_9_MULT(fvx2, fixedPlayerAngleSin) - FIX23_9_MULT(fvy2, fixedPlayerAngleCos);
+		ftz2 = FIX23_9_MULT(fvx2, fixedPlayerAngleCos) + FIX23_9_MULT(fvy2, fixedPlayerAngleSin);
 
 		if (ftz1 <= fixedZero && ftz2 <= fixedZero) {
-			segNotDrawn1 = vertexIndex1;
-			segNotDrawn2 = vertexIndex2;
+			//segNotDrawn1 = vertexIndex1;
+			//segNotDrawn2 = vertexIndex2;
 			wallsNotDrawn++;
 			continue;
 		}
-		if (ftz1 <= ITOFIX13_3(0) || ftz2 <= ITOFIX13_3(0)) {
+		if (ftz1 <= ITOFIX23_9(0) || ftz2 <= ITOFIX23_9(0)) {
 		  	struct xy fi1 = FixedIntersect(ftx1,ftz1,ftx2,ftz2, -fixedNearside, fixedNearZ, -fixedFarside, fixedNearZ);
 		  	struct xy fi2 = FixedIntersect(ftx1,ftz1,ftx2,ftz2,  fixedNearside, fixedNearZ, fixedFarside, fixedFarZ);
 			if (ftz1 < fixedNearZ) {
@@ -223,32 +225,32 @@ void fixedDrawDoomStage(u8 bgmap) {
 		}
 
 		/* Do perspective transformation */
-		s16 fxscale1 = FIX13_3_DIV( fhfov, ftz1 );
-		s16 fyscale1 = FIX13_3_DIV( fvfov, ftz1 );
-		s16 fx1 = fixedWBy2 - FIX13_3_MULT(ftx1, fxscale1);
-		s16 fxscale2 = FIX13_3_DIV(fhfov, ftz2);
-		s16 fyscale2 = FIX13_3_DIV(fvfov, ftz2);
-		s16 fx2 = fixedWBy2 - FIX13_3_MULT(ftx2, fxscale2);
+		s32 fxscale1 = FIX23_9_DIV( fhfov, ftz1 );
+		s32 fyscale1 = FIX23_9_DIV( fvfov, ftz1 );
+		s32 fx1 = fixedWBy2 - FIX23_9_MULT(ftx1, fxscale1);
+		s32 fxscale2 = FIX23_9_DIV(fhfov, ftz2);
+		s32 fyscale2 = FIX23_9_DIV(fvfov, ftz2);
+		s32 fx2 = fixedWBy2 - FIX23_9_MULT(ftx2, fxscale2);
 
-		if(fx1 >= fx2 || fx2 < fnow.sx1 || fx1 > fnow.sx2) {
+		/*if(fx1 >= fx2 || fx2 < fnow.sx1 || fx1 > fnow.sx2) {
 			wallsNotDrawn++;
 			continue; // Only render if it's visible
-		}
-
+		}*/
 		fyceil = fSectorCeil - fixedPlayerZPlusEyeHeight;
 		fyfloor = fSectorFloor - fixedPlayerZPlusEyeHeight;
-		fy1a = fixedHBy2 - FIX13_3_MULT(FixedYaw(fyceil, ftz1), fyscale1);
-		fy1b = fixedHBy2 - FIX13_3_MULT(FixedYaw(fyfloor, ftz1), fyscale1);
-		fy2a = fixedHBy2 - FIX13_3_MULT(FixedYaw(fyceil, ftz2), fyscale2);
-		fy2b = fixedHBy2 - FIX13_3_MULT(FixedYaw(fyfloor, ftz2), fyscale2);
+		fy1a = fixedHBy2 - FIX23_9_MULT(FixedYaw(fyceil, ftz1), fyscale1);
+		fy1b = fixedHBy2 - FIX23_9_MULT(FixedYaw(fyfloor, ftz1), fyscale1);
+		fy2a = fixedHBy2 - FIX23_9_MULT(FixedYaw(fyceil, ftz2), fyscale2);
+		fy2b = fixedHBy2 - FIX23_9_MULT(FixedYaw(fyfloor, ftz2), fyscale2);
+
 
 		int beginx = 0;
 		int endx = 0;
-		beginx = max(FIX13_3TOI(fx1), FIX13_3TOI(fnow.sx1));
-		endx = min(FIX13_3TOI(fx2), FIX13_3TOI(fnow.sx2));
+		beginx = max(FIX23_9TOI(fx1), FIX23_9TOI(fnow.sx1));
+		endx = min(FIX23_9TOI(fx2), FIX23_9TOI(fnow.sx2));
 
 		if (beginx > endx) {
-		  const s16 tmp = beginx;
+		  const s32 tmp = beginx;
 		  beginx = endx;
 		  endx = tmp;
 		}
@@ -260,8 +262,11 @@ void fixedDrawDoomStage(u8 bgmap) {
 			endx = W;
 		}
 
+
 		for(x = beginx; x < endx; x+=8)
 		{
+		copymem((void*)BGMap(1)+24, (void*)(vb_doomMap+2464), 8);
+        		continue;
 			/* Calculate the Z coordinate for this point. (Only used for lighting.) */
             //int z = ((x - x1) * (tz2-tz1) / (x2-x1) + tz1) * 8;
             /* Acquire the Y coordinates for our ceiling & floor for this X coordinate. Clamp them. */
@@ -270,16 +275,16 @@ void fixedDrawDoomStage(u8 bgmap) {
 			int yb = 0;
 			int cyb = 0; // bottom
 
-			s16 fx_x1 = ITOFIX13_3(x) - fx1;
-			s16 fx2_x1 = fx2 - fx1;
-			s16 fy2a_y1a = fy2a - fy1a;
-			s16 fy2b_y1b = fy2b - fy1b;
+			s32 fx_x1 = ITOFIX23_9(x) - fx1;
+			s32 fx2_x1 = fx2 - fx1;
+			s32 fy2a_y1a = fy2a - fy1a;
+			s32 fy2b_y1b = fy2b - fy1b;
 
  			// top
-			ya = FIX13_3TOI( FIX13_3_DIV(FIX13_3_MULT(fx_x1, fy2a_y1a), fx2_x1) + fy1a );
+			ya = FIX23_9TOI( FIX23_9_DIV(FIX23_9_MULT(fx_x1, fy2a_y1a), fx2_x1) + fy1a );
 			cya = clamp(ya, 0,H-1);
 			// bottom
-			yb = FIX13_3TOI( FIX13_3_DIV(FIX13_3_MULT(fx_x1, fy2b_y1b), fx2_x1) + fy1b );
+			yb = FIX23_9TOI( FIX23_9_DIV(FIX23_9_MULT(fx_x1, fy2b_y1b), fx2_x1) + fy1b );
 			cyb = clamp(yb, 0,H-1);
 
 
@@ -294,33 +299,34 @@ void fixedDrawDoomStage(u8 bgmap) {
 				cybFloor = H;
 			}
 
+
 			// draw roof
-			drawDoomStageTile(xPos, 0, cyaRoof, 2482);
+			//drawDoomStageTile(xPos, 0, cyaRoof, 2480);
 			// draw floor
-			drawDoomStageTile(xPos, cybFloor, H-1, 2480);
+			//drawDoomStageTile(xPos, cybFloor, H-1, 2480);
 			// draw wall
-			drawDoomStageTile(xPos, cyaRoof, cybFloor, 2484); //2472);
+			//drawDoomStageTile(xPos, cyaRoof, cybFloor, 2484); //2472);
 
 		}
 	}
-
+/*
 	for (i = 0; i < e1m1ThingsLength; i+=5) {
 		if (e1m1Things[i+3] != 1) { // monster or something else... let's assume monster for now... (1 is player)
 
-			fvx1 = fixedPlayerX - ITOFIX13_3(e1m1Things[i]);
-			fvy1 = ITOFIX13_3(e1m1Things[i+1]) - fixedPlayerY;
+			fvx1 = fixedPlayerX - ITOFIX23_9(e1m1Things[i]);
+			fvy1 = ITOFIX23_9(e1m1Things[i+1]) - fixedPlayerY;
 			// rotate around player view
-			ftx1 = FIX13_3_MULT(fvx1, fixedPlayerAngleSin) - (fvy1, fixedPlayerAngleCos);
-			ftz1 = FIX13_3_MULT(fvx1, fixedPlayerAngleCos) + (fvy1, fixedPlayerAngleSin);
+			ftx1 = FIX23_9_MULT(fvx1, fixedPlayerAngleSin) - (fvy1, fixedPlayerAngleCos);
+			ftz1 = FIX23_9_MULT(fvx1, fixedPlayerAngleCos) + (fvy1, fixedPlayerAngleSin);
 			// only display if enemy is in Field-Of-View of player.
 			if (ftz1 <= fixedZero && ftx1 <= fixedZero) {
 				continue;
 			}
-			s16 fxscale1 = FIX13_3_DIV(fhfov, ftz1);
-			s16 fyscale1 = FIX13_3_DIV(fvfov, ftz1);
-			int x1 = FIX13_3TOI( fixedWBy2 - FIX13_3_MULT(ftx1, fxscale1) );
-			int y1b = FIX13_3TOI(fixedHBy2 - (FIX13_3_MULT(FixedYaw(fyfloor, ftz1), fyscale1)));
-			int FourtySixTimesYScale = FIX13_3TOI(FIX13_3_MULT(ITOFIX13_3(46),fyscale1));
+			s32 fxscale1 = FIX23_9_DIV(fhfov, ftz1);
+			s32 fyscale1 = FIX23_9_DIV(fvfov, ftz1);
+			int x1 = FIX23_9TOI( fixedWBy2 - FIX23_9_MULT(ftx1, fxscale1) );
+			int y1b = FIX23_9TOI(fixedHBy2 - (FIX23_9_MULT(FixedYaw(fyfloor, ftz1), fyscale1)));
+			int FourtySixTimesYScale = FIX23_9TOI(FIX23_9_MULT(ITOFIX23_9(46),fyscale1));
 			WA[29].gx = x1;//%8;
 			WA[30].gx = x1;//%8;
 			WA[29].gy = y1b - FourtySixTimesYScale;//%8;
@@ -341,7 +347,7 @@ void fixedDrawDoomStage(u8 bgmap) {
 			affine_fast_scale_fixed(30, fyscale1);
 			affine_fast_scale_fixed(29, fyscale1);
 		}
-	}
+	}*/
 
 	// I forgot what this code does... but I think it's because I use a different palette for LAYER 2 for the enemy... which allows me to use all 4 colors for the enemy if i'd like
 	u8 y;
@@ -378,10 +384,6 @@ void drawDoomStage(u8 bgmap) {
 	u16 segNotDrawn2 = 0;
 	u16 vertexIndex1 = 0;
 	u16 vertexIndex2 = 0;
-
-
-
-
 
 	float playerZPlusEyeHeight = playerZ + EyeHeight;
 
@@ -458,7 +460,7 @@ void drawDoomStage(u8 bgmap) {
 		endx = min(x2, now.sx2);
 
 		if (beginx > endx) {
-		  const s16 tmp = beginx;
+		  const int tmp = beginx;
 		  beginx = endx;
 		  endx = tmp;
 		}
@@ -573,6 +575,11 @@ int roundDown(int num, int factor)
 }
 
 void drawDoomStageTile(int iX, int iStartY, int iEndY, u16 iStartPos) {
+
+	//copymem((void*)BGMap(1)+0, (void*)(vb_doomMap+iStartPos), 2);
+	//int tilePosition = (roundDown(iStartY, 8)<<4) + ((iX<<1)>>3);
+	//copymem((void*)BGMap(1)+tilePosition, (void*)(vb_doomMap+iStartPos), 2);
+
 	iStartY = clamp(iStartY, 0, H-1);
     iEndY = clamp(iEndY, 0, H-1);
     if (iStartY > iEndY) {
@@ -618,10 +625,10 @@ void playerStrafe(float iValue) {
 	playerY -= tempAngleSin * iValue*angleRatio;
 }
 
-void incFixedPlayerAngle(s16 iValue) {
-	if (FIX13_3TOI(fixedPlayerAngle + iValue) < 0) {
+void incFixedPlayerAngle(s32 iValue) {
+	if (FIX23_9TOI(fixedPlayerAngle + iValue) < 0) {
 		fixedPlayerAngle += fixed512;
-	} else if (FIX13_3TOI(fixedPlayerAngle + iValue) >= 512) {
+	} else if (FIX23_9TOI(fixedPlayerAngle + iValue) >= 512) {
 		fixedPlayerAngle -= fixed512;
 	}
 	/*
@@ -629,40 +636,40 @@ void incFixedPlayerAngle(s16 iValue) {
 	playerAngleCos = COSF((int)playerAngle);
 	playerAngleSin = SINF((int)playerAngle);*/
 	fixedPlayerAngle = fixedPlayerAngle + iValue;
-	fixedPlayerAngleCos = COS(FIX13_3TOI(fixedPlayerAngle));
-	fixedPlayerAngleSin = SIN(FIX13_3TOI(fixedPlayerAngle));
+	fixedPlayerAngleCos = COS(FIX23_9TOI(fixedPlayerAngle));
+	fixedPlayerAngleSin = SIN(FIX23_9TOI(fixedPlayerAngle));
 }
 
-void jawFixedPlayer(s16 iValue) {
+void jawFixedPlayer(s32 iValue) {
 	fixedPlayerYaw += iValue;
 }
 
-void fixedPlayerMoveForward(s16 iValue) {
-	//playerX -= FIX13_3_MULT(fixedPlayerAngleCos, iValue);
-	//playerY += FIX13_3_MULT(fixedPlayerAngleSin, iValue);
-	fixedPlayerX -= FIX13_3_MULT(fixedPlayerAngleCos, iValue);
-	fixedPlayerY += FIX13_3_MULT(fixedPlayerAngleSin, iValue);
+void fixedPlayerMoveForward(s32 iValue) {
+	//playerX -= FIX23_9_MULT(fixedPlayerAngleCos, iValue);
+	//playerY += FIX23_9_MULT(fixedPlayerAngleSin, iValue);
+	fixedPlayerX -= FIX23_9_MULT(fixedPlayerAngleCos, iValue);
+	fixedPlayerY += FIX23_9_MULT(fixedPlayerAngleSin, iValue);
 }
 
-void fixedPlayerStrafe(s16 iValue) {
+void fixedPlayerStrafe(s32 iValue) {
 	f16 tempangle = fixedPlayerAngle;
-	tempangle -= FIX13_3_MULT(fixed90, fixedAngleRatio);
+	tempangle -= FIX23_9_MULT(fixed90, fixedAngleRatio);
 
-	f16 tempAngleCos = COS(FIX13_3TOI(tempangle));
-	f16 tempAngleSin = SIN(FIX13_3TOI(tempangle));
+	f16 tempAngleCos = COS(FIX23_9TOI(tempangle));
+	f16 tempAngleSin = SIN(FIX23_9TOI(tempangle));
 
 	//playerX += tempAngleCos * iValue*angleRatio;
-	fixedPlayerX += FIX13_3_MULT(tempAngleCos, FIX13_3_MULT(iValue, fixedAngleRatio));
+	fixedPlayerX += FIX23_9_MULT(tempAngleCos, FIX23_9_MULT(iValue, fixedAngleRatio));
 	//playerY -= tempAngleSin * iValue*angleRatio;
-	fixedPlayerY -= FIX13_3_MULT(tempAngleSin, FIX13_3_MULT(iValue, fixedAngleRatio));
+	fixedPlayerY -= FIX23_9_MULT(tempAngleSin, FIX23_9_MULT(iValue, fixedAngleRatio));
 }
 /*
-fixedPlayerAngle = FIX13_3_MULT(ITOFIX13_3(e1m1Things[i+2]), fixedAngleRatio);
-			fixedPlayerAngleCos = COS(FIX13_3TOI(fixedPlayerAngle));
-			fixedPlayerAngleSin = SIN(FIX13_3TOI(fixedPlayerAngle));*/
+fixedPlayerAngle = FIX23_9_MULT(ITOFIX23_9(e1m1Things[i+2]), fixedAngleRatio);
+			fixedPlayerAngleCos = COS(FIX23_9TOI(fixedPlayerAngle));
+			fixedPlayerAngleSin = SIN(FIX23_9TOI(fixedPlayerAngle));*/
 
 
-void affine_fast_scale_fixed(u8 world, s16 scale) {
+void affine_fast_scale_fixed(u8 world, s32 scale) {
 	int i,tmp;
 	s16 *param;
 	f16 XScl,YScl;

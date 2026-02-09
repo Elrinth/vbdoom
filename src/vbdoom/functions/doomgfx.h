@@ -1,18 +1,35 @@
 #ifndef _FUNCTIONS_DOOMGFX_H
 #define _FUNCTIONS_DOOMGFX_H
 
+#include <stdbool.h>
 
 #include <types.h>
 
+/* Zombie sprite character memory (right after vb_doom tiles at char 889) */
+#define ZOMBIE_CHAR_START  889
+#define ZOMBIE_TILE_W  8
+#define ZOMBIE_TILE_H  8
+#define ZOMBIE_FRAME_BYTES  1024   /* 64 tiles * 16 bytes each */
+#define ZOMBIE_PX_W  64
+#define ZOMBIE_PX_H  64
+
+/* Multi-enemy: each enemy gets 64 chars and its own BGMap */
+#define ENEMY_CHAR_STRIDE  64
+#define ENEMY_BGMAP_START  3   /* BGMap(3) for enemy 0, BGMap(4) for enemy 1 */
+
 void loadDoomGfxToMem();
-void drawDoomFace(u8 bgmap, u16 x, u16 y, u8 face);
+void loadEnemyFrame(u8 enemyIdx, const unsigned int* tileData);
+void initEnemyBGMaps(void);
+void drawDoomFace(u8 *face);
 void drawDoomPistol(u8 bgmap, u16 x, u16 y, u8 pistolAnimation);
 void drawDoomUI(u8 bgmap, u16 x, u16 y);
 
-void drawBigUINumbers(u8 iType, u8 iOnes, u8 iTens, u8 iHundreds);
-void drawWeapon(u8 iWeapon, u8 iFrame);
+void drawBigUINumbers(u8 iType, u8 iOnes, u8 iTens, u8 iHundreds, u8 iAmmoType);
+void drawWeapon(u8 iWeapon, s16 swayX, s16 swayY, u8 iFrame, u8 iWeaponChangeTimer);
 void drawUpdatedAmmo(u16 iAmmo, u8 iAmmoType);
 void drawHealth(u16 iHealth);
 void drawArmour(u16 iArmour);
+
+void drawPlayerInfo(u16 *fPlayerX, u16 *fPlayerY, s16 *fPlayerAng);
 
 #endif

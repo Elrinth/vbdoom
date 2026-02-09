@@ -15,6 +15,7 @@ typedef unsigned char 	BYTE;	/* 1               0 ...           255 */
 typedef unsigned short 	HWORD;	/* 2               0 ...        65,535 */
 typedef unsigned long 	WORD;	/* 4		       0 ... 4,294,967,295 */
 
+typedef enum {false, true} bool;
 
 // for fixed point math
 #define f8 			s8

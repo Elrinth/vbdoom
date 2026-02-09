@@ -1,30 +1,113 @@
 #include <functions.h>
 #include <math.h>
 #include <languages.h>
-#include "doomstage.h"
 #include "doomgfx.h"
 #include <input.h>
 #include "gameLoop.h"
+#include "sndplay.h"
+#include "doomstage.h"
+#include "RayCasterRenderer.h"
+#include "enemy.h"
+#include "../assets/images/sprites/zombie/zombie_sprites.h"
 extern BYTE FontTiles[];
+#include <stdint.h>
+#include <stdbool.h>
 
-s16 fixedAngleRatioz = FTOFIX13_3(512.0f/360.0f);
-s16 fixed0point05 = 0; // calced below
-s16 fixed2point13 = 0;
+s32 fixedAngleRatioz = FTOFIX23_9(512.0f/360.0f);
+s32 fixed0point05 = 0; // calced below
+s32 fixed2point13 = 0;
+
+s16 fPlayerAng = 0;
+u16 fPlayerX = 236;
+u16 fPlayerY = 244;
+s16 turnRate = 10;
+s16 movespeed = 40;
+s16 swayY = 0;
+s16 swayX = 0;
+u8 weaponChangeTimer = 0;
+u8 weaponChangeTime = 20;
+bool isChangingWeapon = false;
+bool comboChangeAndFire = false;
+bool isPlayMusicBool = false;
+u8 currentWeapon = 2;
+u8 nextWeapon = 2;
+u8 updatePistolCount = 0;
+
+#define W_CHAINSAW 0
+#define W_FISTS 1
+#define W_PISTOL 2
+#define W_SHOTGUN 3
+typedef struct {
+	bool hasWeapon;
+	u8 iWeapon;
+	bool requiresAmmo;
+	u8 ammo;
+	u8 ammoType;
+	u8 attackFrames;
+} Weapon;
+
+Weapon weapons[] = {
+{ false, W_CHAINSAW, false, 0,0,1},
+{ true, W_FISTS, false, 0,0,4},
+{ true, W_PISTOL, true, 50,1,1},
+{ false, W_SHOTGUN, true, 0,2,1},
+};
+
+// 0 = chainsaw, 1 = fists, 2 = pistol, 3 = shotgun, 4 =
+u16 ammos[] = {
+	 50, 30, 0, 0
+};
+bool isRunning = false;
+bool isMoving = false;
+bool isShooting = false;
+u8 weaponAnimation = 0;
+
+u16 weaponSwayIndex = 0;
+const s16 swayXTBL[] =     {0,-1,-2,-3,-4,-3,-2,-1, 0, 1, 2, 3, 4, 3, 2, 1};
+const s16 swayYTBL[] =     {0, 0, 1, 2, 2, 2, 1, 0, 0, 0, 1, 2, 2, 2, 1, 0};
+
+u16 walkSwayIndex = 0;
+const s16 walkSwayYTBL[] = {0, 0, 1, 1, 1, 1, 1, 0, 0,-1,-1,-1,-1};
 
 u8 switchWeapon(u8 iFrom, u8 iTo)
 {
-	if (iTo > 1 || iTo < 8) {
+	if (iTo > 1 || iTo < 8)
 		return iTo;
-	}
 	return iTo;
+}
+void cycleNextWeapon() {
+	currentWeapon++;
+	if (currentWeapon > 3)
+		currentWeapon = 0;
+	if (weapons[currentWeapon].hasWeapon == false || (weapons[currentWeapon].requiresAmmo && weapons[currentWeapon].ammo == 0)) {
+		cycleNextWeapon();
+	} else {
+		if (nextWeapon != currentWeapon) {
+			drawUpdatedAmmo(weapons[currentWeapon].ammo, weapons[currentWeapon].ammoType);
+			// reset timers and shit...
+			weaponAnimation = 0;
+			updatePistolCount = 0;
+			weaponChangeTimer = 0;
+			isShooting = false;
+			isChangingWeapon = true;
+		}
+	}
+}
+void cycleWeapons()
+{
+	if (isChangingWeapon) {
+		return;
+	}
+
+	cycleNextWeapon();
 }
 
 u8 gameLoop()
 {
 	u8 isFixed = 0;
 
-	fixed0point05 = FIX13_3_MULT( FTOFIX13_3(0.05f), fixedAngleRatioz);
-	fixed2point13 = FIX13_3_MULT( FTOFIX13_3(2.13f), fixedAngleRatioz);
+	fixed0point05 = FIX23_9_MULT( FTOFIX23_9(0.05f), fixedAngleRatioz);
+	fixed2point13 = FIX23_9_MULT( FTOFIX23_9(2.13f), fixedAngleRatioz);
 
 	initializeDoomStage();
     clearScreen();
@@ -37,30 +120,42 @@ u8 gameLoop()
 	// enemy layers must be able to scale.
 	//vbSetWorld(2, WRLD_ON|0|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 384, 224);
 	//vbSetWorld(1, WRLD_ON|1, 0, 0, 0, 0, 0, 0, 384, 224);
-	vbSetWorld(31, WRLD_ON|1, 0, 0, 0, 0, 0, 0, 384, 224); // stage background
+	//vbSetWorld(31, WRLD_ON|1, 0, 0, 0, 0, 0, 0, 384, 208); // stage background
+	vbSetWorld(31, WRLD_ON|1, 0, 0, 0, 0, 0, 0, 384, 192); // stage background
 
 	// monster bgmaps
 
 	u16 EnemyScale = 4; // max scale
 	u16 EnemyScaleX = 6; // max scale
-	vbSetWorld(30, WRLD_ON|2|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 40*EnemyScaleX, 56*EnemyScale);
-	vbSetWorld(29, WRLD_ON|3|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 40*EnemyScaleX, 56*EnemyScale);
-	vbSetWorld(28, WRLD_ON|4|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 40*EnemyScaleX, 56*EnemyScale);
-	vbSetWorld(27, WRLD_ON|5|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 40*EnemyScaleX, 56*EnemyScale);
-	vbSetWorld(26, WRLD_ON|6|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 40*EnemyScaleX, 56*EnemyScale);
-	vbSetWorld(25, WRLD_ON|7|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 40*EnemyScaleX, 56*EnemyScale);
 
-	vbSetWorld(24, WRLD_ON|8, 					0, 0, 0, 0, 0, 0, 20*EnemyScale, 26*EnemyScale); // more bullets
-	vbSetWorld(23, WRLD_ON|LAYER_BULLET, 		0, 0, 0, 0, 0, 0, 20*EnemyScale, 26*EnemyScale); // bullets
-	vbSetWorld(22, WRLD_ON|LAYER_WEAPON_BLACK, 	0, 0, 0, 0, 0, 0, 160, 184); // weapon black
-	vbSetWorld(21, WRLD_ON|LAYER_WEAPON, 		0, 0, 0, 0, 0, 0, 160, 184); // weapon
-	vbSetWorld(20, WRLD_ON|LAYER_UI_BLACK, 		0, 0, 0, 0, 0, 0, 384, 32); // ui black
-	vbSetWorld(19, WRLD_ON|LAYER_UI, 			0, 0, 0, 0, 0, 0, 384, 32); // ui
-	//vbSetWorld(18, WRLD_ON|14, 0, 0, 0, 0, 0, 0, 384, 224); // stage background
-	//vbSetWorld(17, WRLD_ON|15, 0, 0, 0, 0, 0, 0, 384, 224); // stage background
+	// 1 world per enemy, start DISABLED (renderer enables when visible)
+	vbSetWorld(30, ENEMY_BGMAP_START|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 64*EnemyScaleX, 64*EnemyScale);
+	vbSetWorld(29, (ENEMY_BGMAP_START+1)|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 64*EnemyScaleX, 64*EnemyScale);
+	/* Affine param tables -- each needs up to 224*16=3584 bytes */
+	WORLD_PARAM(30, BGMap(0));              /* enemy 0: 0x20000 */
+	WORLD_PARAM(29, BGMap(0) + 0x1000);    /* enemy 1: 0x21000 */
+	WORLD_PARAM(28, BGMap(2));              /* enemy 2: 0x24000 */
+	/* Enemy 2 world: disabled until renderer enables it */
+	vbSetWorld(28, (ENEMY_BGMAP_START+2)|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 64*EnemyScaleX, 64*EnemyScale);
+	vbSetWorld(27, (LAYER_ENEMY_START+3)|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 64*EnemyScaleX, 64*EnemyScale);
+	vbSetWorld(26, (LAYER_ENEMY_START+4)|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 64*EnemyScaleX, 64*EnemyScale);
+	vbSetWorld(25, (LAYER_ENEMY_START+5)|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 64*EnemyScaleX, 64*EnemyScale);
 
+	vbSetWorld(24, WRLD_ON|LAYER_ENEMY_START+6, 			0, 0, 0, 0, 0, 0, 20*EnemyScale, 26*EnemyScale); // more bullets
+
+	vbSetWorld(23, WRLD_ON|LAYER_BULLET, 					0, 0, 0, 0, 0, 0, 20*EnemyScale, 26*EnemyScale); // bullets
+	vbSetWorld(22, WRLD_ON|LAYER_WEAPON_BLACK, 				0, 0, 0, 0, 0, 0, 136, 128); // weapon black
+	vbSetWorld(21, WRLD_ON|LAYER_WEAPON, 					0, 0, 0, 0, 0, 0, 136, 128); // weapon
+	vbSetWorld(20, WRLD_ON|LAYER_UI_BLACK, 					0, 0, 0, 0, 0, 0, 384, 32); // ui black
+	vbSetWorld(19, WRLD_ON|LAYER_UI, 						0, 0, 0, 0, 0, 0, 384, 32); // ui
+
+	vbSetWorld(18, WRLD_ON|LAYER_UI+1, 						0, 0, 0, 0, 0, 0, 384, 32); // ui
+
+
+	// ui position starts at pixel y 192, we use 2 layers because we wanna use all 4 colors
 	WA[20].gy = 192;
 	WA[19].gy = 192;
+	WA[18].gy = 192;
 
 
 	//vbSetWorld(29, WRLD_ON|2|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 384, 224);
@@ -68,8 +163,8 @@ u8 gameLoop()
 
 
 
-	//affine_scale(u8 world, s16 centerX, s16 centerY, u16 imageW, u16 imageH, float scaleX, float scaleY)
-	WA[18].head = WRLD_END;
+	//affine_scale(u8 world, s32 centerX, s32 centerY, u16 imageW, u16 imageH, float scaleX, float scaleY)
+	WA[17].head = WRLD_END;
 	//WA[16].head = WRLD_END;
 	//WA[16].head = WRLD_END;
 	/*
@@ -106,6 +201,7 @@ u8 gameLoop()
     VIP_REGS[SPT1] = 991;// 1012 - 20 - 1
 */
 	loadDoomGfxToMem();
+	initEnemies();
 	//drawDoomUI(0, 0, 24);
 	//drawDoomGuy(0, 44, 24, 0);
 
@@ -117,14 +213,14 @@ u8 gameLoop()
 	u8 doomface = 0;
 	u8 updateDoomfaceTime = 0;
 	u8 updateDoomfaceCount = 0;
-	u8 updatePistolCount = 0;
-	u8 weaponAnimation = 0;
 
 	u16 ammo = 50;
-	u8 currentWeapon = 2;
 	u8 currentAmmoType = 1;
 	u8 currentHealth = 100;
 	u8 currentArmour = 0;
+
+
+
 
 
 	// we only need to draw doom ui once...
@@ -135,15 +231,15 @@ u8 gameLoop()
 	//affine_clr_param(30);
 	//affine_fast_scale(30, 1.0f);
 
-	VIP_REGS[GPLT0] = 0xE4;	/* Set all eight palettes to: 11100100 */
+	VIP_REGS[GPLT0] = 0xE4;	/* Set 1st palettes to: 11100100 */
 	VIP_REGS[GPLT1] = 0x00;	/* (i.e. "Normal" dark to light progression.) */
-	VIP_REGS[GPLT2] = 0x84;
-	/*VIP_REGS[GPLT2] = 0xC2;
+	VIP_REGS[GPLT2] = 0x84; // VIP_REGS[GPLT2] = 0xC2;
+
 	VIP_REGS[GPLT3] = 0xA2;
-	VIP_REGS[JPLT0] = 0xE4;
+	VIP_REGS[JPLT0] = 0xE4; // object palettes (we dont use objects...)
 	VIP_REGS[JPLT1] = 0xE4;
 	VIP_REGS[JPLT2] = 0xE4;
-	VIP_REGS[JPLT3] = 0xE4;*/
+	VIP_REGS[JPLT3] = 0xE4;
 
 	int x,y,i;
 	i = 32; // 8 och 9 och 12 påverkar...
@@ -174,16 +270,30 @@ u8 gameLoop()
 	setmem((void*)BGMap(11), 0, 8192);
 	setmem((void*)BGMap(12), 0, 8192);
 	setmem((void*)BGMap(13), 0, 8192);
+	//setmem((void*)BGMap(14), 0, 384*327);
 
-		drawDoomUI(LAYER_UI, 0, 0);
-		drawUpdatedAmmo(ammo, currentAmmoType);
+	/* Enemy BGMap/char init MUST be after setmem clears BGMaps */
+	initEnemyBGMaps();                          /* set up BGMap(3) and BGMap(4) tile entries */
+	loadEnemyFrame(0, Zombie_000Tiles);         /* load frame 0 into enemy 0 char memory */
+	loadEnemyFrame(1, Zombie_000Tiles);         /* load frame 0 into enemy 1 char memory */
+	loadEnemyFrame(2, Zombie_000Tiles);         /* load frame 0 into enemy 2 char memory */
 
-		drawHealth(currentHealth);
-		drawArmour(currentArmour);
-		drawDoomFace(LAYER_UI, 44, 0, doomface);
-			drawWeapon(currentWeapon, weaponAnimation);
+	drawDoomUI(LAYER_UI, 0, 0);
+	drawUpdatedAmmo(ammo, currentAmmoType);
+
+	drawHealth(currentHealth);
+	drawArmour(currentArmour);
+
+
+
+	drawDoomFace(&doomface);
+	drawWeapon(currentWeapon, swayXTBL[weaponSwayIndex], swayYTBL[weaponSwayIndex], weaponAnimation, 0);
 	u16 keyInputs;
+
+	mp_init();
 	while(1) {
+		//drawDoomFace(LAYER_UI, 44, 0, doomface);
+		isMoving = false;
 	// clear 1 (weapon layer) and 2 (enemy layer) each frame...
 		/*for (worldCount = 1; worldCount < 7; worldCount++) {
 			setmem((void*)BGMap(worldCount), 0x0000, 8192);
@@ -192,8 +302,8 @@ u8 gameLoop()
 		// 56 x 96 (384/4 * 224/4) = 5376
 		// 10 x 14 (40/4 * 56/4) = 140 (Enemy layer)
 		// 40 x 46 (160/4 x 184/4) = 1840 (Weapon layer)
-		setmem((void*)BGMap(2), 0x0000, 140); // clear enemy layer 1...
-		setmem((void*)BGMap(3), 0x0000, 140); // clear enemy layer 1...
+		//setmem((void*)BGMap(2), 0x0000, 140); // clear enemy layer 1...
+		//setmem((void*)BGMap(3), 0x0000, 140); // clear enemy layer 1...
 		/*
 		setmem((void*)BGMap(3), 0x0000, 140); // clear enemy layer 1...
 		setmem((void*)BGMap(4), 0x0000, 140); // clear enemy layer 1...
@@ -207,39 +317,39 @@ u8 gameLoop()
 		keyInputs = vbReadPad();
 		// handle input last...
 		if (keyInputs & K_LU) {// Left Pad, Up
-			if (isFixed) {
-				fixedPlayerMoveForward(ITOFIX13_3(3));
-			} else {
-				playerMoveForward(3);
-			}
+			isMoving = true;
+			fPlayerMoveForward(&fPlayerX, &fPlayerY, fPlayerAng, (isRunning?movespeed*2:movespeed));
+			//playerMoveForward(3);
 		} else if (keyInputs & K_LD) {// Left Pad, Down
-			if (isFixed) {
-				fixedPlayerMoveForward(ITOFIX13_3(-3));
-			 } else {
-				playerMoveForward(-3);
-			}
+			isMoving = true;
+			fPlayerMoveForward(&fPlayerX, &fPlayerY, fPlayerAng, -(isRunning?movespeed*2:movespeed));
+			//playerMoveForward(-3);
 		}
 		if (keyInputs & K_LL) {// Left Pad, Left'
-			if (isFixed) {
-				fixedPlayerStrafe(ITOFIX13_3(-3));
-			} else {
-				playerStrafe(-3);
-			}
+			isMoving = true;
+			fPlayerStrafe(&fPlayerX, &fPlayerY, fPlayerAng, -(isRunning?movespeed*2:movespeed));
 		} else if (keyInputs & K_LR) {// Left Pad, Right
-			if (isFixed) {
-				fixedPlayerStrafe(ITOFIX13_3(+3));
-			} else {
-				playerStrafe(+3);
-			}
+			isMoving = true;
+			fPlayerStrafe(&fPlayerX, &fPlayerY, fPlayerAng, (isRunning?movespeed*2:movespeed));
+		}
+		if  (isMoving) {
+			swayWeapon();
+		} else {
+			walkSwayIndex = 0;
+			weaponSwayIndex = 0;
+			//WA[31].gy = -8;
 		}
 		if(keyInputs & K_RU) {// Right Pad, Up
+
 			if (isFixed) {
 			// inc player angle and shiz.
 				jawFixedPlayer(-fixed0point05);
 			} else {
 				jawPlayer (-0.05f);
 			}
+
 		} else if(keyInputs & K_RD) {// Right Pad, Down
+
 			if (isFixed) {
 			// inc player
 				jawFixedPlayer(fixed0point05);
@@ -249,51 +359,73 @@ u8 gameLoop()
 		}
 
 		if(keyInputs & K_RL) {// Right Pad, Left
-			if (isFixed) {
-				incFixedPlayerAngle(-fixed2point13);
-			} else {
-				// inc player angle and shiz.
-				incPlayerAngle(-2.13f);
-			}
+			fPlayerAng -= turnRate;
+			if (fPlayerAng < 0)
+				fPlayerAng = 1023;
 		} else if(keyInputs & K_RR) {// Right Pad, Right
-			// inc player
-			if (isFixed) {
-				incFixedPlayerAngle(fixed2point13);
-			} else {
-				incPlayerAngle(2.13f);
-			}
+			fPlayerAng += turnRate;
+			if (fPlayerAng > 1023)
+				fPlayerAng = 0;
 
 		}
+		isRunning = keyInputs & K_LT;
 
-		if (keyInputs & (K_B | K_RT) && updatePistolCount == 0 && weaponAnimation == 0) {
-			drawUpdatedAmmo(ammo, currentAmmoType);
+		if (keyInputs & K_A && isShooting == false) {
+			cycleWeapons();
+		}
+
+		if (keyInputs & (K_B | K_RT) && updatePistolCount == 0 && weaponAnimation == 0 && isChangingWeapon == false) {
+			if (weapons[currentWeapon].requiresAmmo) {
+				if (weapons[currentWeapon].ammo > 0) {
+					weaponAnimation = 1; // shoot
+					weapons[currentWeapon].ammo--;
+					isShooting = true;
+					drawUpdatedAmmo(weapons[currentWeapon].ammo, weapons[currentWeapon].ammoType);
+				} else {
+					cycleWeapons();
+				}
+			} else {
+			 	weaponAnimation = 1; // punch!?
+			}
+			/*
 			if (currentWeapon > 1) {
 				if (ammo > 0) {
 					weaponAnimation = 1; // shoot
+					isShooting = true;
 					ammo--;
 					//drawUpdatedAmmo(ammo, currentAmmoType);
 				}
 				else {
-					currentWeapon = switchWeapon(currentWeapon, currentWeapon-1);
+					cycleWeapons();
 					if (currentWeapon == 1) {
 						currentAmmoType = 0;
 					}
 				}
 			} else {
 				weaponAnimation = 1; // punch
-			}
-			setmem((void*)BGMap(LAYER_WEAPON_BLACK), 0, 1840);
-			setmem((void*)BGMap(LAYER_WEAPON), 0, 1840);
-			drawWeapon(currentWeapon, weaponAnimation);
+			}*/
+
+			//drawWeapon(currentWeapon, weaponSwayX, weaponSwayY, weaponAnimation);
 		}
  		//printString(0, 14, 10, getString(STR_TESTICUS));
  		//printString(0, 34, 10, "hello");
 		//drawDoomGuy(0, 44, 24, doomface);
-		if (isFixed) {
+
+
+		//drawDoomStage(0);
+
+
+
+
+		/*if (isFixed) {
 			fixedDrawDoomStage(0);
 		} else {
 			drawDoomStage(0);
-		}
+		}*/
+		// we actually only need to call this if x,y,ang changed...
+		//updateEnemies(fPlayerX, fPlayerY, fPlayerAng); /* uncomment to enable enemy AI */
+		TraceFrame(&fPlayerX, &fPlayerY, &fPlayerAng);
+
 
 		//drawFixedDoomStage(0);
 		/*for (worldCount = 0; worldCount < 1; worldCount++) {
@@ -306,7 +438,7 @@ u8 gameLoop()
 			doomface = (rand()%3); // randomize next facial expression
 			updateDoomfaceCount = 0;
 			updateDoomfaceTime = 9+rand()%8; // randomize delay for next update
-			drawDoomFace(LAYER_UI, 44, 0, doomface);
+			drawDoomFace(&doomface);
 		} else {
 			updateDoomfaceCount++;
 		}
@@ -316,19 +448,27 @@ u8 gameLoop()
 		// only need to draw if changed...
 		//drawDoomPistol(0,42,16, pistolAnimation);
 
-		//vbSetObject(u16 n, u8 header, s16 x, s16 p, s16 y, u16 chr)
+		//vbSetObject(u16 n, u8 header, s32 x, s32 p, s32 y, u16 chr)
 		//vbSetObject(	  1024, 		 OBJ_ON, 	16,	   0,	  16,	   8);
 
-		if (weaponAnimation == 1) {
-			updatePistolCount++;
-			if (updatePistolCount > 4) {
-				updatePistolCount = 0;
-				weaponAnimation = 0;
+		if (weaponAnimation >= 1) {
+			if (weaponAnimation >= 2) { // punch animation
+				isShooting = true;
 			}
-			setmem((void*)BGMap(LAYER_WEAPON_BLACK), 0, 1840);
-			setmem((void*)BGMap(LAYER_WEAPON), 0, 1840);
-			drawWeapon(currentWeapon, weaponAnimation);
+			updatePistolCount++;
+			if (updatePistolCount > 3) {
+				weaponAnimation++;
+				if (weaponAnimation >= weapons[currentWeapon].attackFrames) {
+					isShooting = false;
+					weaponAnimation = 0;
+				}
+				updatePistolCount = 0;
+			}
+
 		}
+		//setmem((void*)BGMap(LAYER_WEAPON_BLACK), 0, 1840);
+		//setmem((void*)BGMap(LAYER_WEAPON), 0, 1840);
+		drawWeapon(nextWeapon, swayXTBL[weaponSwayIndex], swayYTBL[weaponSwayIndex], weaponAnimation, weaponChangeTimer);
 		//copymem(0x1000, (void*)FontTiles, 1024);
 		//setmem((void*)CharSeg0, 0x0000, 2048);
         	//setmem((void*)BGMap(0), 0x0000, 8192);
@@ -337,8 +477,36 @@ u8 gameLoop()
 		//setmem((void*)FontTiles, 0x1000, 1024);
        	//setmem((void*)BGMap(0), 0x0000, 8192);
 		//printString(1, 30, 20, getString(STR_HELLO_WORLD));
+		if (isMoving) {
+			weaponSwayIndex++;
+			walkSwayIndex++;
+			//if (weaponSwayIndex > sizeof(swayXTBL)) {
+			if (weaponSwayIndex >= 16) {
+				weaponSwayIndex = 0;
+			}
+			if (walkSwayIndex >= 13) {
+				walkSwayIndex = 0;
+			}
+		}
+		if (isChangingWeapon) {
+			if (weaponChangeTimer > 10) {
+				nextWeapon = currentWeapon; // switch weapon after half time...
+			}
+			if (weaponChangeTimer >= weaponChangeTime) {
+				weaponChangeTimer = 0;
+				isChangingWeapon = false;
+			}
+			weaponChangeTimer++;
+		}
+		comboChangeAndFire= isShooting && isChangingWeapon == false;
+		playSnd(&comboChangeAndFire, &currentWeapon, &isPlayMusicBool);
 
-		vbWaitFrame(0);
+		drawPlayerInfo(&fPlayerX, &fPlayerY, &fPlayerAng);
+
+		//vbWaitFrame(1); // use 1 to simulate real hardware:
 	}
 	return 0;
+}
+void swayWeapon() {
+	//WA[31].gy = walkSwayYTBL[walkSwayIndex]-8;
 }

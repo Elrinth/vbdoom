@@ -3,7 +3,7 @@
 
 #define NELEMS(x)  (sizeof(x) / sizeof((x)[0]))
 
-const s16 e1m1Vertices[8] __attribute__((aligned(4)))=
+const int e1m1Vertices[8] __attribute__((aligned(4)))=
 {
 	//x,y
 	256, 224,
@@ -23,7 +23,7 @@ const u16 e1m1Segs[8] __attribute__((aligned(4)))=
 };
 const u16 e1m1SegsLength = NELEMS(e1m1Segs);
 
-const s16 e1m1Things[10] __attribute__((aligned(4)))=
+const int e1m1Things[10] __attribute__((aligned(4)))=
 {
 	// 0x,1y,2angle,3type,4flags
 	32, 160, 270, 1, 7,

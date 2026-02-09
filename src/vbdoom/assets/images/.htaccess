@@ -1,0 +1,44 @@
+
+
+# BEGIN Really Simple SSL Redirect 5.3.0
+<IfModule mod_rewrite.c>
+	RewriteEngine on
+	RewriteCond %{HTTP:X-Forwarded-Proto} !https
+	RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [R=301,L]
+</IfModule>
+# END Really Simple SSL Redirect
+# BEGIN WordPress
+# Direktiven (raderna) mellan ”BEGIN WordPress” och ”END WordPress” är
+# dynamiskt genererade och bör endast ändras via WordPress-filter.
+# Eventuella ändringar av direktiven mellan dessa markörer kommer att skrivas över.
+<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+RewriteBase /
+RewriteRule ^index\.php$ - [L]
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule . /index.php [L]
+</IfModule>
+
+# END WordPress
+# Wordfence WAF
+<IfModule mod_php5.c>
+	php_value auto_prepend_file '/www/webvol19/qp/ys89dnp8nacsdf6/crdprotection.com/public_html/wordfence-waf.php'
+</IfModule>
+<IfModule mod_php7.c>
+	php_value auto_prepend_file '/www/webvol19/qp/ys89dnp8nacsdf6/crdprotection.com/public_html/wordfence-waf.php'
+</IfModule>
+<IfModule mod_php.c>
+	php_value auto_prepend_file '/www/webvol19/qp/ys89dnp8nacsdf6/crdprotection.com/public_html/wordfence-waf.php'
+</IfModule>
+<Files ".user.ini">
+	<IfModule mod_authz_core.c>
+		Require all denied
+	</IfModule>
+	<IfModule !mod_authz_core.c>
+		Order deny,allow
+		Deny from all
+	</IfModule>
+</Files>
+# END Wordfence WAF

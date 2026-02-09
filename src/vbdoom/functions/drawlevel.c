@@ -1,0 +1,9 @@
+#include <libgccvb.h>
+#include <mem.h>
+#include <misc.h>
+#include "text.h"
+#include <video.h>
+#include <world.h>
+#include <constants.h>
+#include <languages.h>
+#include <stdint.h>
