@@ -200,16 +200,16 @@ void drawUpdatedAmmo(u16 iAmmo, u8 iAmmoType) {
     	}
 		startPos = 96*18;
 		if (hundreds > 0) {
-			copymem((void*)BGMap(LAYER_UI)+drawPos, (void*)(vb_doomMap+startPos+(hundreds*2)), 2);
+			*((u16*)(BGMap(LAYER_UI)+drawPos)) = *((u16*)(vb_doomMap+startPos+(hundreds*2)));
 		} else {
-			copymem((void*)BGMap(LAYER_UI)+drawPos, (void*)(vb_doomMap+startPos+20), 2); // blank?
+			*((u16*)(BGMap(LAYER_UI)+drawPos)) = *((u16*)(vb_doomMap+startPos+20));
 		}
 		if (hundreds > 0 || tens > 0) {
-			copymem((void*)BGMap(LAYER_UI)+drawPos+2, (void*)(vb_doomMap+startPos+(tens*2)), 2);
+			*((u16*)(BGMap(LAYER_UI)+drawPos+2)) = *((u16*)(vb_doomMap+startPos+(tens*2)));
 		} else {
-			copymem((void*)BGMap(LAYER_UI)+drawPos+2, (void*)(vb_doomMap+startPos+20), 2);
+			*((u16*)(BGMap(LAYER_UI)+drawPos+2)) = *((u16*)(vb_doomMap+startPos+20));
 		}
-		copymem((void*)BGMap(LAYER_UI)+drawPos+4, (void*)(vb_doomMap+startPos+(ones*2)), 2);
+		*((u16*)(BGMap(LAYER_UI)+drawPos+4)) = *((u16*)(vb_doomMap+startPos+(ones*2)));
 	}
 }
 
@@ -449,10 +449,15 @@ void drawWeapon(u8 iWeapon, s16 swayX, s16 swayY, u8 iFrame, u8 iWeaponChangeTim
 				}
 			}
 
-			u8 xx,yy;
-			for (yy = 0; yy < 46; yy++) {
-				for (xx = 0; xx < 40; xx++) {
-					BGM_PALSET(LAYER_WEAPON_BLACK, xx, yy, BGM_PAL2);
+			/* Must re-apply palette bits after writing new BGMap entries,
+			 * since the fresh entries don't carry palette info.
+			 * Only runs on weapon/frame change (not every frame). */
+			{
+				u8 xx,yy;
+				for (yy = 0; yy < blkRowCount; yy++) {
+					for (xx = 0; xx < (xTiles >> 1); xx++) {
+						BGM_PALSET(LAYER_WEAPON_BLACK, xx, yy, BGM_PAL2);
+					}
 				}
 			}
 		}
@@ -468,25 +473,36 @@ const unsigned short test[2] __attribute__((aligned(4)))=
 {
 	0x4011,0x4011
 };
-u16 j;
+static u8 uiPalettesInited = 0;
 void drawDoomUI(u8 bgmap, u16 x, u16 y) {
 	copymem((void*)BGMap(bgmap), (void*)(vb_doomMap), 96);
 	copymem((void*)BGMap(bgmap)+128, (void*)(vb_doomMap+96), 96);
 	copymem((void*)BGMap(bgmap)+256, (void*)(vb_doomMap+192), 96);
 	copymem((void*)BGMap(bgmap)+384, (void*)(vb_doomMap+288), 96);
 
-	for (j = 0; j < 128; j+=2) {
-		copymem((void*)BGMap(LAYER_UI_BLACK)+j, (void*)(vb_doomMap+384), 2);
-		copymem((void*)BGMap(LAYER_UI_BLACK)+128+j, (void*)(vb_doomMap+384), 2);
-		copymem((void*)BGMap(LAYER_UI_BLACK)+256+j, (void*)(vb_doomMap+384), 2);
-		copymem((void*)BGMap(LAYER_UI_BLACK)+384+j, (void*)(vb_doomMap+384), 2);
-	}
-	// should only need to do this ONCE actually and never again TBH...
-	for (y = 0; y < 24; y++) {
-		for (x = 0; x < 48; x++) {
-			BGM_PALSET(12, x, y, BGM_PAL1);
-			BGM_PALSET(LAYER_UI, x, y, BGM_PAL0);
+	/* Fill black UI layer with a single tile value using setmem instead of
+	 * 256 individual 2-byte copymem calls */
+	{
+		u16 blkTile;
+		copymem((void*)&blkTile, (void*)(vb_doomMap+384), 2);
+		for (y = 0; y < 4; y++) {
+			u16 rowBase = y * 128;
+			u16 col;
+			for (col = 0; col < 128; col += 2) {
+				*((u16*)((void*)BGMap(LAYER_UI_BLACK) + rowBase + col)) = blkTile;
+			}
 		}
+	}
+
+	/* Palette bits persist in BGMap entries -- only set once */
+	if (!uiPalettesInited) {
+		for (y = 0; y < 24; y++) {
+			for (x = 0; x < 48; x++) {
+				BGM_PALSET(12, x, y, BGM_PAL1);
+				BGM_PALSET(LAYER_UI, x, y, BGM_PAL0);
+			}
+		}
+		uiPalettesInited = 1;
 	}
 }
 void drawDoomFace(u8 *face)

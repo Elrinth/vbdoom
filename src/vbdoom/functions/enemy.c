@@ -26,6 +26,12 @@ static u8 enemyRandom(void) {
     return (u8)(rngState >> 8);
 }
 
+/* Fast modulo for small unsigned values (0-255), avoids V810 division.
+ * Uses multiply-shift to compute quotient, then subtracts. */
+#define FAST_MOD5(n)  ((u8)((n) - ((u16)((u16)(n) * 205u) >> 10) * 5u))
+#define FAST_MOD10(n) ((u8)((n) - ((u16)((u16)(n) * 205u) >> 11) * 10u))
+#define FAST_MOD13(n) ((u8)((n) - ((u16)(((u32)(n) * 316u) >> 12)) * 13u))
+
 /* ---- Doom-style direction tables (from p_enemy.c) ---- */
 
 #define DIAG_SPEED  ((ENEMY_SPEED * 3) / 4)
@@ -200,8 +206,8 @@ static bool hasLineOfSight(u16 px, u16 py, u16 ex, u16 ey) {
     s16 dy = (s16)ey - (s16)py;
     u8 i;
     for (i = 1; i < 8; i++) {
-        s16 cx = (s16)px + (dx * i) / 8;
-        s16 cy = (s16)py + (dy * i) / 8;
+        s16 cx = (s16)px + ((dx * i) >> 3);
+        s16 cy = (s16)py + ((dy * i) >> 3);
         u8 tx = (u8)(cx >> 8);
         u8 ty = (u8)(cy >> 8);
         if (IsWall(tx, ty)) return false;
@@ -429,7 +435,7 @@ u8 playerShoot(u16 playerX, u16 playerY, s16 playerA, u8 weaponType) {
 
             if (target != 255) {
                 /* Doom shotgun pellet damage: (P_Random()%5 + 1) * 3 = 3,6,9,12,15 */
-                pelletDmg[target] += ((enemyRandom() % 5) + 1) * 3;
+                pelletDmg[target] += (FAST_MOD5(enemyRandom()) + 1) * 3;
                 if (anyHit == 255) anyHit = target;
             }
         }
@@ -451,10 +457,10 @@ u8 playerShoot(u16 playerX, u16 playerY, s16 playerA, u8 weaponType) {
             u8 damage;
             if (weaponType == 1) {
                 /* Fist: (P_Random()%10 + 1) * 2 = 2-20 */
-                damage = ((enemyRandom() % 10) + 1) * 2;
+                damage = (FAST_MOD10(enemyRandom()) + 1) * 2;
             } else {
                 /* Pistol: (P_Random()%5 + 1) * 3 = 3-15 */
-                damage = ((enemyRandom() % 5) + 1) * 3;
+                damage = (FAST_MOD5(enemyRandom()) + 1) * 3;
             }
             applyDamageToEnemy(&g_enemies[target], damage, playerX, playerY);
             hitIdx = target;
@@ -501,7 +507,7 @@ static void enemyFireAtPlayer(EnemyState *e, u16 playerX, u16 playerY, s16 playe
             if (spread < 0) spread = -spread;
             if (spread < hitCone) {
                 /* Hit! Doom damage formula */
-                totalDamage += 3 + (enemyRandom() % 13);
+                totalDamage += 3 + FAST_MOD13(enemyRandom());
             }
         }
     }

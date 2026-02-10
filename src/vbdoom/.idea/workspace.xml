@@ -2,20 +2,18 @@
 <project version="4">
   <component name="BookmarkManager">
     <bookmark url="file://$PROJECT_DIR$/functions/doomgfx.c" line="171" />
-    <bookmark url="file://$PROJECT_DIR$/functions/RayCasterRenderer.c" line="195" mnemonic="9" />
+    <bookmark url="file://$PROJECT_DIR$/functions/RayCasterRenderer.c" line="213" mnemonic="9" />
     <bookmark url="file://$PROJECT_DIR$/functions/doomgfx.c" line="168" />
-    <bookmark url="file://$PROJECT_DIR$/functions/doomgfx.c" line="500" />
+    <bookmark url="file://$PROJECT_DIR$/functions/doomgfx.c" line="518" />
   </component>
   <component name="ChangeListManager">
     <list default="true" id="01989b41-c5d7-416e-b48f-ef72adc98476" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/../../.cursor/rules/vbdoom-project.mdc" beforeDir="false" afterPath="$PROJECT_DIR$/../../.cursor/rules/vbdoom-project.mdc" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../prepare_shotgun_sprites.py" beforeDir="false" afterPath="$PROJECT_DIR$/../../prepare_shotgun_sprites.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/shotgun_sprites.c" beforeDir="false" afterPath="$PROJECT_DIR$/assets/images/shotgun_sprites.c" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/shotgun_sprites.h" beforeDir="false" afterPath="$PROJECT_DIR$/assets/images/shotgun_sprites.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/build/output.vb" beforeDir="false" afterPath="$PROJECT_DIR$/build/output.vb" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/gameLoop.c" beforeDir="false" afterPath="$PROJECT_DIR$/components/gameLoop.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/functions/RayCasterFixed.c" beforeDir="false" afterPath="$PROJECT_DIR$/functions/RayCasterFixed.c" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/functions/RayCasterRenderer.c" beforeDir="false" afterPath="$PROJECT_DIR$/functions/RayCasterRenderer.c" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/functions/doomgfx.c" beforeDir="false" afterPath="$PROJECT_DIR$/functions/doomgfx.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/functions/enemy.c" beforeDir="false" afterPath="$PROJECT_DIR$/functions/enemy.c" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.elf" beforeDir="false" afterPath="$PROJECT_DIR$/main.elf" afterDir="false" />
     </list>
     <ignored path="$PROJECT_DIR$/../../../libs/libgccvb/.idea/" />
@@ -150,8 +148,8 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/functions/RayCasterFixed.c">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="35">
-              <caret line="395" column="34" selection-start-line="395" selection-start-column="34" selection-end-line="395" selection-end-column="34" />
+            <state relative-caret-position="59">
+              <caret line="396" column="34" selection-start-line="396" selection-start-column="34" selection-end-line="396" selection-end-column="34" />
             </state>
           </provider>
         </entry>
@@ -194,7 +192,7 @@
         <entry file="file://$PROJECT_DIR$/components/gameLoop.c">
           <provider selected="true" editor-type-id="text-editor">
             <state relative-caret-position="563">
-              <caret line="724" column="28" selection-start-line="724" selection-start-column="28" selection-end-line="724" selection-end-column="28" />
+              <caret line="716" column="28" selection-start-line="716" selection-start-column="28" selection-end-line="716" selection-end-column="28" />
             </state>
           </provider>
         </entry>
@@ -215,7 +213,7 @@
         <entry file="file://$PROJECT_DIR$/functions/doomgfx.c">
           <provider selected="true" editor-type-id="text-editor">
             <state relative-caret-position="-2424">
-              <caret line="499" selection-start-line="499" selection-end-line="499" />
+              <caret line="517" selection-start-line="517" selection-end-line="517" />
             </state>
           </provider>
         </entry>
@@ -405,7 +403,6 @@
   </component>
   <component name="ToolWindowManager">
     <frame x="-8" y="-8" width="2576" height="1408" extended-state="6" />
-    <editor active="true" />
     <layout>
       <window_info content_ui="combo" id="Project" order="0" visible="true" weight="0.18597321" />
       <window_info id="Structure" order="1" side_tool="true" weight="0.25" />
@@ -612,7 +609,7 @@
     <entry file="file://$PROJECT_DIR$/functions/doomgfx.c">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="-2424">
-          <caret line="499" selection-start-line="499" selection-end-line="499" />
+          <caret line="517" selection-start-line="517" selection-end-line="517" />
         </state>
       </provider>
     </entry>
@@ -674,8 +671,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/functions/RayCasterFixed.c">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="35">
-          <caret line="395" column="34" selection-start-line="395" selection-start-column="34" selection-end-line="395" selection-end-column="34" />
+        <state relative-caret-position="59">
+          <caret line="396" column="34" selection-start-line="396" selection-start-column="34" selection-end-line="396" selection-end-column="34" />
         </state>
       </provider>
     </entry>
@@ -703,7 +700,7 @@
     <entry file="file://$PROJECT_DIR$/components/gameLoop.c">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="563">
-          <caret line="724" column="28" selection-start-line="724" selection-start-column="28" selection-end-line="724" selection-end-column="28" />
+          <caret line="716" column="28" selection-start-line="716" selection-start-column="28" selection-end-line="716" selection-end-column="28" />
         </state>
       </provider>
     </entry>

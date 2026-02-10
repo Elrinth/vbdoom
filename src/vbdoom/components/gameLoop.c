@@ -20,9 +20,14 @@ extern BYTE FontTiles[];
 #include <stdint.h>
 #include <stdbool.h>
 
-s32 fixedAngleRatioz = FTOFIX23_9(512.0f/360.0f);
-s32 fixed0point05 = 0; // calced below
-s32 fixed2point13 = 0;
+/* Precomputed constants -- no runtime float math needed.
+ * fixedAngleRatioz = FTOFIX23_9(512.0f/360.0f) = 729
+ * fixed0point05 = FIX23_9_MULT(FTOFIX23_9(0.05f), 729) = 37
+ * fixed2point13 = FIX23_9_MULT(FTOFIX23_9(2.13f), 729) = 1553
+ */
+static const s32 fixedAngleRatioz = FTOFIX23_9(512.0f/360.0f);
+static const s32 fixed0point05 = FIX23_9_MULT(FTOFIX23_9(0.05f), FTOFIX23_9(512.0f/360.0f));
+static const s32 fixed2point13 = FIX23_9_MULT(FTOFIX23_9(2.13f), FTOFIX23_9(512.0f/360.0f));
 
 s16 fPlayerAng = 0;
 u16 fPlayerX = 3968;   /* tile (15, 28) center - start room */
@@ -112,10 +117,7 @@ void cycleWeapons()
 
 u8 gameLoop()
 {
-	u8 isFixed = 0;
-
-	fixed0point05 = FIX23_9_MULT( FTOFIX23_9(0.05f), fixedAngleRatioz);
-	fixed2point13 = FIX23_9_MULT( FTOFIX23_9(2.13f), fixedAngleRatioz);
+	/* fixed0point05 and fixed2point13 are now static const -- no runtime init needed */
 
 	initializeDoomStage();
     clearScreen();
@@ -377,22 +379,9 @@ u8 gameLoop()
 			//WA[31].gy = -8;
 		}
 		if(keyInputs & K_RU) {// Right Pad, Up
-
-			if (isFixed) {
-			// inc player angle and shiz.
-				jawFixedPlayer(-fixed0point05);
-			} else {
-				jawPlayer (-0.05f);
-			}
-
+			jawFixedPlayer(-fixed0point05);
 		} else if(keyInputs & K_RD) {// Right Pad, Down
-
-			if (isFixed) {
-			// inc player
-				jawFixedPlayer(fixed0point05);
-			} else {
-				jawPlayer(0.05f);
-			}
+			jawFixedPlayer(fixed0point05);
 		}
 
 		if(keyInputs & K_RL) {// Right Pad, Left
@@ -607,9 +596,12 @@ u8 gameLoop()
 			} else {
 				/* Idle: cycle left/center/right on a timer */
 				if (updateDoomfaceCount > updateDoomfaceTime) {
-					lookDir = rand() % 3;  /* 0=left, 1=center, 2=right */
+					{ /* Fast mod-3: avoid division on V810 */
+					u8 r3 = (u8)rand();
+					lookDir = r3 - ((u16)(r3 * 171u) >> 9) * 3u;  /* 0=left, 1=center, 2=right */
+				}
 					updateDoomfaceCount = 0;
-					updateDoomfaceTime = 9 + rand() % 8;
+					updateDoomfaceTime = 9 + (rand() & 7);
 				} else {
 					updateDoomfaceCount++;
 				}

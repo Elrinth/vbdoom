@@ -4,21 +4,22 @@
 
 #define LOOKUP_STORAGE extern
 #include "RayCasterTables.h"
-#include <math.h>
-#define M_PI 3.14
+/* math.h already included via RayCasterFixed.h; M_PI only used in comments */
 #define W (384) // vb screen width
 #define Wby2 (W/2)
 #define H 208 // reduce by interface height which is 32..
 #define Hby2 (H/2)
 
 u16 hfovv = (u16)(0.6 * SCREEN_HEIGHT);
-float vfov = (float)(0.6f * SCREEN_HEIGHT);
+/* vfov = 0.6 * 224 = 134.4, integer approximation 134.
+ * Used as divisor: inverse_fixed(vfov/rotatedY) = 512*rotatedY/vfov */
+#define VFOV_INT 134
 
 // (v * f) >> 8
 u16 MulU(u8 v, u16 f)
 {
     const u8  f_h = f >> 8;
-    const u8  f_l = f % 256;
+    const u8  f_l = f & 0xFF;
     const u16 hm  = v * f_h;
     const u16 lm  = v * f_l;
     return hm + (lm >> 8);
@@ -41,7 +42,7 @@ s16 MulTan(u8 value, bool inverse, u8 quarter, u8 angle, const u16* lookupTable)
     {
         if(value == 0)
         {
-            if(quarter % 2 == 1)
+            if(quarter & 1)
             {
                 return -AbsTan(quarter, angle, lookupTable);
             }
@@ -53,7 +54,7 @@ s16 MulTan(u8 value, bool inverse, u8 quarter, u8 angle, const u16* lookupTable)
     {
         return 0;
     }
-    if(quarter % 2 == 1)
+    if(quarter & 1)
     {
         return -MulU(signedValue, LOOKUP16(lookupTable, INVERT(angle)));
     }
@@ -155,9 +156,9 @@ void CalculateDistance(u16 rayX, u16 rayY, u16 rayA, s16* deltaX, s16* deltaY, u
     register s16 interceptY = rayY;
 
     const u8 quarter = rayA >> 8;
-    const u8 angle   = rayA % 256;
-    const u8 offsetX = rayX % 256;
-    const u8 offsetY = rayY % 256;
+    const u8 angle   = rayA & 0xFF;
+    const u8 offsetX = rayX & 0xFF;
+    const u8 offsetY = rayY & 0xFF;
 
     u8 tileX = rayX >> 8;
     u8 tileY = rayY >> 8;
@@ -166,7 +167,7 @@ void CalculateDistance(u16 rayX, u16 rayY, u16 rayA, s16* deltaX, s16* deltaY, u
 
     if(angle == 0)
     {
-        switch(quarter % 2)
+        switch(quarter & 1)
         {
         case 0:
             tileStepX = 0;
@@ -290,7 +291,7 @@ void CastRayHitPos(u16 rayX, u16 rayY, u16 rayA, s16* outHitX, s16* outHitY)
 {
     s16 deltaX, deltaY;
     u8 texNo, texX;
-    CalculateDistance(rayX, rayY, rayA % 1024, &deltaX, &deltaY, &texNo, &texX);
+    CalculateDistance(rayX, rayY, rayA & 1023, &deltaX, &deltaY, &texNo, &texX);
     *outHitX = (s16)rayX + deltaX;
     *outHitY = (s16)rayY + deltaY;
 }
@@ -302,7 +303,7 @@ void Trace(u16 screenX, u8* screenY, u8* textureNo, u8* textureX, u16* textureY,
     u16 rayAngle = (u16)(_playerA + LOOKUP16(g_deltaAngle, screenX));
 
     // neutralize artefacts around edges
-    switch(rayAngle % 256)
+    switch(rayAngle & 0xFF)
     {
     case 1:
     case 254:
@@ -313,7 +314,7 @@ void Trace(u16 screenX, u8* screenY, u8* textureNo, u8* textureX, u16* textureY,
         rayAngle++;
         break;
     }
-    rayAngle %= 1024;
+    rayAngle &= 1023;
 
     s16 deltaX;
     s16 deltaY;
@@ -386,7 +387,7 @@ void Trace(u16 screenX, u8* screenY, u8* textureNo, u8* textureX, u16* textureY,
 void Start(u16 playerX, u16 playerY, s16 playerA)
 {
     _viewQuarter = playerA >> 8;
-    _viewAngle   = playerA % 256;
+    _viewAngle   = playerA & 0xFF;
     _playerX     = playerX;
     _playerY     = playerY;
     _playerA     = playerA;
@@ -400,7 +401,7 @@ void CalculateObjectScreenPosition(u16 objectX, u16 objectY, u16 objectWidth, u1
 
     // Determine the player's view angle
 	u8 quarter = _viewAngle >> 8;
-	u8 angle = _viewAngle % 256;
+	u8 angle = _viewAngle & 0xFF;
 
 	// Calculate cosine and sine values based on the view angle's quarter
 	s16 cosValue, sinValue;
@@ -530,7 +531,7 @@ void getObjectScreenPosAndScale(u16 *objX, u16 *objY, bool *isVisible, u16 *resX
 void TraceEnemy(u16 *enemyX, u16 *enemyY, u8* screenY, u8* textureNo, u8* textureX, u16* textureY, u16* textureStep, u16 *enemyScreenX)
 {
     // Calculate angle between player and enemy
-    u8 playerAngle = _playerA % 256;
+    u8 playerAngle = _playerA & 0xFF;
     //u16 angle = AbsTan(_viewQuarter, _viewAngle, g_tan) - AbsTan(_viewQuarter, atan2(enemyY - _playerY, enemyX - _playerX) * 1024 / (2 * M_PI), g_tan);
     u16 enemyAngle = AbsTan(_viewQuarter, playerAngle, g_tan) - AbsTan(_viewQuarter, AbsTan(_viewQuarter, playerAngle, g_tan), g_tan);
 	//uint16_t playerAbsTan = AbsTan(playerQuarter, playerAngle, g_tan);
@@ -540,7 +541,7 @@ void TraceEnemy(u16 *enemyX, u16 *enemyY, u8* screenY, u8* textureNo, u8* textur
     //uint16_t enemyAngle = playerAbsTan - enemyAbsTan;
 
     // Ensure the enemy angle is within [0, 1024)
-    enemyAngle %= 1024;
+    enemyAngle &= 1023;
 
     // Calculate distance between player and enemy
     u16 deltaX = *enemyX - _playerX;
@@ -550,7 +551,7 @@ void TraceEnemy(u16 *enemyX, u16 *enemyY, u8* screenY, u8* textureNo, u8* textur
 	s16 enemyDisplacementX = MulS(distance, LOOKUP8(g_cos, enemyAngle));
 
     // Neutralize angle artifacts around edges
-    switch(enemyAngle % 256)
+    switch(enemyAngle & 0xFF)
     {
     case 1:
     case 254:
@@ -561,7 +562,7 @@ void TraceEnemy(u16 *enemyX, u16 *enemyY, u8* screenY, u8* textureNo, u8* textur
         enemyAngle++;
         break;
     }
-    enemyAngle %= 1024;
+    enemyAngle &= 1023;
 
     s16 rayDeltaX;
     s16 rayDeltaY;
@@ -617,7 +618,7 @@ void TopDownEnemyPosition(u16 enemyX, u16 enemyY, s16* screenX, u16* screenY, f1
 	 uint16_t  total  = tyDiff + txDiff;
 
     // Calculate the angle between the player's view direction and the enemy
-    u16 angle = _viewAngle % 256;
+    u16 angle = _viewAngle & 0xFF;
 
     if (_viewQuarter == 0) {
 		angle = angle; //INVERT(angle); ööä
@@ -698,14 +699,15 @@ void TopDownEnemyPosition(u16 enemyX, u16 enemyY, s16* screenX, u16* screenY, f1
 
 	//*withinView = (rotatedX >= 0  && rotatedX < SCREEN_WIDTH);
 
-	u8 sqrtRes = ((rotatedX >> 8) * (rotatedX >> 8) + (rotatedY >> 8) * (rotatedY >> 8))%16; // max 256
+	u8 sqrtRes = ((rotatedX >> 8) * (rotatedX >> 8) + (rotatedY >> 8) * (rotatedY >> 8)) & 15; // max 256
 	// 0 to 16 indexes
 	u16 distance = (g_sqrtLookupTable[sqrtRes]);
 	*scaleInt = sqrtRes-4;
 	//*scale = g_fixedscales[distance];
 
-	*scale =  inverse_fixed(vfov / rotatedY);
-	*screenX = Wby2 + (rotatedX * hfovv / rotatedY);
+	/* inverse_fixed(vfov/rotatedY) = 512*rotatedY/vfov (all integer) */
+	*scale = (f16)(((s32)rotatedY << 9) / VFOV_INT);
+	*screenX = Wby2 + (s16)((s32)rotatedX * (s32)hfovv / (s32)rotatedY);
 
     // Scale the position of the enemy to fit within the screen
     //*screenX = Wby2 + rotatedX; // Assuming Wby2 is half the screen width
@@ -807,17 +809,17 @@ void fPlayerMoveForward(u16 *ifPlayerX, u16 *ifPlayerY, s16 ifPlayerAng, s16 iSp
 		ifPlayerAng++;
 	}
 
-	u8 vq = (ifPlayerAng%1024) >> 8;
-	u8 angle   = ifPlayerAng%256;
+	u8 vq = (ifPlayerAng & 1023) >> 8;
+	u8 angle   = ifPlayerAng & 0xFF;
 
 	if (vq == 0) { // up + right
-		angle = ifPlayerAng%256;
+		angle = ifPlayerAng & 0xFF;
 	} else if (vq == 1) { // down + right
-		angle = INVERT(ifPlayerAng%256);
+		angle = INVERT(ifPlayerAng & 0xFF);
 	} else if (vq == 2) { // down + left
-		angle = INVERT(ifPlayerAng%256);
+		angle = INVERT(ifPlayerAng & 0xFF);
 	} else if (vq == 3) { // up + left
-		angle = ifPlayerAng%256;
+		angle = ifPlayerAng & 0xFF;
 	}
 	s16 valueChangeX = MulS(LOOKUP8(g_cos, angle), iSpeed);
 	s16 valueChangeY = MulS(LOOKUP8(g_sin, angle), iSpeed);
