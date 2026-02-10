@@ -137,30 +137,41 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
 		vanligTile = 0;
 		texAccum = (u32)tso;
 
-		bottomFill = ssoX2 & 7;  /* wall pixels in bottom partial tile */
-
-        for(y = 0; y < ssoX2; y+=8) /* draw walls */
-        {
-			/* Compute row from textureY accumulator */
-			texRow = (u8)((texAccum >> 13) & 7);
-			wallTexChar = wallTexBase + (u16)texRow * WALL_TEX_COLS;
-
-            if (y == 0 && ws != 0 && drawnTop == false) {
-				/* Top partial: wsPercent8 is 0 here, wall starts on tile boundary */
-				drawTileChar(&x, &curY, wallTexChar);
-            } else if (y + 7 >= ssoX2 && bottomFill > 0) {
-				/* Bottom partial: textured transition tile with V-flip */
-				transChar = TRANS_TEX_CHAR_START + (u16)(wt - 1) * 14
-				          + (u16)tv * 7 + (bottomFill - 1);
-				drawTileChar(&x, &curY, transChar | 0x1000);  /* V-flip */
-				drawnBottom = true;
-            } else {
-				/* Full textured wall tile */
-				drawTileChar(&x, &curY, wallTexChar);
+		/* Compute wall draw length: subtract the wall pixels already drawn
+		 * by the ceiling transition tile to avoid bottom overshoot.
+		 * This also fixes bottomFill resolution: ssoX2 is always even (= 2*sso)
+		 * so ssoX2 & 7 only produces 0/2/4/6. After subtracting the ceiling
+		 * overlap, wallDrawLen has full 1-pixel resolution. */
+		{
+			u16 wallDrawLen = ssoX2;
+			if (drawnTop) {
+				wallDrawLen -= (8 - wsPercent8);
 			}
-			texAccum += (u32)tst << 3;  /* advance textureY by tst * 8 scanlines */
-            curY+=8;
-        }
+			bottomFill = wallDrawLen & 7;
+
+			for(y = 0; y < wallDrawLen; y+=8) /* draw walls */
+			{
+				/* Compute row from textureY accumulator */
+				texRow = (u8)((texAccum >> 13) & 7);
+				wallTexChar = wallTexBase + (u16)texRow * WALL_TEX_COLS;
+
+				if (y == 0 && ws != 0 && drawnTop == false) {
+					/* Top partial: wsPercent8 is 0 here, wall starts on tile boundary */
+					drawTileChar(&x, &curY, wallTexChar);
+				} else if (y + 7 >= wallDrawLen && bottomFill > 0) {
+					/* Bottom partial: textured transition tile with V-flip */
+					transChar = TRANS_TEX_CHAR_START + (u16)(wt - 1) * 14
+					          + (u16)tv * 7 + (bottomFill - 1);
+					drawTileChar(&x, &curY, transChar | 0x1000);  /* V-flip */
+					drawnBottom = true;
+				} else {
+					/* Full textured wall tile */
+					drawTileChar(&x, &curY, wallTexChar);
+				}
+				texAccum += (u32)tst << 3;  /* advance textureY by tst * 8 scanlines */
+				curY+=8;
+			}
+		}
         /*
         // draw roof
         			drawDoomStageTile(xPos, 0, cyaRoof, 2482);

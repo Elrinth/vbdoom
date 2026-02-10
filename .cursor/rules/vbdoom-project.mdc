@@ -27,16 +27,18 @@ C project targeting the NEC V810 CPU via `v810-gcc` and the `libgccvb` library.
 | Region | Chars | Count | Defined in |
 |---|---|---|---|
 | HUD | 0-107 | 108 | `doomgfx.c` (hardcoded) |
-| Faces | 108-543 | 436 | `face_sprites.h` |
-| Weapons (shared) | 544-763 | 220 | `doomgfx.h` WEAPON_CHAR_START |
-| Particles | 764-982 | 219 | `particle_sprites.h` |
+| Face (shared) | 108-119 | 12 | `face_sprites.h` FACE_CHAR_START |
+| Shotgun (shared) | 120-461 | 342 | `shotgun_sprites.h` SHOTGUN_CHAR_START |
+| *Free* | 462-543 | 82 | |
+| Weapons fist/pistol | 544-763 | 220 | `doomgfx.h` WEAPON_CHAR_START |
+| Particles | 764-941 | 178 | `particle_sprites.h` |
 | Enemies (3x64) | 983-1174 | 192 | `doomgfx.h` ZOMBIE_CHAR_START |
 | Pickups (3x12) | 1175-1210 | 36 | `pickup.h` PICKUP_CHAR_START |
 | Wall textures | 1211-1722 | 512 | `wall_textures.h` WALL_TEX_CHAR_START |
 | Transitions | 1723-1778 | 56 | `wall_textures.h` TRANS_TEX_CHAR_START |
 | **Free** | 1779-2047 | **269** | |
 
-Weapon slot is shared: only one weapon's tiles are loaded at a time (fist 213, pistol 119, shotgun 220). When adding new sprites, verify the total stays under 2048.
+Weapon tiles are shared: only one weapon is active at a time. Fist (213) and pistol (119) share chars 544+. Shotgun (342, red+black) uses its own region at chars 120+. Verify total stays under 2048.
 
 ## Asset Pipeline
 

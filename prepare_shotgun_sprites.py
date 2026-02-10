@@ -4,7 +4,11 @@ prepare_shotgun_sprites.py
 Convert shotgun first-person sprite sheet to VB tile format using grit.exe.
 Source: shotgun_6_sprites/shottygun01_2.png (3x2 grid)
 
-Tiles are deduplicated across all 6 frames (including H-flip detection).
+Generates DUAL-LAYER sprites (red + black), matching the pistol's approach:
+  - Red layer: the weapon body (normal palette GPLT0)
+  - Black layer: 1-pixel outline around the weapon (GPLT2 palette for dark outlines)
+
+Tiles are deduplicated across all 12 images (6 red + 6 black, including H-flip).
 Uses grit.exe for tile encoding to match the proven zombie sprite pipeline.
 
 Frame layout:
@@ -35,7 +39,7 @@ GRIT_DIR = os.path.join(SCRIPT_DIR, "grit_conversions")
 TILE_SIZE = 8
 MAX_WIDTH_TILES = 8     # max 64px wide
 MAX_HEIGHT_TILES = 8    # max 64px tall
-WEAPON_CHAR_START = 544
+SHOTGUN_CHAR_START = 120  # Uses the free space after faces (120-543)
 
 MAGENTA_THRESHOLD = 30
 BAYER_2x2 = [[0.0, 0.5], [0.75, 0.25]]
@@ -193,6 +197,55 @@ def convert_frame(img, bbox, max_w, max_h):
     return canvas, cols, rows
 
 
+def generate_black_canvas(canvas):
+    """Generate a black-layer canvas from the red canvas.
+
+    The black canvas contains the FULL weapon body (all pixel indices
+    preserved) PLUS a 2-pixel dilated dark border around the weapon
+    silhouette. This matches the pistol's approach:
+
+    When rendered with GPLT2 (0x84):
+      idx 0 -> transparent
+      idx 1 -> dark (visible as black)
+      idx 2 -> transparent (medium pixels disappear!)
+      idx 3 -> medium (bright pixels become dimmer)
+
+    Interior tiles will be identical to red tiles and deduplicate to
+    zero additional cost. Only edge tiles with the dilated border add
+    to the tile count.
+    """
+    h = len(canvas)
+    w = len(canvas[0]) if h > 0 else 0
+    black = [[0] * w for _ in range(h)]
+
+    # Copy full weapon body
+    for y in range(h):
+        for x in range(w):
+            black[y][x] = canvas[y][x]
+
+    # Add 1-pixel dilated dark border (8-directional)
+    for y in range(h):
+        for x in range(w):
+            if canvas[y][x] != 0:
+                continue  # only fill transparent pixels
+            # Check 8 neighbors for any non-transparent pixel
+            has_neighbor = False
+            for dy in (-1, 0, 1):
+                for dx in (-1, 0, 1):
+                    if dy == 0 and dx == 0:
+                        continue
+                    ny, nx = y + dy, x + dx
+                    if 0 <= ny < h and 0 <= nx < w and canvas[ny][nx] != 0:
+                        has_neighbor = True
+                        break
+                if has_neighbor:
+                    break
+            if has_neighbor:
+                black[y][x] = 1  # dark outline pixel
+
+    return black
+
+
 def save_indexed_png(canvas, path):
     """Save a canvas as indexed 4-color PNG for grit."""
     h = len(canvas)
@@ -296,6 +349,34 @@ def save_preview(canvas, path, scale=3):
     img.save(path)
 
 
+def deduplicate_tiles(tile_list, unique_tiles, unique_tile_data):
+    """Deduplicate a list of tile word tuples against the shared pool.
+
+    Returns a list of (char_idx | flags) map entries.
+    Modifies unique_tiles and unique_tile_data in-place.
+    """
+    frame_map = []
+    for tile_words in tile_list:
+        flags = 0
+
+        if tile_words in unique_tiles:
+            idx = unique_tiles[tile_words]
+        else:
+            hflipped = hflip_tile_words(tile_words)
+            if hflipped in unique_tiles:
+                idx = unique_tiles[hflipped]
+                flags = 0x2000  # H-flip
+            else:
+                idx = len(unique_tile_data)
+                unique_tiles[tile_words] = idx
+                unique_tile_data.append(tile_words)
+
+        char_idx = SHOTGUN_CHAR_START + idx
+        frame_map.append(char_idx | flags)
+
+    return frame_map
+
+
 def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     os.makedirs(PREVIEW_DIR, exist_ok=True)
@@ -318,89 +399,96 @@ def main():
     grit_input_dir = os.path.join(PREVIEW_DIR, "grit_input")
     os.makedirs(grit_input_dir, exist_ok=True)
 
-    # Phase 1: process frames and run grit on each
-    frame_grit_tiles = []  # list of lists of tile tuples (4 u32 words each)
-    frame_dims = []        # list of (cols, rows)
+    # Phase 1: process frames, generate red + black canvases, run grit
+    red_grit_tiles = []    # list of lists of tile tuples (red layer)
+    blk_grit_tiles = []    # list of lists of tile tuples (black layer)
+    frame_dims = []        # list of (cols, rows) -- same for red and black
 
     for fi in range(6):
         bbox = bboxes[fi]
         bw = bbox[2] - bbox[0] + 1
         bh = bbox[3] - bbox[1] + 1
         canvas, cols, rows = convert_frame(img, bbox, max_w, max_h)
+
+        # Generate black layer: full weapon body + 2px dilated border
+        black = generate_black_canvas(canvas)
+
+        # Save previews
         save_preview(canvas, os.path.join(PREVIEW_DIR,
-                                          f"shotgun_{FRAME_NAMES[fi]}.png"))
+                                          f"shotgun_{FRAME_NAMES[fi]}_red.png"))
+        save_preview(black, os.path.join(PREVIEW_DIR,
+                                         f"shotgun_{FRAME_NAMES[fi]}_blk.png"))
         print(f"  Frame {fi} ({FRAME_NAMES[fi]}): {bw}x{bh} -> "
               f"{cols}x{rows} tiles ({cols*8}x{rows*8} px)")
 
-        # Save indexed PNG for grit
-        png_path = os.path.join(grit_input_dir, f"shotgun_f{fi}.png")
-        save_indexed_png(canvas, png_path)
+        # Save indexed PNGs for grit (red + black)
+        red_png = os.path.join(grit_input_dir, f"shotgun_f{fi}_red.png")
+        blk_png = os.path.join(grit_input_dir, f"shotgun_f{fi}_blk.png")
+        save_indexed_png(canvas, red_png)
+        save_indexed_png(black, blk_png)
 
-        # Run grit
-        c_file = run_grit(png_path)
-        if c_file is None:
-            print(f"  FATAL: grit failed for frame {fi}")
+        # Run grit on red layer
+        red_c = run_grit(red_png)
+        if red_c is None:
+            print(f"  FATAL: grit failed for red frame {fi}")
             return
+        red_tiles = parse_grit_tiles(red_c)
+        os.remove(red_c)
 
-        # Parse grit tile data
-        tiles = parse_grit_tiles(c_file)
-        os.remove(c_file)  # clean up temp .c file
+        # Run grit on black layer
+        blk_c = run_grit(blk_png)
+        if blk_c is None:
+            print(f"  FATAL: grit failed for black frame {fi}")
+            return
+        blk_tiles = parse_grit_tiles(blk_c)
+        os.remove(blk_c)
 
-        expected_tiles = cols * rows
-        if len(tiles) != expected_tiles:
-            print(f"  WARNING: expected {expected_tiles} tiles from grit, "
-                  f"got {len(tiles)}")
+        expected = cols * rows
+        if len(red_tiles) != expected:
+            print(f"  WARNING: expected {expected} red tiles, got {len(red_tiles)}")
+        if len(blk_tiles) != expected:
+            print(f"  WARNING: expected {expected} blk tiles, got {len(blk_tiles)}")
 
-        frame_grit_tiles.append(tiles)
+        red_grit_tiles.append(red_tiles)
+        blk_grit_tiles.append(blk_tiles)
         frame_dims.append((cols, rows))
 
-    # Phase 2: deduplicate tiles across all frames (using grit-encoded words)
-    unique_tiles = {}     # tile_words_tuple -> index
-    unique_tile_data = [] # list of tile word tuples
-    frame_maps = []       # list of (cols, rows, map_entries)
+    # Phase 2: deduplicate ALL tiles (red + black) into one shared pool
+    unique_tiles = {}      # tile_words_tuple -> index
+    unique_tile_data = []  # list of tile word tuples
+    red_frame_maps = []    # list of (cols, rows, map_entries)
+    blk_frame_maps = []    # list of (cols, rows, map_entries)
 
     for fi in range(6):
         cols, rows = frame_dims[fi]
-        tiles = frame_grit_tiles[fi]
-        frame_map = []
 
-        for tile_words in tiles:
-            flags = 0
+        # Red layer
+        red_map = deduplicate_tiles(red_grit_tiles[fi],
+                                    unique_tiles, unique_tile_data)
+        red_frame_maps.append((cols, rows, red_map))
 
-            if tile_words in unique_tiles:
-                idx = unique_tiles[tile_words]
-            else:
-                hflipped = hflip_tile_words(tile_words)
-                if hflipped in unique_tiles:
-                    idx = unique_tiles[hflipped]
-                    flags = 0x2000  # H-flip
-                else:
-                    idx = len(unique_tile_data)
-                    unique_tiles[tile_words] = idx
-                    unique_tile_data.append(tile_words)
-
-            char_idx = WEAPON_CHAR_START + idx
-            frame_map.append(char_idx | flags)
-
-        frame_maps.append((cols, rows, frame_map))
+        # Black layer (same tile grid dimensions)
+        blk_map = deduplicate_tiles(blk_grit_tiles[fi],
+                                    unique_tiles, unique_tile_data)
+        blk_frame_maps.append((cols, rows, blk_map))
 
     num_tiles = len(unique_tile_data)
-    print(f"\nTotal unique shotgun tiles: {num_tiles}")
+    print(f"\nTotal unique shotgun tiles (red+black): {num_tiles}")
     print(f"Tile data: {num_tiles * 16} bytes ({num_tiles * 4} u32 words)")
 
-    if num_tiles > 220:
-        print(f"WARNING: {num_tiles} tiles exceeds weapon slot limit of 220!")
+    if num_tiles > 424:
+        print(f"WARNING: {num_tiles} tiles exceeds shotgun slot limit of 424!")
 
     # --- Write C file ---
     c_path = os.path.join(OUTPUT_DIR, "shotgun_sprites.c")
     with open(c_path, 'w') as f:
-        f.write("/* Shotgun weapon sprite tiles -- auto-generated by "
-                "prepare_shotgun_sprites.py + grit */\n\n")
+        f.write("/* Shotgun weapon sprite tiles (red+black layers) -- "
+                "auto-generated by prepare_shotgun_sprites.py + grit */\n\n")
 
         all_u32 = []
         for td in unique_tile_data:
             all_u32.extend(td)
-        f.write(f"/* {num_tiles} unique shotgun tiles */\n")
+        f.write(f"/* {num_tiles} unique shotgun tiles (red+black shared) */\n")
         f.write(f"const unsigned int shotgunTiles[{len(all_u32)}]"
                 f" __attribute__((aligned(4))) =\n{{\n")
         for i in range(0, len(all_u32), 8):
@@ -410,12 +498,28 @@ def main():
             f.write(f"\t{s}{comma}\n")
         f.write("};\n\n")
 
+        # Red frame maps
         for fi in range(6):
-            cols, rows, fmap = frame_maps[fi]
+            cols, rows, fmap = red_frame_maps[fi]
             entries = cols * rows
-            f.write(f"/* frame {fi} ({FRAME_NAMES[fi]}): "
+            f.write(f"/* Red frame {fi} ({FRAME_NAMES[fi]}): "
                     f"{cols} cols x {rows} rows */\n")
             f.write(f"const unsigned short shotgunFrame{fi}Map[{entries}]"
+                    f" __attribute__((aligned(4))) =\n{{\n")
+            for r in range(rows):
+                chunk = fmap[r * cols:(r + 1) * cols]
+                s = ",".join(f"0x{v:04X}" for v in chunk)
+                comma = "," if r < rows - 1 else ""
+                f.write(f"\t{s}{comma}\n")
+            f.write("};\n\n")
+
+        # Black frame maps
+        for fi in range(6):
+            cols, rows, fmap = blk_frame_maps[fi]
+            entries = cols * rows
+            f.write(f"/* Black frame {fi} ({FRAME_NAMES[fi]}): "
+                    f"{cols} cols x {rows} rows */\n")
+            f.write(f"const unsigned short shotgunBlkFrame{fi}Map[{entries}]"
                     f" __attribute__((aligned(4))) =\n{{\n")
             for r in range(rows):
                 chunk = fmap[r * cols:(r + 1) * cols]
@@ -431,18 +535,30 @@ def main():
     with open(h_path, 'w') as f:
         f.write("#ifndef __SHOTGUN_SPRITES_H__\n"
                 "#define __SHOTGUN_SPRITES_H__\n\n")
+        f.write(f"#define SHOTGUN_CHAR_START   {SHOTGUN_CHAR_START}\n")
         f.write(f"#define SHOTGUN_TILE_COUNT   {num_tiles}\n")
         f.write(f"#define SHOTGUN_TILE_BYTES   {num_tiles * 16}\n\n")
         f.write(f"extern const unsigned int shotgunTiles[{len(all_u32)}];\n\n")
 
+        f.write("/* Red layer frames */\n")
         for fi in range(6):
-            cols, rows, fmap = frame_maps[fi]
+            cols, rows, fmap = red_frame_maps[fi]
             entries = cols * rows
             f.write(f"#define SHOTGUN_F{fi}_XTILES  {cols * 2}  "
                     f"/* {cols} cols x 2 bytes */\n")
             f.write(f"#define SHOTGUN_F{fi}_ROWS    {rows}\n")
             f.write(f"extern const unsigned short "
                     f"shotgunFrame{fi}Map[{entries}];\n\n")
+
+        f.write("/* Black layer frames */\n")
+        for fi in range(6):
+            cols, rows, fmap = blk_frame_maps[fi]
+            entries = cols * rows
+            f.write(f"#define SHOTGUN_BLK_F{fi}_XTILES  {cols * 2}  "
+                    f"/* {cols} cols x 2 bytes */\n")
+            f.write(f"#define SHOTGUN_BLK_F{fi}_ROWS    {rows}\n")
+            f.write(f"extern const unsigned short "
+                    f"shotgunBlkFrame{fi}Map[{entries}];\n\n")
 
         f.write("#endif\n")
     print(f"Wrote {h_path}")

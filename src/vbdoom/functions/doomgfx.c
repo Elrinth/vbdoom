@@ -38,7 +38,9 @@ void loadPistolSprites(void) {
 }
 
 void loadShotgunSprites(void) {
-	u32 addr = 0x00078000 + (u32)WEAPON_CHAR_START * 16;
+	/* Shotgun uses its own char region (120+) because it needs more tiles
+	 * than fist/pistol for the dual-layer red+black sprites */
+	u32 addr = 0x00078000 + (u32)SHOTGUN_CHAR_START * 16;
 	copymem((void*)addr, (void*)shotgunTiles, SHOTGUN_TILE_BYTES);
 }
 
@@ -333,41 +335,57 @@ void drawWeapon(u8 iWeapon, s16 swayX, s16 swayY, u8 iFrame, u8 iWeaponChangeTim
 				lockedY = 192 - SHOTGUN_F0_ROWS * 8;
 				weapMapPtr = shotgunFrame0Map;
 				weapMapStride = SHOTGUN_F0_XTILES;
+				weapBlkMapPtr = shotgunBlkFrame0Map;
+				weapBlkStride = SHOTGUN_BLK_F0_XTILES;
+				blkRowCount = SHOTGUN_BLK_F0_ROWS;
 			} else if (iFrame == 1) {
 				xTiles = SHOTGUN_F1_XTILES;
 				rowCount = SHOTGUN_F1_ROWS;
 				lockedY = 192 - SHOTGUN_F1_ROWS * 8;
 				weapMapPtr = shotgunFrame1Map;
 				weapMapStride = SHOTGUN_F1_XTILES;
+				weapBlkMapPtr = shotgunBlkFrame1Map;
+				weapBlkStride = SHOTGUN_BLK_F1_XTILES;
+				blkRowCount = SHOTGUN_BLK_F1_ROWS;
 			} else if (iFrame == 2) {
 				xTiles = SHOTGUN_F2_XTILES;
 				rowCount = SHOTGUN_F2_ROWS;
 				lockedY = 192 - SHOTGUN_F2_ROWS * 8;
 				weapMapPtr = shotgunFrame2Map;
 				weapMapStride = SHOTGUN_F2_XTILES;
+				weapBlkMapPtr = shotgunBlkFrame2Map;
+				weapBlkStride = SHOTGUN_BLK_F2_XTILES;
+				blkRowCount = SHOTGUN_BLK_F2_ROWS;
 			} else if (iFrame == 3) {
 				xTiles = SHOTGUN_F3_XTILES;
 				rowCount = SHOTGUN_F3_ROWS;
 				lockedY = 192 - SHOTGUN_F3_ROWS * 8;
 				weapMapPtr = shotgunFrame3Map;
 				weapMapStride = SHOTGUN_F3_XTILES;
+				weapBlkMapPtr = shotgunBlkFrame3Map;
+				weapBlkStride = SHOTGUN_BLK_F3_XTILES;
+				blkRowCount = SHOTGUN_BLK_F3_ROWS;
 			} else if (iFrame == 4) {
 				xTiles = SHOTGUN_F4_XTILES;
 				rowCount = SHOTGUN_F4_ROWS;
 				lockedY = 192 - SHOTGUN_F4_ROWS * 8;
 				weapMapPtr = shotgunFrame4Map;
 				weapMapStride = SHOTGUN_F4_XTILES;
+				weapBlkMapPtr = shotgunBlkFrame4Map;
+				weapBlkStride = SHOTGUN_BLK_F4_XTILES;
+				blkRowCount = SHOTGUN_BLK_F4_ROWS;
 			} else if (iFrame == 5) {
 				xTiles = SHOTGUN_F5_XTILES;
 				rowCount = SHOTGUN_F5_ROWS;
 				lockedY = 192 - SHOTGUN_F5_ROWS * 8;
 				weapMapPtr = shotgunFrame5Map;
 				weapMapStride = SHOTGUN_F5_XTILES;
+				weapBlkMapPtr = shotgunBlkFrame5Map;
+				weapBlkStride = SHOTGUN_BLK_F5_XTILES;
+				blkRowCount = SHOTGUN_BLK_F5_ROWS;
 			}
-			/* Black layer: same maps, offset down+right for shadow/outline effect */
-			weapBlkMapPtr = weapMapPtr;
-			weapBlkStride = weapMapStride;
-			blkRowCount = rowCount;
+			/* Black layer offset: 1px down+right creates visible dark border.
+			 * GPLT2 makes idx2 transparent so it doesn't look double-drawn. */
 			blackY = lockedY + 1;
 			blackXOff = 1;
 		break;
