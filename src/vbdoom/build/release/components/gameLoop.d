@@ -19,5 +19,9 @@ build/release/./components/gameLoop.o: components/gameLoop.c C:/vbde/libs/libgcc
  c:\vbde\system\msys32\v810\v810-win32\bin\../lib/gcc/v810/4.7.4/../../../../v810/include/machine/_default_types.h \
  c:\vbde\system\msys32\v810\v810-win32\bin\../lib/gcc/v810/4.7.4/../../../../v810/include/sys/features.h \
  c:\vbde\system\msys32\v810\v810-win32\bin\../lib/gcc/v810/4.7.4/../../../../v810/include/sys/_intsup.h \
- functions/enemy.h \
- components/../assets/images/sprites/zombie/zombie_sprites.h
+ functions/RayCasterFixed.h functions/enemy.h functions/pickup.h \
+ functions/particle.h C:/vbde/libs/libgccvb/timer.h \
+ components/../assets/images/sprites/zombie/zombie_sprites.h \
+ components/../assets/images/sprites/zombie_sgt/zombie_sgt_sprites.h \
+ components/../assets/images/sprites/pickups/pickup_sprites.h \
+ components/../assets/images/sprites/faces/face_sprites.h

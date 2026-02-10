@@ -2,6 +2,7 @@
 #include "sndplay.h"
 #include "voices.h"
 #include "dph9.h"
+#include "enemy.h"
 
 //int batman_channel1[] = {E_3, PAU, E_3, PAU, E_4, E_3, E_3, D_4, E_3, E_3, C_4, CS5, D_5, E_5, FS5, A_5, G_5, FS5, E_5, C_5, G_4, C_5, D_5, E_5, FS5, G_5, A_5, G_5, FS5, E_5, E_5, PAU, G_5, FS5, E_5, FS5, E_5, D_5, CS5, PAU, B_4, FS5, D_5, G_5, FS5, D_5, B_4, AS4, B_4, CS5, D_5, E_5, FS5, A_5, G_5, FS5, E_5, C_5, G_4, C_5, D_5, E_5, FS5, G_5, A_5, G_5, FS5, E_5, E_5, PAU, FS5, E_5, FS5, D_5, E_5, CS5, D_5, PAU, B_4, PAU, FS5, B_5, CS6, D_6, B_5, D_6, CS6, D_6, E_6, A_5, A_5, B_5, CS6, D_6, B_5, G_5, B_5, G_5, D_5, G_5, D_5, B_4, D_5, B_4, G_4, G_5, G_4, A_4, G_4, FS4, CS5, FS5, CS6, FS6, E_6, D_6, E_6, D_6, CS6, B_5, CS6, B_5, AS5, GS5, AS5, B_5, B_5, FS5, CS6, CS6, FS5, D_6, D_6, FS5, E_6, D_6, E_6, FS6, B_5, B_5, G_5, CS6, CS6, G_5, D_6, D_6, G_5, E_6, D_6, E_6, FS6, CS6, CS6, A_5, D_6, D_6, A_5, E_6, E_6, A_5, FS6, E_6, FS6, G_6, FS6, E_6, CS6, D_6, CS6, PAU, D_6, E_6, FS6, E_6, D_6, CS6, B_5, B_5, FS5, CS6, CS6, FS5, D_6, D_6, FS5, E_6, D_6, E_6, FS6, B_5, B_5, G_5, CS6, CS6, G_5, D_6, D_6, G_5, E_6, D_6, E_6, FS6, E_6, E_6, A_5, FS6, FS6, A_5, G_6, G_6, A_5, A_6, G_6, A_6, FS6, G_6, E_6, A_5, AS5, B_5, };
 
@@ -30,8 +31,9 @@ u8 musicCurrentNote = 0;
 u8 musicPrevNote = 99;
 u8 vol = 8;
 
-/* Forward declaration for pickup sound update */
+/* Forward declarations */
 static void updatePickupSound(void);
+static void updateEnemySounds(void);
 
 void playSnd(bool *isFiring, u8 *iWeaponType, bool *isPlayMusic) {
 	/*
@@ -164,6 +166,9 @@ void playSnd(bool *isFiring, u8 *iWeaponType, bool *isPlayMusic) {
 
 	/* Update pickup sound each frame */
 	updatePickupSound();
+
+	/* Update enemy sounds each frame */
+	updateEnemySounds();
 }
 
 /* Pickup sound state */
@@ -180,6 +185,9 @@ void mp_init()
 	copymem((void*)WAVEDATA1, (void*)SAWTOOTH, 128);
 	/* Load SQUARE waveform for pickup sound on channel 1 (WAVE2) */
 	copymem((void*)WAVEDATA2, (void*)SQUARE, 128);
+	/* Load waveforms for enemy sounds on channels 2 (WAVE3) and 3 (WAVE4) */
+	copymem((void*)WAVEDATA3, (void*)SAWTOOTH, 128);
+	copymem((void*)WAVEDATA4, (void*)TRIANGLE, 128);
 }
 
 /* Called from playSnd() each frame to handle pickup sound */
@@ -211,6 +219,133 @@ static void updatePickupSound(void) {
 	}
 	pickupSndTick++;
 }
+/* ================================================================
+ * Enemy sound effects (channels 2 = WAVE3, 3 = WAVE4)
+ * ================================================================ */
+
+/* Per-channel tick state */
+static u8 enemyAggroTick = 0;
+static bool enemyAggroPlaying = false;
+static u8 enemyAggroVol = 0;
+
+static u8 enemyShootTick = 0;
+static bool enemyShootPlaying = false;
+static u8 enemyShootVol = 0;
+static u8 enemyShootType = 0;  /* 0=pistol, 1=shotgun */
+
+static u8 enemyDeathTick = 0;
+static bool enemyDeathPlaying = false;
+static u8 enemyDeathVol = 0;
+
+/* Convert distance byte (0-255) to volume (0-8). Closer = louder. */
+static u8 distToVol(u8 distByte) {
+	if (distByte < 8)   return 8;
+	if (distByte < 16)  return 7;
+	if (distByte < 32)  return 6;
+	if (distByte < 64)  return 5;
+	if (distByte < 100) return 4;
+	if (distByte < 140) return 3;
+	if (distByte < 200) return 2;
+	return 1;
+}
+
+static void updateEnemySounds(void) {
+	/* Check for new sound events from enemy.c */
+	if (g_enemySndAggro > 0) {
+		enemyAggroVol = distToVol(g_enemySndAggro);
+		enemyAggroTick = 0;
+		enemyAggroPlaying = true;
+		g_enemySndAggro = 0;
+	}
+	if (g_enemySndShoot > 0) {
+		enemyShootVol = distToVol(g_enemySndShoot);
+		enemyShootType = g_enemySndShootType;
+		enemyShootTick = 0;
+		enemyShootPlaying = true;
+		g_enemySndShoot = 0;
+	}
+	if (g_enemySndDeath > 0) {
+		enemyDeathVol = distToVol(g_enemySndDeath);
+		enemyDeathTick = 0;
+		enemyDeathPlaying = true;
+		g_enemySndDeath = 0;
+	}
+
+	/* ---- Channel 2 (WAVE3): aggro bark or enemy gunshot ---- */
+	/* Gunshot takes priority over aggro */
+	if (enemyShootPlaying) {
+		if (enemyShootTick < 5) {
+			u16 freq;
+			u8 v = enemyShootVol;
+			if (enemyShootTick > 2) v = (v > 2) ? v - 2 : 1;
+
+			if (enemyShootType == 1) {
+				/* Sergeant shotgun: lower pitch, noisier */
+				freq = 0x52A - ((u16)enemyShootTick << 7);
+			} else {
+				/* Zombieman pistol: higher pitch */
+				freq = 0x62A - ((u16)enemyShootTick << 7);
+			}
+			SND_REGS[0x02].SxINT = 0x9F;
+			SND_REGS[0x02].SxLRV = (v << 4) | v;
+			SND_REGS[0x02].SxFQL = freq & 0xFF;
+			SND_REGS[0x02].SxFQH = freq >> 8;
+			SND_REGS[0x02].SxEV0 = 0x88;
+			SND_REGS[0x02].SxEV1 = 0x00;
+			SND_REGS[0x02].SxRAM = 0x02;  /* WAVEDATA3 */
+		} else {
+			SND_REGS[0x02].SxINT = 0x00;
+			enemyShootPlaying = false;
+		}
+		enemyShootTick++;
+	} else if (enemyAggroPlaying) {
+		if (enemyAggroTick < 4) {
+			u16 freq;
+			u8 v = enemyAggroVol;
+			if (enemyAggroTick > 1) v = (v > 1) ? v - 1 : 1;
+
+			/* Aggro bark: short, mid-frequency alert sound */
+			freq = (enemyAggroTick < 2) ? 0x300 : 0x280;
+			SND_REGS[0x02].SxINT = 0x9F;
+			SND_REGS[0x02].SxLRV = (v << 4) | v;
+			SND_REGS[0x02].SxFQL = freq & 0xFF;
+			SND_REGS[0x02].SxFQH = freq >> 8;
+			SND_REGS[0x02].SxEV0 = 0x66;
+			SND_REGS[0x02].SxEV1 = 0x00;
+			SND_REGS[0x02].SxRAM = 0x02;
+		} else {
+			SND_REGS[0x02].SxINT = 0x00;
+			enemyAggroPlaying = false;
+		}
+		enemyAggroTick++;
+	}
+
+	/* ---- Channel 3 (WAVE4): death grunt ---- */
+	if (enemyDeathPlaying) {
+		if (enemyDeathTick < 8) {
+			u16 freq;
+			u8 v = enemyDeathVol;
+			if (enemyDeathTick > 3) v = (v > 1) ? v - 1 : 1;
+
+			/* Death grunt: descending low-frequency moan */
+			freq = 0x200 - ((u16)enemyDeathTick << 5);
+			if (freq < 0x100) freq = 0x100;
+
+			SND_REGS[0x03].SxINT = 0x9F;
+			SND_REGS[0x03].SxLRV = (v << 4) | v;
+			SND_REGS[0x03].SxFQL = freq & 0xFF;
+			SND_REGS[0x03].SxFQH = freq >> 8;
+			SND_REGS[0x03].SxEV0 = 0x55;
+			SND_REGS[0x03].SxEV1 = 0x00;
+			SND_REGS[0x03].SxRAM = 0x03;  /* WAVEDATA4 */
+		} else {
+			SND_REGS[0x03].SxINT = 0x00;
+			enemyDeathPlaying = false;
+		}
+		enemyDeathTick++;
+	}
+}
+
 /*
 const signed long SINE
 

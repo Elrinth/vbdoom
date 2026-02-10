@@ -14,12 +14,14 @@
 extern const unsigned int pickup_ammo_clipTiles[48];
 extern const unsigned int pickup_health_largeTiles[48];
 extern const unsigned int pickup_health_smallTiles[48];
+extern const unsigned int pickup_shotgunTiles[48];
 
-/* Indexed by pickup type: 0=ammo_clip, 1=health_small, 2=health_large */
-static const unsigned int* const PICKUP_TILES[3] = {
+/* Indexed by pickup type: 0=ammo_clip, 1=health_small, 2=health_large, 3=shotgun */
+static const unsigned int* const PICKUP_TILES[4] = {
     pickup_ammo_clipTiles,
     pickup_health_smallTiles,
-    pickup_health_largeTiles
+    pickup_health_largeTiles,
+    pickup_shotgunTiles
 };
 
 #endif /* __PICKUP_SPRITES_H__ */

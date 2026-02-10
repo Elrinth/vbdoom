@@ -14,9 +14,10 @@
 #define MAX_VISIBLE_PICKUPS  3   /* rendered simultaneously (1 world each) */
 
 /* Pickup types (index into PICKUP_TILES[] in pickup_sprites.h) */
-#define PICKUP_AMMO_CLIP     0
-#define PICKUP_HEALTH_SMALL  1
-#define PICKUP_HEALTH_LARGE  2
+#define PICKUP_AMMO_CLIP       0
+#define PICKUP_HEALTH_SMALL    1
+#define PICKUP_HEALTH_LARGE    2
+#define PICKUP_WEAPON_SHOTGUN  3
 
 /* Gameplay constants */
 #define PICKUP_RADIUS        80   /* collision radius (8.8 fixed-point units) */
@@ -25,7 +26,7 @@
 #define HEALTH_LARGE_AMOUNT  25   /* HP from large medkit */
 
 /* Rendering constants */
-#define PICKUP_CHAR_START   (889 + 3 * 64)  /* after 3 enemies: char 1081 */
+#define PICKUP_CHAR_START   1175  /* after enemies: 983 + 3*64 = 1175 */
 #define PICKUP_CHAR_STRIDE  12              /* 4x3 tiles = 12 chars per pickup */
 #define PICKUP_BGMAP_START  6               /* BGMap(6), (7), (8) */
 #define PICKUP_TILE_W       4               /* tile grid width (32px / 8) */
@@ -46,6 +47,9 @@ extern Pickup g_pickups[MAX_PICKUPS];
 /* Screen flash state (shared with gameLoop for palette override) */
 extern u8 g_flashTimer;   /* >0 = flash active, counts down each frame */
 extern u8 g_flashType;    /* 0 = pickup (bright), 1 = damage (red tint) */
+
+/* Weapon pickup flag: set to weapon ID when a weapon is picked up (0 = none) */
+extern u8 g_pickedUpWeapon;
 
 /* ---- API ---- */
 

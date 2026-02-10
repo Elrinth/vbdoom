@@ -10,6 +10,7 @@ Pickup g_pickups[MAX_PICKUPS];
 /* Flash state */
 u8 g_flashTimer = 0;
 u8 g_flashType = 0;
+u8 g_pickedUpWeapon = 0;
 
 void initPickups(void) {
     u8 i;
@@ -17,22 +18,27 @@ void initPickups(void) {
         g_pickups[i].active = false;
     }
 
-    /* Place static health packs on the map.
+    /* Place static pickups in the E1M1-inspired map.
      * Positions are in 8.8 fixed-point (tile * 256 + offset).
-     * Adjust these to known open areas in your level.
      */
 
-    /* Small health kit at tile (5, 2) center = 5*256+128 = 1408, 2*256+128 = 640 */
-    g_pickups[0].x = 1408;
-    g_pickups[0].y = 640;
+    /* Small health kit in armor room (W), tile (4, 22) */
+    g_pickups[0].x = 4 * 256 + 128;
+    g_pickups[0].y = 22 * 256 + 128;
     g_pickups[0].type = PICKUP_HEALTH_SMALL;
     g_pickups[0].active = true;
 
-    /* Large health kit at tile (2, 5) center = 640, 1408 */
-    g_pickups[1].x = 640;
-    g_pickups[1].y = 1408;
-    g_pickups[1].type = PICKUP_HEALTH_LARGE;
+    /* Ammo clip in supply room (E), tile (27, 22) */
+    g_pickups[1].x = 27 * 256 + 128;
+    g_pickups[1].y = 22 * 256 + 128;
+    g_pickups[1].type = PICKUP_AMMO_CLIP;
     g_pickups[1].active = true;
+
+    /* Shotgun pickup near start area, tile (15, 26) */
+    g_pickups[2].x = 15 * 256 + 128;
+    g_pickups[2].y = 26 * 256 + 128;
+    g_pickups[2].type = PICKUP_WEAPON_SHOTGUN;
+    g_pickups[2].active = true;
 }
 
 bool spawnPickup(u8 type, u16 x, u16 y) {
@@ -89,6 +95,10 @@ bool updatePickups(u16 playerX, u16 playerY, u8 *ammo, u8 *health) {
                 } else {
                     continue; /* don't pick up if already full */
                 }
+                break;
+            case PICKUP_WEAPON_SHOTGUN:
+                /* Weapon pickup: flag is set in g_pickedUpWeapon, gameLoop handles switch */
+                g_pickedUpWeapon = 3;
                 break;
             }
 

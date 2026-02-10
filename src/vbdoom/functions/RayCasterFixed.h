@@ -29,6 +29,10 @@ u8  _viewAngle;
 void CalculateObjectScreenPosition(u16 objectX, u16 objectY, u16 objectWidth, u16 objectHeight, u8* screenX, u8* screenY, u8* scale, bool* shouldDraw);
 void     LookupHeight(u16 distance, u8* height, u16* step);
 bool     IsWall(u8 tileX, u8 tileY);
+u8       GetWallType(u8 tileX, u8 tileY);
+
+/* Wall type of the last ray hit (set by CalculateDistance, read by TraceFrame) */
+extern u8 g_lastWallType;
 s16  MulTan(u8 value, bool inverse, u8 quarter, u8 angle, const u16* lookupTable);
 s16  AbsTan(u8 quarter, u8 angle, const u16* lookupTable);
 //u8 Arctan(s16 *y, s16 *x);
@@ -42,5 +46,8 @@ void getObjectScreenPosAndScale(u16 *objX, u16 *objY, bool *isVisible, u16 *resX
 void fPlayerJaw(s32 iValue);
 void fPlayerMoveForward(u16 *ifPlayerX, u16 *ifPlayerY, s16 ifPlayerAng, s16 iSpeed);
 void fPlayerStrafe(u16 *ifPlayerX, u16 *ifPlayerY, s16 ifPlayerAng, s16 iSpeed);
+
+/* Cast a ray from (rayX,rayY) along angle rayA and return exact wall hit position */
+void CastRayHitPos(u16 rayX, u16 rayY, u16 rayA, s16* outHitX, s16* outHitY);
 
 #endif

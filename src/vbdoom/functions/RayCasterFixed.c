@@ -108,13 +108,25 @@ u8 Arctan(s16 *dy, s16 *dx) {
   return arctan;
 }*/
 
+/* Wall type of the last ray hit (set by CalculateDistance, read by TraceFrame) */
+u8 g_lastWallType = 1;
+
 bool IsWall(u8 tileX, u8 tileY)
 {
     if(tileX > MAP_X - 1 || tileY > MAP_Y - 1)
     {
         return true;
     }
-    return LOOKUP8(g_map, (tileX >> 3) + (tileY << (MAP_XS - 3))) & (1 << (8 - (tileX & 0x7)));
+    return g_map[(u16)tileY * MAP_X + (u16)tileX] != 0;
+}
+
+u8 GetWallType(u8 tileX, u8 tileY)
+{
+    if(tileX > MAP_X - 1 || tileY > MAP_Y - 1)
+    {
+        return 1;
+    }
+    return g_map[(u16)tileY * MAP_X + (u16)tileX];
 }
 
 void LookupHeight(u16 distance, u8* height, u16* step) {
@@ -257,6 +269,7 @@ HorizontalHit:
     hitY       = (tileY << 8) + (tileStepY == -1 ? 256 : 0);
     *textureNo = 0;
     *textureX  = interceptX & 0xFF;
+    g_lastWallType = GetWallType(tileX, tileY);
     goto WallHit;
 
 VerticalHit:
@@ -264,11 +277,22 @@ VerticalHit:
     hitY       = interceptY + (tileStepY == 1 ? 256 : 0);
     *textureNo = 1;
     *textureX  = interceptY & 0xFF;
+    g_lastWallType = GetWallType(tileX, tileY);
     goto WallHit;
 
 WallHit:
     *deltaX = hitX - rayX;
     *deltaY = hitY - rayY;
+}
+
+/* Cast a ray and return the exact wall hit position in world coordinates */
+void CastRayHitPos(u16 rayX, u16 rayY, u16 rayA, s16* outHitX, s16* outHitY)
+{
+    s16 deltaX, deltaY;
+    u8 texNo, texX;
+    CalculateDistance(rayX, rayY, rayA % 1024, &deltaX, &deltaY, &texNo, &texX);
+    *outHitX = (s16)rayX + deltaX;
+    *outHitY = (s16)rayY + deltaY;
 }
 
 // (playerX, playerY) is 8 box coordinate bits, 8 inside coordinate bits

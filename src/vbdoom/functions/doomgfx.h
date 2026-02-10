@@ -5,8 +5,11 @@
 
 #include <types.h>
 
-/* Zombie sprite character memory (right after vb_doom tiles at char 889) */
-#define ZOMBIE_CHAR_START  889
+/* Weapon sprite character memory (shared between fists, pistol, shotgun) */
+#define WEAPON_CHAR_START  544
+
+/* Zombie sprite character memory (after particles) */
+#define ZOMBIE_CHAR_START  983
 #define ZOMBIE_TILE_W  8
 #define ZOMBIE_TILE_H  8
 #define ZOMBIE_FRAME_BYTES  1024   /* 64 tiles * 16 bytes each */
@@ -24,6 +27,16 @@ void initEnemyBGMaps(void);
 /* Pickup sprite support */
 void loadPickupFrame(u8 pickupSlot, const unsigned int* tileData);
 void initPickupBGMaps(void);
+
+/* Wall texture tile loading */
+void loadWallTextures(void);
+
+/* Extracted sprite loading */
+void loadFaceFrame(u8 faceIdx);
+void loadFistSprites(void);
+void loadPistolSprites(void);
+void loadShotgunSprites(void);
+
 void drawDoomFace(u8 *face);
 void drawDoomPistol(u8 bgmap, u16 x, u16 y, u8 pistolAnimation);
 void drawDoomUI(u8 bgmap, u16 x, u16 y);

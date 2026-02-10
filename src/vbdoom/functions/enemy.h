@@ -6,29 +6,35 @@
 
 /*
  * Enemy system: animation, AI, and multi-enemy support.
- * Max 2 enemies on screen (1 world per enemy, Option C single-layer).
+ * Max 3 enemies on screen (1 world per enemy).
  */
 
 #define MAX_ENEMIES     3
 #define ENEMY_SPEED     8     /* fixed-point movement speed per frame */
-#define ENEMY_ATTACK_DIST  400  /* distance (fixed-point) to start shooting */
-#define ENEMY_MIN_DIST     150  /* minimum distance to player (don't walk closer) */
+#define ENEMY_ATTACK_DIST  2500  /* squared-distance/256 for ranged attack checks */
+#define ENEMY_MIN_DIST     150   /* minimum distance to player (don't walk closer) */
 #define ENEMY_WALK_RATE 6     /* frames between walk animation advances */
-#define ENEMY_SHOOT_RATE 20   /* frames between shots */
+#define ENEMY_SHOOT_RATE 20   /* frames between attack animation poses */
 #define ENEMY_SIGHT_DIST 3000 /* squared-distance/256 at which enemies notice player (~7 tiles) */
 
-/* Collision radii (Doom-style AABB box collision).
- * In 8.8 fixed-point, 256 = 1 tile. These are half-widths.
- * Doom zombieman radius ~20/64 of a tile = ~80 in our units.
- * Player radius slightly smaller so you can squeeze through 1-tile gaps.
- */
+/* Collision radii */
 #define ENEMY_RADIUS    80
 #define PLAYER_RADIUS   64
+
+/* Enemy types (Doom) */
+#define ETYPE_ZOMBIEMAN  0
+#define ETYPE_SERGEANT   1
+
+/* Per-type stats */
+#define ZOMBIE_HEALTH       20
+#define ZOMBIE_PAINCHANCE   200   /* out of 256 */
+#define SGT_HEALTH          30
+#define SGT_PAINCHANCE      170   /* out of 256 */
 
 /* Enemy states */
 #define ES_IDLE   0  /* standing still, unaware of player */
 #define ES_WALK   1  /* alerted, chasing player */
-#define ES_ATTACK 2  /* close enough, shooting */
+#define ES_ATTACK 2  /* shooting at player */
 #define ES_PAIN   3  /* flinching from damage */
 #define ES_DEAD   4  /* dead */
 
@@ -55,6 +61,7 @@ typedef struct {
     u8   health;
     u8   movedir;        /* current movement direction (DI_EAST..DI_NODIR) */
     u8   movecount;      /* frames left before picking new direction */
+    u8   enemyType;      /* ETYPE_ZOMBIEMAN or ETYPE_SERGEANT */
     bool active;         /* false = don't update or render */
 } EnemyState;
 
@@ -137,8 +144,23 @@ bool collidesWithAnyEnemy(u16 x, u16 y, u16 myRadius, u8 skipIdx);
 void alertAllEnemies(void);
 
 /* Hitscan: player shoots, checks if any enemy in the aiming cone is hit.
- * Returns index of hit enemy (0-MAX_ENEMIES-1) or 255 if miss.
+ * weaponType: 1=fist, 2=pistol, 3=shotgun.
+ * Shotgun fires 7 pellets with Doom-style angular spread.
+ * Returns index of a hit enemy (0-MAX_ENEMIES-1) or 255 if all miss.
  * Based on Doom's P_AimLineAttack + P_LineAttack (simplified). */
-u8 playerShoot(u16 playerX, u16 playerY, s16 playerA);
+u8 playerShoot(u16 playerX, u16 playerY, s16 playerA, u8 weaponType);
+
+/* --- Damage feedback (set by updateEnemies, read+cleared by game loop) --- */
+extern u8 g_lastEnemyDamage;     /* damage dealt to player this frame (0=none) */
+extern s8 g_lastEnemyDamageDir;  /* -1=left, 0=front, 1=right */
+
+/* --- Sound event flags (set by enemy.c, read+cleared by sndplay.c) --- */
+extern u8 g_enemySndAggro;       /* >0: enemy just became aggro, value = distance/16 */
+extern u8 g_enemySndShoot;       /* >0: enemy just fired, value = distance/16 */
+extern u8 g_enemySndShootType;   /* 0=pistol (zombieman), 1=shotgun (sergeant) */
+extern u8 g_enemySndDeath;       /* >0: enemy just died, value = distance/16 */
+
+/* Returns true if the enemy at bestIdx just died (state == ES_DEAD) after a shot */
+#define ENEMY_JUST_KILLED(idx) ((idx) < MAX_ENEMIES && g_enemies[idx].state == ES_DEAD)
 
 #endif

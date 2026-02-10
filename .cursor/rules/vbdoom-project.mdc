@@ -1,0 +1,57 @@
+---
+description: VB Doom project context -- hardware constraints, build system, VRAM layout, asset pipeline
+alwaysApply: true
+---
+
+# VB Doom -- Virtual Boy Homebrew Doom Clone
+
+C project targeting the NEC V810 CPU via `v810-gcc` and the `libgccvb` library.
+
+## Build System
+
+- **IDE**: VBDE (`C:\vbde\VBDE.exe`). Build is triggered through the GUI; there is no Makefile.
+- **Compiler**: `C:\vbde\system\msys32\v810\v810-win32\bin\v810-gcc.exe`
+- **Source root**: `src/vbdoom/` -- the IDE auto-discovers every `.c` file in the tree.
+- **Include paths**: `C:\vbde\libs\libgccvb`, plus `functions/`, `assets/languages/`, `.` relative to source root.
+- **Output**: `src/vbdoom/build/output.vb`
+
+## Display Constraints
+
+- 384x224 pixels, monochrome red, 4 brightness levels (0=black/transparent, 1=dark, 2=medium, 3=bright).
+- Tile-based: all graphics are 8x8 pixel tiles in VB 2bpp format (16 bytes per tile, stored as 4 little-endian u32 words). Each row is 2 bytes: lo bit-plane then hi bit-plane, pixel 0 at MSB (bit 7).
+- BGMap entries are u16: bits 0-10 = char index, bit 12 = V-flip, bit 13 = H-flip, bits 14-15 = palette.
+- 14 BGMaps (0-13). Worlds 31 down to 17 (WRLD_END). Affine worlds need dedicated BGMap + param table.
+
+## VRAM Layout (2048 character slots, each 16 bytes)
+
+| Region | Chars | Count | Defined in |
+|---|---|---|---|
+| HUD | 0-107 | 108 | `doomgfx.c` (hardcoded) |
+| Faces | 108-543 | 436 | `face_sprites.h` |
+| Weapons (shared) | 544-763 | 220 | `doomgfx.h` WEAPON_CHAR_START |
+| Particles | 764-982 | 219 | `particle_sprites.h` |
+| Enemies (3x64) | 983-1174 | 192 | `doomgfx.h` ZOMBIE_CHAR_START |
+| Pickups (3x12) | 1175-1210 | 36 | `pickup.h` PICKUP_CHAR_START |
+| Wall textures | 1211-1722 | 512 | `wall_textures.h` WALL_TEX_CHAR_START |
+| Transitions | 1723-1778 | 56 | `wall_textures.h` TRANS_TEX_CHAR_START |
+| **Free** | 1779-2047 | **269** | |
+
+Weapon slot is shared: only one weapon's tiles are loaded at a time (fist 213, pistol 119, shotgun 220). When adding new sprites, verify the total stays under 2048.
+
+## Asset Pipeline
+
+Python scripts at project root convert PNGs to C arrays with VB 2bpp tile data:
+- `prepare_doom_faces.py` -- face sprites with dithering and edge detection
+- `prepare_wall_textures.py` -- algorithmic geometric wall patterns (8-col)
+- `prepare_particles.py` -- bullet puff + shotgun group sprites
+- `prepare_shotgun_sprites.py` -- first-person shotgun weapon frames
+- `prepare_shotgun_pickup.py` -- shotgun pickup item sprite
+
+All generated files go into `src/vbdoom/assets/images/`. Tile arrays use `const unsigned int ... __attribute__((aligned(4)))`. Map arrays use `const unsigned short ... __attribute__((aligned(4)))`.
+
+## Coding Conventions
+
+- Standard includes: `<libgccvb.h>`, `<mem.h>`. Use `copymem()` for memory copies.
+- No stdlib (no malloc, printf, etc.). All tile/map data must be `const` and aligned.
+- Hardware registers accessed via `WA[]`, `WAM[]`, `VIP_REGS[]`, `BGMap()` macros from libgccvb.
+- Fixed-point math (8.8 or 23.9) for positions and angles. Angles are 0-1023 (10-bit, CW, 0=north).

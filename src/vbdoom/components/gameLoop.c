@@ -7,10 +7,15 @@
 #include "sndplay.h"
 #include "doomstage.h"
 #include "RayCasterRenderer.h"
+#include "RayCasterFixed.h"
 #include "enemy.h"
 #include "pickup.h"
+#include "particle.h"
+#include "timer.h"
 #include "../assets/images/sprites/zombie/zombie_sprites.h"
+#include "../assets/images/sprites/zombie_sgt/zombie_sgt_sprites.h"
 #include "../assets/images/sprites/pickups/pickup_sprites.h"
+#include "../assets/images/sprites/faces/face_sprites.h"
 extern BYTE FontTiles[];
 #include <stdint.h>
 #include <stdbool.h>
@@ -20,8 +25,8 @@ s32 fixed0point05 = 0; // calced below
 s32 fixed2point13 = 0;
 
 s16 fPlayerAng = 0;
-u16 fPlayerX = 236;
-u16 fPlayerY = 244;
+u16 fPlayerX = 3968;   /* tile (15, 28) center - start room */
+u16 fPlayerY = 7296;
 s16 turnRate = 10;
 s16 movespeed = 40;
 s16 swayY = 0;
@@ -52,7 +57,7 @@ Weapon weapons[] = {
 { false, W_CHAINSAW, false, 0,0,1},
 { true, W_FISTS, false, 0,0,4},
 { true, W_PISTOL, true, 50,1,1},
-{ false, W_SHOTGUN, true, 0,2,1},
+{ false, W_SHOTGUN, true, 0,2,5},
 };
 
 // 0 = chainsaw, 1 = fists, 2 = pistol, 3 = shotgun, 4 =
@@ -86,7 +91,8 @@ void cycleNextWeapon() {
 	} else {
 		if (nextWeapon != currentWeapon) {
 			drawUpdatedAmmo(weapons[currentWeapon].ammo, weapons[currentWeapon].ammoType);
-			// reset timers and shit...
+			/* Tile loading is deferred until nextWeapon is actually updated
+			 * (weaponChangeTimer > 10) to avoid VRAM mismatch with drawWeapon */
 			weaponAnimation = 0;
 			updatePistolCount = 0;
 			weaponChangeTimer = 0;
@@ -148,9 +154,11 @@ u8 gameLoop()
 	WORLD_PARAM(26, BGMap(2) + 0x1800);   /* pickup 1: 0x25800 */
 	WORLD_PARAM(25, BGMap(6) + 0x1000);   /* pickup 2: 0x2D000 */
 
-	vbSetWorld(24, LAYER_ENEMY_START+6, 0, 0, 0, 0, 0, 0, 0, 0); /* disabled (was more bullets) */
+	/* Particle world: affine, starts DISABLED (renderer enables when visible) */
+	vbSetWorld(PARTICLE_WORLD, PARTICLE_BGMAP|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 32*EnemyScaleX, 32*EnemyScale);
+	WORLD_PARAM(PARTICLE_WORLD, BGMap(6) + 0x1800);  /* particle: 0x2D800 */
 
-	vbSetWorld(23, WRLD_ON|LAYER_BULLET, 					0, 0, 0, 0, 0, 0, 20*EnemyScale, 26*EnemyScale); // bullets
+	vbSetWorld(23, LAYER_BULLET, 0, 0, 0, 0, 0, 0, 0, 0); /* disabled (was bullets) */
 	vbSetWorld(22, WRLD_ON|LAYER_WEAPON_BLACK, 				0, 0, 0, 0, 0, 0, 136, 128); // weapon black
 	vbSetWorld(21, WRLD_ON|LAYER_WEAPON, 					0, 0, 0, 0, 0, 0, 136, 128); // weapon
 	vbSetWorld(20, WRLD_ON|LAYER_UI_BLACK, 					0, 0, 0, 0, 0, 0, 384, 32); // ui black
@@ -209,6 +217,8 @@ u8 gameLoop()
 */
 	loadDoomGfxToMem();
 	initEnemies();
+	initParticles();
+	loadParticleTiles();
 	//drawDoomUI(0, 0, 24);
 	//drawDoomGuy(0, 44, 24, 0);
 
@@ -217,9 +227,14 @@ u8 gameLoop()
 
 	//vbFXFadeIn(0);
 
-	u8 doomface = 0;
-	u8 updateDoomfaceTime = 0;
+	u8 doomface = 1;  /* start with center-looking idle face */
+	u8 updateDoomfaceTime = 9;
 	u8 updateDoomfaceCount = 0;
+	u8 lookDir = 1;            /* 0=left, 1=center, 2=right */
+	u8 ouchTimer = 0;          /* >0 = show ouch face */
+	u8 killFaceTimer = 0;      /* >0 = show evil grin */
+	s8 lastDamageDir = 0;      /* -1=left, 0=front, 1=right */
+	u8 lastHealth = 100;       /* previous health for severe damage detection */
 
 	u16 ammo = 50;
 	u8 currentAmmoType = 1;
@@ -242,7 +257,7 @@ u8 gameLoop()
 	VIP_REGS[GPLT1] = 0x00;	/* (i.e. "Normal" dark to light progression.) */
 	VIP_REGS[GPLT2] = 0x84; // VIP_REGS[GPLT2] = 0xC2;
 
-	VIP_REGS[GPLT3] = 0xA2;
+	VIP_REGS[GPLT3] = 0xE4;	/* Wall palette (PAL3): same as GPLT0 for now */
 	VIP_REGS[JPLT0] = 0xE4; // object palettes (we dont use objects...)
 	VIP_REGS[JPLT1] = 0xE4;
 	VIP_REGS[JPLT2] = 0xE4;
@@ -281,9 +296,9 @@ u8 gameLoop()
 
 	/* Enemy BGMap/char init MUST be after setmem clears BGMaps */
 	initEnemyBGMaps();                          /* set up BGMap(3), (4), (5) tile entries */
-	loadEnemyFrame(0, Zombie_000Tiles);         /* load frame 0 into enemy 0 char memory */
-	loadEnemyFrame(1, Zombie_000Tiles);         /* load frame 0 into enemy 1 char memory */
-	loadEnemyFrame(2, Zombie_000Tiles);         /* load frame 0 into enemy 2 char memory */
+	loadEnemyFrame(0, Zombie_000Tiles);         /* load frame 0 into enemy 0 (zombieman) */
+	loadEnemyFrame(1, Zombie_000Tiles);         /* load frame 0 into enemy 1 (zombieman) */
+	loadEnemyFrame(2, Zombie_Sergeant_000Tiles); /* load frame 0 into enemy 2 (sergeant) */
 
 	/* Pickup BGMap/char init */
 	initPickups();
@@ -292,6 +307,13 @@ u8 gameLoop()
 	loadPickupFrame(0, PICKUP_TILES[PICKUP_AMMO_CLIP]);
 	loadPickupFrame(1, PICKUP_TILES[PICKUP_HEALTH_SMALL]);
 	loadPickupFrame(2, PICKUP_TILES[PICKUP_HEALTH_LARGE]);
+
+	/* Load default face tiles into char memory (dynamic per-face loading) */
+	loadFaceFrame(1);  /* start with center-looking idle face */
+	loadPistolSprites();  /* default weapon = pistol (2) */
+
+	/* Load wall texture tiles into char memory */
+	loadWallTextures();
 
 	drawDoomUI(LAYER_UI, 0, 0);
 	drawUpdatedAmmo(ammo, currentAmmoType);
@@ -396,13 +418,42 @@ u8 gameLoop()
 					weapons[currentWeapon].ammo--;
 					isShooting = true;
 					drawUpdatedAmmo(weapons[currentWeapon].ammo, weapons[currentWeapon].ammoType);
-					playerShoot(fPlayerX, fPlayerY, fPlayerAng); /* hitscan + alerts all enemies */
+					{
+						u8 hitIdx = playerShoot(fPlayerX, fPlayerY, fPlayerAng, currentWeapon);
+						if (ENEMY_JUST_KILLED(hitIdx)) {
+							killFaceTimer = 30; /* show evil grin for ~1.5s */
+						}
+						if (hitIdx == 255) {
+							/* Bullet hit wall -- cast ray to find exact wall hit position */
+							s16 wallHitX, wallHitY;
+							CastRayHitPos(fPlayerX, fPlayerY, (u16)fPlayerAng & 1023, &wallHitX, &wallHitY);
+							if (currentWeapon == 3) {
+								spawnShotgunGroup(wallHitX, wallHitY);
+							} else {
+								spawnPuff(wallHitX, wallHitY);
+							}
+						}
+					}
 				} else {
 					cycleWeapons();
 				}
-			} else {
-			 	weaponAnimation = 1; // punch!?
+		} else {
+		 	weaponAnimation = 1; // punch!?
+			/* Fist punch - cast ray and spawn puff on wall if within melee range */
+			{
+				s16 wallHitX, wallHitY;
+				s16 dx, dy;
+				s32 dist2;
+				CastRayHitPos(fPlayerX, fPlayerY, (u16)fPlayerAng & 1023, &wallHitX, &wallHitY);
+				dx = wallHitX - (s16)fPlayerX;
+				dy = wallHitY - (s16)fPlayerY;
+				dist2 = (s32)dx * dx + (s32)dy * dy;
+				/* Only spawn puff if wall is within melee range (~80 units) */
+				if (dist2 < (s32)80 * 80) {
+					spawnPuff(wallHitX, wallHitY);
+				}
 			}
+		}
 			/*
 			if (currentWeapon > 1) {
 				if (ammo > 0) {
@@ -441,6 +492,9 @@ u8 gameLoop()
 		// we actually only need to call this if x,y,ang changed...
 		updateEnemies(fPlayerX, fPlayerY, fPlayerAng);
 
+		/* Update particle animations */
+		updateParticles();
+
 		/* Check pickup collisions */
 		{
 			u8 pickupAmmo = weapons[currentWeapon].ammo;
@@ -450,6 +504,19 @@ u8 gameLoop()
 				drawUpdatedAmmo(weapons[currentWeapon].ammo, weapons[currentWeapon].ammoType);
 				drawHealth(currentHealth);
 			}
+			/* Handle weapon pickups */
+			if (g_pickedUpWeapon > 0) {
+				weapons[g_pickedUpWeapon].hasWeapon = true;
+				weapons[g_pickedUpWeapon].ammo = 8;  /* start with 8 shells */
+				currentWeapon = g_pickedUpWeapon;
+				nextWeapon = g_pickedUpWeapon;
+				loadShotgunSprites();
+				drawUpdatedAmmo(weapons[currentWeapon].ammo, weapons[currentWeapon].ammoType);
+				weaponAnimation = 0;
+				updatePistolCount = 0;
+				isShooting = false;
+				g_pickedUpWeapon = 0;
+			}
 		}
 
 		/* Update enemy sprite frames in VRAM (only if frame changed) */
@@ -457,10 +524,15 @@ u8 gameLoop()
 			u8 ei;
 			for (ei = 0; ei < MAX_ENEMIES; ei++) {
 				u8 frameIdx;
+				const unsigned int *frameData;
 				if (!g_enemies[ei].active) continue;
 				frameIdx = getEnemySpriteFrame(ei, fPlayerX, fPlayerY, fPlayerAng);
 				if (frameIdx != g_enemies[ei].lastRenderedFrame) {
-					loadEnemyFrame(ei, ZOMBIE_FRAMES[frameIdx]);
+					if (g_enemies[ei].enemyType == ETYPE_SERGEANT)
+						frameData = ZOMBIE_SGT_FRAMES[frameIdx];
+					else
+						frameData = ZOMBIE_FRAMES[frameIdx];
+					loadEnemyFrame(ei, frameData);
 					g_enemies[ei].lastRenderedFrame = frameIdx;
 				}
 			}
@@ -475,14 +547,81 @@ u8 gameLoop()
 		}*/
 		//setmem((void*)BGMap(0), 0x0000, 8192);
 		//setmem((void*)BGMap(1), 0x0000, 8192);
-		// draw each frame, but really only necessary if it's not the same as previous frame
-		if (updateDoomfaceCount > updateDoomfaceTime) {
-			doomface = (rand()%3); // randomize next facial expression
-			updateDoomfaceCount = 0;
-			updateDoomfaceTime = 9+rand()%8; // randomize delay for next update
-			drawDoomFace(&doomface);
-		} else {
-			updateDoomfaceCount++;
+		/* --- Doom face selection (health/damage-based) --- */
+		{
+			u8 healthBracket = 0;
+			u8 newFace;
+			if (currentHealth >= 80)      healthBracket = 0;
+			else if (currentHealth >= 60) healthBracket = 1;
+			else if (currentHealth >= 40) healthBracket = 2;
+			else if (currentHealth >= 20) healthBracket = 3;
+			else                          healthBracket = 4;
+
+			/* Process enemy damage this frame */
+			if (g_lastEnemyDamage > 0) {
+				u8 dmg = g_lastEnemyDamage;
+				g_lastEnemyDamage = 0;
+				lastDamageDir = g_lastEnemyDamageDir;
+
+				/* Apply damage to player */
+				if (dmg >= currentHealth)
+					currentHealth = 0;
+				else
+					currentHealth -= dmg;
+				drawHealth(currentHealth);
+
+				/* Screen flash for damage */
+				g_flashTimer = 3;
+				g_flashType = 1;
+
+				/* Show ouch face: severe if >20 damage at once */
+				ouchTimer = 20;  /* show ouch for ~1 second */
+				if (dmg > 20)
+					ouchTimer |= 0x80;  /* bit 7 = severe flag */
+			}
+
+			/* Decrement timers */
+			if (ouchTimer > 0) {
+				if (ouchTimer & 0x80) {
+					ouchTimer = (ouchTimer & 0x7F) - 1;
+					if ((ouchTimer & 0x7F) == 0) ouchTimer = 0;
+					else ouchTimer |= 0x80;
+				} else {
+					ouchTimer--;
+				}
+			}
+			if (killFaceTimer > 0) killFaceTimer--;
+
+			/* Select face */
+			if (currentHealth == 0) {
+				newFace = FACE_DEAD;
+			} else if (killFaceTimer > 0) {
+				newFace = FACE_EVIL_GRIN + healthBracket;
+			} else if (ouchTimer > 0) {
+				if (ouchTimer & 0x80) {
+					newFace = FACE_OUCH_SEVERE + healthBracket;
+				} else {
+					/* All damage directions use front ouch (left/right removed) */
+					newFace = FACE_OUCH_FRONT + healthBracket;
+				}
+			} else {
+				/* Idle: cycle left/center/right on a timer */
+				if (updateDoomfaceCount > updateDoomfaceTime) {
+					lookDir = rand() % 3;  /* 0=left, 1=center, 2=right */
+					updateDoomfaceCount = 0;
+					updateDoomfaceTime = 9 + rand() % 8;
+				} else {
+					updateDoomfaceCount++;
+				}
+				newFace = FACE_IDLE_BASE + healthBracket * 3 + lookDir;
+			}
+
+			if (newFace != doomface) {
+				doomface = newFace;
+				loadFaceFrame(doomface);  /* load new face tiles into VRAM */
+				drawDoomFace(&doomface);
+			}
+			lastHealth = currentHealth;
 		}
 		//VIP_REGS[GPLT0] = 0xD2;
 		//VIP_REGS[GPLT0] = 0xE4;
@@ -531,8 +670,15 @@ u8 gameLoop()
 			}
 		}
 		if (isChangingWeapon) {
-			if (weaponChangeTimer > 10) {
+			if (weaponChangeTimer > 10 && nextWeapon != currentWeapon) {
 				nextWeapon = currentWeapon; // switch weapon after half time...
+				/* Now load tiles so they match the weapon drawWeapon() will use */
+				if (currentWeapon == 1)
+					loadFistSprites();
+				else if (currentWeapon == 2)
+					loadPistolSprites();
+				else if (currentWeapon == 3)
+					loadShotgunSprites();
 			}
 			if (weaponChangeTimer >= weaponChangeTime) {
 				weaponChangeTimer = 0;
@@ -543,7 +689,8 @@ u8 gameLoop()
 		comboChangeAndFire= isShooting && isChangingWeapon == false;
 		playSnd(&comboChangeAndFire, &currentWeapon, &isPlayMusicBool);
 
-		drawPlayerInfo(&fPlayerX, &fPlayerY, &fPlayerAng);
+		/* Debug: draws player X, Y, angle over the HUD.
+		 * Uncomment to re-enable: drawPlayerInfo(&fPlayerX, &fPlayerY, &fPlayerAng); */
 
 		/* Screen flash effect (pickup or damage) */
 		if (g_flashTimer > 0) {
@@ -553,22 +700,29 @@ u8 gameLoop()
 				VIP_REGS[GPLT0] = 0xFF;  /* all indices -> brightest */
 				VIP_REGS[GPLT1] = 0xFF;
 				VIP_REGS[GPLT2] = 0xFF;
+				VIP_REGS[GPLT3] = 0xFF;  /* walls flash too */
 			} else {
 				/* Damage flash: red tint (shift palette darker) */
 				VIP_REGS[GPLT0] = 0xFE;
 				VIP_REGS[GPLT1] = 0xFE;
 				VIP_REGS[GPLT2] = 0xFE;
+				VIP_REGS[GPLT3] = 0xFE;  /* walls flash too */
 			}
 		} else {
 			/* Restore normal palettes */
 			VIP_REGS[GPLT0] = 0xE4;
 			VIP_REGS[GPLT1] = 0x00;
 			VIP_REGS[GPLT2] = 0x84;
+			VIP_REGS[GPLT3] = 0xE4;  /* wall palette */
 		}
 
-		vbWaitFrame(0); /* Sync to VBlank: ~50fps on real hardware.
-		                 * 0 = wait 1 VBlank (~50fps), 1 = wait 2 VBlanks (~25fps).
-		                 * Without this, emulators run the loop uncapped. */
+		//vbWaitFrame(0); /* Sync to VBlank for tear-free display */
+
+		/* Timer-based FPS cap: ensures consistent game speed.
+		 * Uses 100us hardware timer. Default: 50ms = 20fps.
+		 * If frame was faster than target, this blocks until target time.
+		 * If frame was slower, this returns immediately (timer already expired). */
+		waitForFrameTimer();
 	}
 	return 0;
 }

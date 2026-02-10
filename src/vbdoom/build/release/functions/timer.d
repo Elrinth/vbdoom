@@ -7,4 +7,5 @@ build/release/./functions/timer.o: functions/timer.c C:/vbde/libs/libgccvb/libgc
  C:/vbde/libs/libgccvb/mem.h C:/vbde/libs/libgccvb/misc.h \
  C:/vbde/libs/libgccvb/object.h C:/vbde/libs/libgccvb/random.h \
  C:/vbde/libs/libgccvb/world.h C:/vbde/libs/libgccvb/timer.h \
- C:/vbde/libs/libgccvb/libgccvb.h functions/timer.h
+ C:/vbde/libs/libgccvb/libgccvb.h functions/timer.h \
+ C:/vbde/libs/libgccvb/types.h

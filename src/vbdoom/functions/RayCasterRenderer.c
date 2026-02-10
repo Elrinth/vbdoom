@@ -7,8 +7,11 @@
 #include <math.h>
 #include "enemy.h"
 #include "pickup.h"
+#include "particle.h"
 #include "doomgfx.h"
 #include "../assets/images/sprites/pickups/pickup_sprites.h"
+#include "../assets/images/particle_sprites.h"
+#include "../assets/images/wall_textures.h"
 
 extern BYTE vb_doomMap[];
 
@@ -39,6 +42,10 @@ s32 sqrt_i32(s32 v) {
     return q;
 }
 
+/* Forward declarations */
+void drawTile(u16 *iX, u8 *iStartY, u16 *iStartPos);
+void drawTileChar(u16 *iX, u8 *iStartY, u16 charIdx);
+
 u16   x;
 u8   sso;
 u8   tc;
@@ -56,6 +63,13 @@ u16 tile;
 u16 vanligTile;
 bool drawnTop;
 bool drawnBottom;
+u16 wallTexChar;
+u32 texAccum;     /* texture Y accumulator for row selection */
+u16 wallTexBase;  /* per-column base: CHAR_START + (wt-1)*128 + tv*64 + col */
+u8  texRow;
+u8  wt;           /* wall type for this column (1-4) */
+u16 transChar;    /* textured transition tile char index */
+u8  bottomFill;   /* wall pixels in bottom partial tile (ssoX2 % 8) */
 
 /* Per-column wall half-height for enemy occlusion (48 columns at 8px each) */
 u8 g_wallSso[48];
@@ -81,6 +95,7 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
         Trace(x, &sso, &tn, &tc, &tso, &tst);
 		ssoX2 = sso<<1;
 		tv = tn == 1?0:1;
+		if (sso < 20) tv = 1;  /* far walls always dark */
 
         //const int tx = (int)(tc >> 2);
         ws = HORIZON_HEIGHT - sso;
@@ -98,95 +113,52 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
 		tile = 0;
 		drawnTop = false;
 		drawnBottom = false;
-        for(y = 0; y < ws; y+=8) // draw roof
+
+		/* Compute wall type early so ceiling transitions can use it */
+		wt = g_lastWallType;
+		if (wt < 1 || wt > WALL_TEX_COUNT) wt = 1;
+		wallTexBase = WALL_TEX_CHAR_START + (u16)(wt - 1) * WALL_TEX_PER_TYPE
+		            + (u16)tv * WALL_TEX_LIT_BLOCK + (tc >> 5);
+
+        for(y = 0; y < ws; y+=8) /* draw ceiling */
         {
-            //*lb = GetARGB(96 + (HORIZON_HEIGHT - y));
-            //lb += SCREEN_WIDTH;
-            //clampedY = clamp(curY, 0, H);
-            //drawTile(x, curY, curY+8, 2478);
-            tile = 0;
-            if (y+7 >= ws) {
+            if (y+7 >= ws && wsPercent8 > 0) {
+            	/* Textured ceiling/wall transition tile */
             	drawnTop = true;
-				tile = 2466;
-				if (tv == 0)
-					tile = 2462;
-				if (wsPercent8 == 1) {
-					tile = tile-96*5;
-				} else if (wsPercent8 == 2) {
-					tile = tile-96*4;
-				} else if (wsPercent8 == 3) {
-					tile = tile-96*3;
-				} else if (wsPercent8 == 4) {
-					tile = tile-96*2;
-				} else if (wsPercent8 == 5) {
-					tile = tile-96;
-				} else if (wsPercent8 == 6) {
-					tile = tile;
-				} else if (wsPercent8 == 7) {
-					tile = tile+96;
-				}
-            }
-            drawTile(&x, &curY, &tile);
+				transChar = TRANS_TEX_CHAR_START + (u16)(wt - 1) * 14
+				          + (u16)tv * 7 + (7 - wsPercent8);
+				drawTileChar(&x, &curY, transChar);
+            } else {
+				tile = 0;
+				drawTile(&x, &curY, &tile);
+			}
 			curY+=8;
         }
 		vanligTile = 0;
-        for(y = 0; y < ssoX2; y+=8) // draw walls
+		texAccum = (u32)tso;
+
+		bottomFill = ssoX2 & 7;  /* wall pixels in bottom partial tile */
+
+        for(y = 0; y < ssoX2; y+=8) /* draw walls */
         {
-        	// whole colored tile
-            tile = 2480;
-            if (tv == 0)
-            	tile = 2478;
-			vanligTile = tile;
-            // part tile:
+			/* Compute row from textureY accumulator */
+			texRow = (u8)((texAccum >> 13) & 7);
+			wallTexChar = wallTexBase + (u16)texRow * WALL_TEX_COLS;
+
             if (y == 0 && ws != 0 && drawnTop == false) {
-            	tile = 2466;
-            	if (tv == 0)
-            		tile = 2462;
-				if (wsPercent8 == 0) {
-					tile = tile-96*5;
-				} else if (wsPercent8 == 1) {
-					tile = tile-96*4;
-				} else if (wsPercent8 == 2) {
-					tile = tile-96*3;
-				} else if (wsPercent8 == 3) {
-					tile = tile-96*2;
-				} else if (wsPercent8 == 4) {
-					tile = tile-96;
-				} else if (wsPercent8 == 5) {
-					tile = tile;
-				} else if (wsPercent8 == 6) {
-					tile = tile+96;
-				} else if (wsPercent8 == 7) {
-					tile = tile+96*2;
-				}
-            } else if (y + 7 >= ssoX2) {
-
-            	tile = 2468;
-            	if (tv < 1)
-					tile = 2464;
-				if (wsPercent8 == 7) {
-					drawnBottom = true;
-					tile = tile+96*2;
-				} else if (wsPercent8 == 6) {
-					tile = vanligTile;
-				} else if (wsPercent8 == 5) {
-					tile = vanligTile;
-				} else if (wsPercent8 == 3) {
-					drawnBottom = true;
-					tile = tile-96*1;
-				} else if (wsPercent8 == 2) {
-					drawnBottom = true;
-					tile = tile-96*0;
-				} else if (wsPercent8 == 1) {
-					drawnBottom = true;
-					tile = tile+96*1;
-				} else if (wsPercent8 == 0) {
-					drawnBottom = true;
-					tile = tile-96*5;
-				}
-            }
-
-            drawTile(&x, &curY, &tile);
+				/* Top partial: wsPercent8 is 0 here, wall starts on tile boundary */
+				drawTileChar(&x, &curY, wallTexChar);
+            } else if (y + 7 >= ssoX2 && bottomFill > 0) {
+				/* Bottom partial: textured transition tile with V-flip */
+				transChar = TRANS_TEX_CHAR_START + (u16)(wt - 1) * 14
+				          + (u16)tv * 7 + (bottomFill - 1);
+				drawTileChar(&x, &curY, transChar | 0x1000);  /* V-flip */
+				drawnBottom = true;
+            } else {
+				/* Full textured wall tile */
+				drawTileChar(&x, &curY, wallTexChar);
+			}
+			texAccum += (u32)tst << 3;  /* advance textureY by tst * 8 scanlines */
             curY+=8;
         }
         /*
@@ -200,27 +172,17 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
 
 
 
-        for(y = 0; y < ws; y+=8) // draw floor
+        for(y = 0; y < ws; y+=8) /* draw floor */
         {
-        	tile = 0;
-        	vanligTile = tile;
-        	if (ws != 0 && y == 0 && drawnBottom == false) {
-				tile = 2468;
-				if (tv < 1)
-					tile = 2464;
-				if (wsPercent8 == 0) {
-					tile = tile+96;
-				} else if (wsPercent8 == 4) {
-					tile = tile-96*2;
-				} else if (wsPercent8 == 5) {
-					tile = tile-96*3;
-				} else if (wsPercent8 == 6) {
-					tile = tile-96*5;
-				}
+        	if (y == 0 && drawnBottom == false && bottomFill > 0) {
+				/* Floor/wall transition: textured V-flip */
+				transChar = TRANS_TEX_CHAR_START + (u16)(wt - 1) * 14
+				          + (u16)tv * 7 + (bottomFill - 1);
+				drawTileChar(&x, &curY, transChar | 0x1000);  /* V-flip */
+			} else {
+				tile = 0;
+				drawTile(&x, &curY, &tile);
 			}
-            //*lb = GetARGB(96 + (HORIZON_HEIGHT - (ws - y)));
-            //lb += SCREEN_WIDTH;
-            drawTile(&x, &curY, &tile);
             curY+=8;
         }
     }
@@ -235,11 +197,10 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
         s16 scrX, scrY, scaledW, scaledH;
         float enemyScale;
         u8 worldNum, bgmapIdx;
-        u8 ones, tens, hundreds, thousands;
-        u16 startPos, drawPos;
-
-        /* Save enemy 0 debug values */
-        s16 dbgViewZ = 0, dbgScrX = 0, dbgScrY = 0;
+        /* Debug: uncomment to show enemy 0 viewZ/scrX/scrY on HUD:
+         * u8 ones, tens, hundreds, thousands;
+         * u16 startPos, drawPos;
+         * s16 dbgViewZ = 0, dbgScrX = 0, dbgScrY = 0; */
 
         for (ei = 0; ei < MAX_ENEMIES; ei++) {
             EnemyState *e = &g_enemies[ei];
@@ -314,13 +275,6 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
             /* Screen position: center horizontally, feet at horizon (y=104) */
             scrX = (s16)(192 + ((s32)viewX * 192) / (s32)viewZ) - scaledW / 2;
             scrY = (s16)(104 - scaledH / 3);
-
-            /* Save debug values for enemy 0 */
-            if (ei == 0) {
-                dbgViewZ = viewZ;
-                dbgScrX = scrX;
-                dbgScrY = scrY;
-            }
 
             /* Only render if on screen */
             if (scrX + scaledW <= 0 || scrX >= 384 || scrY + scaledH <= 0 || scrY >= 208) continue;
@@ -422,77 +376,6 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
             }
         } /* end for each enemy */
 
-        /* Debug display: show enemy 0 viewZ, scrX, scrY on UI */
-        startPos = 96*18;
-
-        /* Row 1: viewZ (depth to enemy 0) */
-        ones = (u8)(ABS(dbgViewZ) % 10);
-        tens = (u8)((ABS(dbgViewZ) / 10) % 10);
-        hundreds = (u8)((ABS(dbgViewZ) / 100) % 10);
-        thousands = (u8)((ABS(dbgViewZ) / 1000) % 10);
-        drawPos = 142;
-        if (thousands > 0) {
-            copymem((void*)BGMap(13)+drawPos+2, (void*)(vb_doomMap+startPos+(thousands*2)), 2);
-        } else {
-            copymem((void*)BGMap(13)+drawPos+2, (void*)(vb_doomMap+startPos+20), 2);
-        }
-        if (thousands > 0 || hundreds > 0) {
-            copymem((void*)BGMap(13)+drawPos+4, (void*)(vb_doomMap+startPos+(hundreds*2)), 2);
-        } else {
-            copymem((void*)BGMap(13)+drawPos+4, (void*)(vb_doomMap+startPos+20), 2);
-        }
-        if (thousands > 0 || hundreds > 0 || tens > 0) {
-            copymem((void*)BGMap(13)+drawPos+6, (void*)(vb_doomMap+startPos+(tens*2)), 2);
-        } else {
-            copymem((void*)BGMap(13)+drawPos+6, (void*)(vb_doomMap+startPos+20), 2);
-        }
-        copymem((void*)BGMap(13)+drawPos+8, (void*)(vb_doomMap+startPos+(ones*2)), 2);
-
-        /* Row 2: scrX (enemy 0 screen X position) */
-        ones = (u8)(ABS(dbgScrX) % 10);
-        tens = (u8)((ABS(dbgScrX) / 10) % 10);
-        hundreds = (u8)((ABS(dbgScrX) / 100) % 10);
-        thousands = (u8)((ABS(dbgScrX) / 1000) % 10);
-        drawPos = 152;
-        if (thousands > 0) {
-            copymem((void*)BGMap(13)+drawPos+2, (void*)(vb_doomMap+startPos+(thousands*2)), 2);
-        } else {
-            copymem((void*)BGMap(13)+drawPos+2, (void*)(vb_doomMap+startPos+20), 2);
-        }
-        if (thousands > 0 || hundreds > 0) {
-            copymem((void*)BGMap(13)+drawPos+4, (void*)(vb_doomMap+startPos+(hundreds*2)), 2);
-        } else {
-            copymem((void*)BGMap(13)+drawPos+4, (void*)(vb_doomMap+startPos+20), 2);
-        }
-        if (thousands > 0 || hundreds > 0 || tens > 0) {
-            copymem((void*)BGMap(13)+drawPos+6, (void*)(vb_doomMap+startPos+(tens*2)), 2);
-        } else {
-            copymem((void*)BGMap(13)+drawPos+6, (void*)(vb_doomMap+startPos+20), 2);
-        }
-        copymem((void*)BGMap(13)+drawPos+8, (void*)(vb_doomMap+startPos+(ones*2)), 2);
-
-        /* Row 3: scrY (enemy 0 screen Y position) */
-        ones = (u8)(ABS(dbgScrY) % 10);
-        tens = (u8)((ABS(dbgScrY) / 10) % 10);
-        hundreds = (u8)((ABS(dbgScrY) / 100) % 10);
-        thousands = (u8)((ABS(dbgScrY) / 1000) % 10);
-        drawPos = 192;
-        if (thousands > 0) {
-            copymem((void*)BGMap(13)+drawPos+2, (void*)(vb_doomMap+startPos+(thousands*2)), 2);
-        } else {
-            copymem((void*)BGMap(13)+drawPos+2, (void*)(vb_doomMap+startPos+20), 2);
-        }
-        if (thousands > 0 || hundreds > 0) {
-            copymem((void*)BGMap(13)+drawPos+4, (void*)(vb_doomMap+startPos+(hundreds*2)), 2);
-        } else {
-            copymem((void*)BGMap(13)+drawPos+4, (void*)(vb_doomMap+startPos+20), 2);
-        }
-        if (thousands > 0 || hundreds > 0 || tens > 0) {
-            copymem((void*)BGMap(13)+drawPos+6, (void*)(vb_doomMap+startPos+(tens*2)), 2);
-        } else {
-            copymem((void*)BGMap(13)+drawPos+6, (void*)(vb_doomMap+startPos+20), 2);
-        }
-        copymem((void*)BGMap(13)+drawPos+8, (void*)(vb_doomMap+startPos+(ones*2)), 2);
     }
 
     /* === PICKUP RENDERING === */
@@ -672,6 +555,118 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
             } /* end occlusion block */
         } /* end for each pickup */
     }
+
+    /* ================================================================
+     * PARTICLE RENDERING (single puffs + shotgun groups)
+     * Uses world 24 with BGMap 9 (affine mode)
+     * ================================================================ */
+    {
+        u8 pi, rendered;
+        s16 dX, dY, viewZ, viewX;
+        s16 scrX, scrY, scaledW, scaledH;
+        float pScale;
+        u8 srcW, srcH, mapW, mapH;
+        const unsigned short *mapPtr;
+        u16 mapOffset;
+
+        /* Disable particle world by default */
+        WAM[PARTICLE_WORLD << 4] = PARTICLE_BGMAP | WRLD_AFFINE;
+
+        rendered = 0;
+        for (pi = 0; pi < MAX_PARTICLES && rendered < MAX_VIS_PARTICLES; pi++) {
+            Particle *p = &g_particles[pi];
+            if (!p->active) continue;
+
+            /* View-space transform (same as pickup logic) */
+            dX = p->x - (s16)_playerX;
+            dY = p->y - (s16)_playerY;
+
+            if (_playerA == 0)        { viewZ = dY;  viewX = dX; }
+            else if (_playerA == 512) { viewZ = -dY; viewX = -dX; }
+            else if (_playerA == 256) { viewZ = dX;  viewX = -dY; }
+            else if (_playerA == 768) { viewZ = -dX; viewX = dY; }
+            else {
+                switch (_viewQuarter) {
+                    case 0: viewZ = MulS(LOOKUP8(g_cos, _viewAngle), dY) + MulS(LOOKUP8(g_sin, _viewAngle), dX);
+                            viewX = MulS(LOOKUP8(g_cos, _viewAngle), dX) - MulS(LOOKUP8(g_sin, _viewAngle), dY); break;
+                    case 1: viewZ = -MulS(LOOKUP8(g_cos, INVERT(_viewAngle)), dY) + MulS(LOOKUP8(g_sin, INVERT(_viewAngle)), dX);
+                            viewX = -MulS(LOOKUP8(g_cos, INVERT(_viewAngle)), dX) - MulS(LOOKUP8(g_sin, INVERT(_viewAngle)), dY); break;
+                    case 2: viewZ = -MulS(LOOKUP8(g_cos, _viewAngle), dY) - MulS(LOOKUP8(g_sin, _viewAngle), dX);
+                            viewX = -MulS(LOOKUP8(g_cos, _viewAngle), dX) + MulS(LOOKUP8(g_sin, _viewAngle), dY); break;
+                    case 3: viewZ = MulS(LOOKUP8(g_cos, INVERT(_viewAngle)), dY) - MulS(LOOKUP8(g_sin, INVERT(_viewAngle)), dX);
+                            viewX = MulS(LOOKUP8(g_cos, INVERT(_viewAngle)), dX) + MulS(LOOKUP8(g_sin, INVERT(_viewAngle)), dY); break;
+                }
+            }
+
+            if (viewZ <= 10) continue;
+
+            /* Select sprite size and map data based on type */
+            if (p->isGroup) {
+                srcW = 32; srcH = 32;
+                mapW = GROUP_TILES_W; mapH = GROUP_TILES_H;
+                mapOffset = (u16)(p->variant * 4 + p->frame) * GROUP_FRAME_TILES;
+                mapPtr = &shotgunGroupMap[mapOffset];
+                pScale = 400.0f / (float)viewZ;
+            } else {
+                /* Variable-size puff frames: A,B = 8x8; C,D = 16x16 */
+                switch (p->frame) {
+                    case 0: srcW = 8; srcH = 8; mapW = 1; mapH = 1;
+                            mapPtr = &puffMap[PUFF_OFFSET0]; break;
+                    case 1: srcW = 8; srcH = 8; mapW = 1; mapH = 1;
+                            mapPtr = &puffMap[PUFF_OFFSET1]; break;
+                    case 2: srcW = 16; srcH = 16; mapW = 2; mapH = 2;
+                            mapPtr = &puffMap[PUFF_OFFSET2]; break;
+                    default: srcW = 16; srcH = 16; mapW = 2; mapH = 2;
+                            mapPtr = &puffMap[PUFF_OFFSET3]; break;
+                }
+                pScale = 250.0f / (float)viewZ;
+            }
+
+            scaledW = (s16)((float)srcW * pScale);
+            scaledH = (s16)((float)srcH * pScale);
+            if (scaledW < 1) scaledW = 1;
+            if (scaledW > 200) scaledW = 200;
+            if (scaledH < 1) scaledH = 1;
+            if (scaledH > 200) scaledH = 200;
+
+            /* Screen position: center at wall hit point, vertically centered */
+            scrX = (s16)(192 + ((s32)viewX * 192) / (s32)viewZ) - scaledW / 2;
+            scrY = (s16)(104.0f) - scaledH / 2;
+
+            if (scrX + scaledW <= 0 || scrX >= 384 || scrY + scaledH <= 0 || scrY >= 208)
+                continue;
+
+            /* Write BGMap entries (clear 4x4 area first to avoid leftovers) */
+            {
+                u16 *bgm = (u16*)BGMap(PARTICLE_BGMAP);
+                u8 row, col;
+                for (row = 0; row < 4; row++) {
+                    for (col = 0; col < 4; col++) {
+                        bgm[row * 64 + col] = 0;
+                    }
+                }
+                for (row = 0; row < mapH; row++) {
+                    for (col = 0; col < mapW; col++) {
+                        bgm[row * 64 + col] = mapPtr[row * mapW + col];
+                    }
+                }
+            }
+
+            /* Set world position and dimensions */
+            WA[PARTICLE_WORLD].gx = scrX;
+            WA[PARTICLE_WORLD].gy = scrY;
+            WA[PARTICLE_WORLD].mx = 0;
+            WA[PARTICLE_WORLD].my = 0;
+            WA[PARTICLE_WORLD].w = scaledW;
+            WA[PARTICLE_WORLD].h = scaledH;
+
+            affine_enemy_scale(PARTICLE_WORLD, pScale, 0);
+
+            /* Enable world */
+            WAM[PARTICLE_WORLD << 4] = WRLD_ON | PARTICLE_BGMAP | WRLD_AFFINE;
+            rendered++;
+        }
+    }
 }
 u32 GetARGB(u8 brightness)
 {
@@ -683,6 +678,15 @@ void drawTile(u16 *iX, u8 *iStartY, u16 *iStartPos) {
 
 	tilePosition = (*iStartY<<4) + ((*iX<<1)>>3);
 	copymem((void*)BGMap(1)+tilePosition, (void*)(vb_doomMap+*iStartPos), 2);
+}
+
+/* Write a raw character index directly to the BGMap (for textured walls/gradient).
+ * Uses BGM_PAL3 (0xC000) for independent wall palette control via GPLT3. */
+u16 g_texTileEntry;
+void drawTileChar(u16 *iX, u8 *iStartY, u16 charIdx) {
+	tilePosition = (*iStartY<<4) + ((*iX<<1)>>3);
+	g_texTileEntry = charIdx | 0xC000;  /* BGM_PAL3 */
+	copymem((void*)BGMap(1)+tilePosition, (void*)&g_texTileEntry, 2);
 }
 
 /* Custom affine scaler for enemy sprites.
