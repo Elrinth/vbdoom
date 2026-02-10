@@ -1,6 +1,7 @@
 #include <libgccvb.h>
 #include <mem.h>
 #include "enemy.h"
+#include "pickup.h"
 #include "RayCasterFixed.h"
 #include "RayCaster.h"
 #include "doomgfx.h"
@@ -360,6 +361,8 @@ u8 playerShoot(u16 playerX, u16 playerY, s16 playerA) {
             e->state = ES_DEAD;
             e->animFrame = 0;
             e->animTimer = 0;
+            /* Drop ammo clip at enemy's death position (like Doom zombieman) */
+            spawnPickup(PICKUP_AMMO_CLIP, e->x, e->y);
         } else {
             e->health -= damage;
             /* Enter pain state (interrupts current action, like Doom) */

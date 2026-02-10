@@ -30,6 +30,9 @@ u8 musicCurrentNote = 0;
 u8 musicPrevNote = 99;
 u8 vol = 8;
 
+/* Forward declaration for pickup sound update */
+static void updatePickupSound(void);
+
 void playSnd(bool *isFiring, u8 *iWeaponType, bool *isPlayMusic) {
 	/*
 	**** Sound Register Mnemonics *****/
@@ -158,17 +161,55 @@ void playSnd(bool *isFiring, u8 *iWeaponType, bool *isPlayMusic) {
 	if (musicCurrentNote >= batman_noteCount) {
 		musicCurrentNote = 0;
 	}
+
+	/* Update pickup sound each frame */
+	updatePickupSound();
+}
+
+/* Pickup sound state */
+static u8 pickupSndTick = 0;
+static bool pickupSndPlaying = false;
+
+void playPickupSound(void) {
+	pickupSndTick = 0;
+	pickupSndPlaying = true;
 }
 
 void mp_init()
 {
 	copymem((void*)WAVEDATA1, (void*)SAWTOOTH, 128);
-	//copymem((void*)WAVEDATA1, (void*)CRAP, 128);
+	/* Load SQUARE waveform for pickup sound on channel 1 (WAVE2) */
+	copymem((void*)WAVEDATA2, (void*)SQUARE, 128);
+}
 
-	//copymem((void*)WAVEDATA5, (void*)SAWTOOTH, 128);
-	//copymem((void*)MODDATA, (void*)SAWTOOTH, 128);
+/* Called from playSnd() each frame to handle pickup sound */
+static void updatePickupSound(void) {
+	if (!pickupSndPlaying) return;
 
-	//copymem((void*)WAVEDATA6, (void*)CRAP, 128);
+	if (pickupSndTick < 4) {
+		/* Rising blip: C6 -> E6 (high, cheerful, like Doom pickup) */
+		u16 freq;
+		u8 vol;
+		if (pickupSndTick < 2) {
+			freq = C_6;  /* first 2 frames: C6 */
+			vol = 8;
+		} else {
+			freq = E_6;  /* next 2 frames: E6 (major third up) */
+			vol = 6;
+		}
+		SND_REGS[0x01].SxINT = 0x9F;       /* enable channel 1 */
+		SND_REGS[0x01].SxLRV = (vol << 4) | vol;
+		SND_REGS[0x01].SxFQL = freq & 0xFF;
+		SND_REGS[0x01].SxFQH = freq >> 8;
+		SND_REGS[0x01].SxEV0 = 0x88;       /* mid envelope */
+		SND_REGS[0x01].SxEV1 = 0x01;       /* sustain */
+		SND_REGS[0x01].SxRAM = 0x01;       /* WAVEDATA2 */
+	} else {
+		/* Done */
+		SND_REGS[0x01].SxINT = 0x00;       /* silence channel */
+		pickupSndPlaying = false;
+	}
+	pickupSndTick++;
 }
 /*
 const signed long SINE

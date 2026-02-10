@@ -20,6 +20,10 @@
 void loadDoomGfxToMem();
 void loadEnemyFrame(u8 enemyIdx, const unsigned int* tileData);
 void initEnemyBGMaps(void);
+
+/* Pickup sprite support */
+void loadPickupFrame(u8 pickupSlot, const unsigned int* tileData);
+void initPickupBGMaps(void);
 void drawDoomFace(u8 *face);
 void drawDoomPistol(u8 bgmap, u16 x, u16 y, u8 pistolAnimation);
 void drawDoomUI(u8 bgmap, u16 x, u16 y);

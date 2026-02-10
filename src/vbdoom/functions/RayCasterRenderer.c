@@ -6,7 +6,9 @@
 #include <constants.h>
 #include <math.h>
 #include "enemy.h"
+#include "pickup.h"
 #include "doomgfx.h"
+#include "../assets/images/sprites/pickups/pickup_sprites.h"
 
 extern BYTE vb_doomMap[];
 
@@ -491,6 +493,184 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
             copymem((void*)BGMap(13)+drawPos+6, (void*)(vb_doomMap+startPos+20), 2);
         }
         copymem((void*)BGMap(13)+drawPos+8, (void*)(vb_doomMap+startPos+(ones*2)), 2);
+    }
+
+    /* === PICKUP RENDERING === */
+    {
+        u8 pi, slot;
+        s16 dX, dY, viewZ, viewX;
+        s16 scrX, scrY, scaledW, scaledH;
+        float pickupScale;
+        u8 worldNum, bgmapIdx;
+
+        /* Disable all pickup worlds first (prevents ghost rendering) */
+        for (slot = 0; slot < MAX_VISIBLE_PICKUPS; slot++) {
+            worldNum = 27 - slot;
+            bgmapIdx = PICKUP_BGMAP_START + slot;
+            WAM[worldNum << 4] = bgmapIdx | WRLD_AFFINE;
+        }
+
+        /* Sort pickups by distance (simple: just render closest MAX_VISIBLE_PICKUPS) */
+        slot = 0;
+        for (pi = 0; pi < MAX_PICKUPS && slot < MAX_VISIBLE_PICKUPS; pi++) {
+            Pickup *p = &g_pickups[pi];
+
+            if (!p->active) continue;
+
+            /* Compute delta from player to pickup */
+            dX = (s16)p->x - (s16)_playerX;
+            dY = (s16)p->y - (s16)_playerY;
+
+            /* viewZ = depth into screen */
+            if (_playerA == 0) {
+                viewZ = dY;
+            } else if (_playerA == 512) {
+                viewZ = -dY;
+            } else if (_playerA == 256) {
+                viewZ = dX;
+            } else if (_playerA == 768) {
+                viewZ = -dX;
+            } else {
+                switch (_viewQuarter) {
+                    case 0: viewZ = MulS(LOOKUP8(g_cos, _viewAngle), dY) + MulS(LOOKUP8(g_sin, _viewAngle), dX); break;
+                    case 1: viewZ = -MulS(LOOKUP8(g_cos, INVERT(_viewAngle)), dY) + MulS(LOOKUP8(g_sin, INVERT(_viewAngle)), dX); break;
+                    case 2: viewZ = -MulS(LOOKUP8(g_cos, _viewAngle), dY) - MulS(LOOKUP8(g_sin, _viewAngle), dX); break;
+                    case 3: viewZ = MulS(LOOKUP8(g_cos, INVERT(_viewAngle)), dY) - MulS(LOOKUP8(g_sin, INVERT(_viewAngle)), dX); break;
+                }
+            }
+
+            if (viewZ <= 10) continue; /* behind player or too close */
+
+            /* viewX = lateral offset */
+            if (_playerA == 0) {
+                viewX = dX;
+            } else if (_playerA == 512) {
+                viewX = -dX;
+            } else if (_playerA == 256) {
+                viewX = -dY;
+            } else if (_playerA == 768) {
+                viewX = dY;
+            } else {
+                switch (_viewQuarter) {
+                    case 0: viewX = MulS(LOOKUP8(g_cos, _viewAngle), dX) - MulS(LOOKUP8(g_sin, _viewAngle), dY); break;
+                    case 1: viewX = -MulS(LOOKUP8(g_cos, INVERT(_viewAngle)), dX) - MulS(LOOKUP8(g_sin, INVERT(_viewAngle)), dY); break;
+                    case 2: viewX = -MulS(LOOKUP8(g_cos, _viewAngle), dX) + MulS(LOOKUP8(g_sin, _viewAngle), dY); break;
+                    case 3: viewX = MulS(LOOKUP8(g_cos, INVERT(_viewAngle)), dX) + MulS(LOOKUP8(g_sin, INVERT(_viewAngle)), dY); break;
+                }
+            }
+
+            /* Perspective projection -- 32x24 source sprite.
+             * Scale constant 400 = half of enemy's 800, since pickups are smaller items.
+             */
+            pickupScale = 400.0f / (float)viewZ;
+            scaledW = (s16)(32.0f * pickupScale);
+            scaledH = (s16)(24.0f * pickupScale);
+
+            /* Clamp dimensions */
+            if (scaledW < 1) scaledW = 1;
+            if (scaledW > 384) scaledW = 384;
+            if (scaledH < 1) scaledH = 1;
+            if (scaledH > 224) scaledH = 224;
+
+            /* Screen position: center horizontally.
+             * Ground plane Y = where enemy feet land at this depth.
+             * enemyScale = 2*pickupScale, enemyH = 128*pickupScale,
+             * enemyFeetY = 104 + 2*enemyH/3 = 104 + 85.33*pickupScale.
+             * Pickup BOTTOM sits at groundY, so top = groundY - scaledH.
+             */
+            scrX = (s16)(192 + ((s32)viewX * 192) / (s32)viewZ) - scaledW / 2;
+            scrY = (s16)(104.0f + 85.33f * pickupScale) - scaledH;
+
+            /* Only render if on screen */
+            if (scrX + scaledW <= 0 || scrX >= 384 || scrY + scaledH <= 0 || scrY >= 208) continue;
+
+            /* === WALL OCCLUSION (same as enemy occlusion) === */
+            {
+                u8 pickupSso;
+                u16 dummyStep;
+                s16 colStart, colEnd, ocCol;
+                s16 visLeft, visRight;
+                s16 clipL, clipR;
+                s16 mxOffset;
+                bool anyVisible;
+
+                /* Compute pickup's equivalent wall sso from its depth */
+                if (viewZ >= MIN_DIST) {
+                    LookupHeight((u16)((viewZ - MIN_DIST) >> 2), &pickupSso, &dummyStep);
+                } else {
+                    pickupSso = HORIZON_HEIGHT;
+                }
+
+                /* Column range on screen (clamped to 0..47) */
+                colStart = scrX >> 3;
+                if (colStart < 0) colStart = 0;
+                colEnd = (scrX + scaledW - 1) >> 3;
+                if (colEnd > 47) colEnd = 47;
+                if (colStart > 47 || colEnd < 0) continue;
+
+                /* Scan for visible columns */
+                visLeft = -1;
+                visRight = -1;
+                anyVisible = false;
+                for (ocCol = colStart; ocCol <= colEnd; ocCol++) {
+                    if (g_wallSso[ocCol] < pickupSso) {
+                        if (!anyVisible) visLeft = ocCol;
+                        visRight = ocCol;
+                        anyVisible = true;
+                    }
+                }
+
+                if (!anyVisible) continue; /* fully behind walls */
+
+                /* Compute pixel clipping */
+                clipL = (visLeft << 3) - scrX;
+                if (clipL < 0) clipL = 0;
+                clipR = (scrX + scaledW) - ((visRight + 1) << 3);
+                if (clipR < 0) clipR = 0;
+
+                scrX += clipL;
+                scaledW -= clipL + clipR;
+                if (scaledW < 1) continue;
+
+                /* Source X offset for left clipping */
+                mxOffset = (clipL > 0) ? (s16)(((s32)clipL * (s32)inverse_fixed(pickupScale)) >> 6) : 0;
+
+                /* Assign this pickup to a render slot */
+                worldNum = 27 - slot;
+                bgmapIdx = PICKUP_BGMAP_START + slot;
+
+                /* Load the correct pickup sprite tiles into this slot's char memory */
+                loadPickupFrame(slot, PICKUP_TILES[p->type]);
+
+                /* Write BGMap tile entries for this slot */
+                {
+                    u16 *bgm = (u16*)BGMap(bgmapIdx);
+                    u16 charBase = PICKUP_CHAR_START + slot * PICKUP_CHAR_STRIDE;
+                    u8 row, col;
+                    for (row = 0; row < PICKUP_TILE_H; row++) {
+                        for (col = 0; col < PICKUP_TILE_W; col++) {
+                            bgm[row * 64 + col] = charBase + row * PICKUP_TILE_W + col;
+                        }
+                    }
+                }
+
+                /* Set world position and dimensions (using clipped values) */
+                WA[worldNum].gx = scrX;
+                WA[worldNum].gy = scrY;
+                WA[worldNum].mx = 0;
+                WA[worldNum].my = 0;
+                WA[worldNum].w = scaledW;
+                WA[worldNum].h = scaledH;
+
+                /* Apply affine scaling with clipping offset */
+                affine_enemy_scale(worldNum, pickupScale, mxOffset);
+
+                /* ENABLE world */
+                WAM[worldNum << 4] = WRLD_ON | bgmapIdx | WRLD_AFFINE;
+
+                slot++;
+            } /* end occlusion block */
+        } /* end for each pickup */
     }
 }
 u32 GetARGB(u8 brightness)

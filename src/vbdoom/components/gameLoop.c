@@ -8,7 +8,9 @@
 #include "doomstage.h"
 #include "RayCasterRenderer.h"
 #include "enemy.h"
+#include "pickup.h"
 #include "../assets/images/sprites/zombie/zombie_sprites.h"
+#include "../assets/images/sprites/pickups/pickup_sprites.h"
 extern BYTE FontTiles[];
 #include <stdint.h>
 #include <stdbool.h>
@@ -137,11 +139,16 @@ u8 gameLoop()
 	WORLD_PARAM(28, BGMap(2));              /* enemy 2: 0x24000 */
 	/* Enemy 2 world: disabled until renderer enables it */
 	vbSetWorld(28, (ENEMY_BGMAP_START+2)|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 64*EnemyScaleX, 64*EnemyScale);
-	vbSetWorld(27, (LAYER_ENEMY_START+3)|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 64*EnemyScaleX, 64*EnemyScale);
-	vbSetWorld(26, (LAYER_ENEMY_START+4)|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 64*EnemyScaleX, 64*EnemyScale);
-	vbSetWorld(25, (LAYER_ENEMY_START+5)|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 64*EnemyScaleX, 64*EnemyScale);
+	/* Pickup worlds: 3 slots, start DISABLED (renderer enables when visible) */
+	vbSetWorld(27, PICKUP_BGMAP_START|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 32*EnemyScaleX, 24*EnemyScale);
+	vbSetWorld(26, (PICKUP_BGMAP_START+1)|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 32*EnemyScaleX, 24*EnemyScale);
+	vbSetWorld(25, (PICKUP_BGMAP_START+2)|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 32*EnemyScaleX, 24*EnemyScale);
+	/* Affine param tables for pickups (in free space of BGMap 2 and BGMap 6) */
+	WORLD_PARAM(27, BGMap(2) + 0x1000);   /* pickup 0: 0x25000 */
+	WORLD_PARAM(26, BGMap(2) + 0x1800);   /* pickup 1: 0x25800 */
+	WORLD_PARAM(25, BGMap(6) + 0x1000);   /* pickup 2: 0x2D000 */
 
-	vbSetWorld(24, WRLD_ON|LAYER_ENEMY_START+6, 			0, 0, 0, 0, 0, 0, 20*EnemyScale, 26*EnemyScale); // more bullets
+	vbSetWorld(24, LAYER_ENEMY_START+6, 0, 0, 0, 0, 0, 0, 0, 0); /* disabled (was more bullets) */
 
 	vbSetWorld(23, WRLD_ON|LAYER_BULLET, 					0, 0, 0, 0, 0, 0, 20*EnemyScale, 26*EnemyScale); // bullets
 	vbSetWorld(22, WRLD_ON|LAYER_WEAPON_BLACK, 				0, 0, 0, 0, 0, 0, 136, 128); // weapon black
@@ -273,10 +280,18 @@ u8 gameLoop()
 	//setmem((void*)BGMap(14), 0, 384*327);
 
 	/* Enemy BGMap/char init MUST be after setmem clears BGMaps */
-	initEnemyBGMaps();                          /* set up BGMap(3) and BGMap(4) tile entries */
+	initEnemyBGMaps();                          /* set up BGMap(3), (4), (5) tile entries */
 	loadEnemyFrame(0, Zombie_000Tiles);         /* load frame 0 into enemy 0 char memory */
 	loadEnemyFrame(1, Zombie_000Tiles);         /* load frame 0 into enemy 1 char memory */
 	loadEnemyFrame(2, Zombie_000Tiles);         /* load frame 0 into enemy 2 char memory */
+
+	/* Pickup BGMap/char init */
+	initPickups();
+	initPickupBGMaps();
+	/* Pre-load one of each pickup type into char slots */
+	loadPickupFrame(0, PICKUP_TILES[PICKUP_AMMO_CLIP]);
+	loadPickupFrame(1, PICKUP_TILES[PICKUP_HEALTH_SMALL]);
+	loadPickupFrame(2, PICKUP_TILES[PICKUP_HEALTH_LARGE]);
 
 	drawDoomUI(LAYER_UI, 0, 0);
 	drawUpdatedAmmo(ammo, currentAmmoType);
@@ -426,6 +441,17 @@ u8 gameLoop()
 		// we actually only need to call this if x,y,ang changed...
 		updateEnemies(fPlayerX, fPlayerY, fPlayerAng);
 
+		/* Check pickup collisions */
+		{
+			u8 pickupAmmo = weapons[currentWeapon].ammo;
+			if (updatePickups(fPlayerX, fPlayerY, &pickupAmmo, &currentHealth)) {
+				/* Something was picked up - update HUD */
+				weapons[currentWeapon].ammo = pickupAmmo;
+				drawUpdatedAmmo(weapons[currentWeapon].ammo, weapons[currentWeapon].ammoType);
+				drawHealth(currentHealth);
+			}
+		}
+
 		/* Update enemy sprite frames in VRAM (only if frame changed) */
 		{
 			u8 ei;
@@ -518,6 +544,27 @@ u8 gameLoop()
 		playSnd(&comboChangeAndFire, &currentWeapon, &isPlayMusicBool);
 
 		drawPlayerInfo(&fPlayerX, &fPlayerY, &fPlayerAng);
+
+		/* Screen flash effect (pickup or damage) */
+		if (g_flashTimer > 0) {
+			g_flashTimer--;
+			if (g_flashType == 0) {
+				/* Pickup flash: all bright red */
+				VIP_REGS[GPLT0] = 0xFF;  /* all indices -> brightest */
+				VIP_REGS[GPLT1] = 0xFF;
+				VIP_REGS[GPLT2] = 0xFF;
+			} else {
+				/* Damage flash: red tint (shift palette darker) */
+				VIP_REGS[GPLT0] = 0xFE;
+				VIP_REGS[GPLT1] = 0xFE;
+				VIP_REGS[GPLT2] = 0xFE;
+			}
+		} else {
+			/* Restore normal palettes */
+			VIP_REGS[GPLT0] = 0xE4;
+			VIP_REGS[GPLT1] = 0x00;
+			VIP_REGS[GPLT2] = 0x84;
+		}
 
 		vbWaitFrame(0); /* Sync to VBlank: ~50fps on real hardware.
 		                 * 0 = wait 1 VBlank (~50fps), 1 = wait 2 VBlanks (~25fps).

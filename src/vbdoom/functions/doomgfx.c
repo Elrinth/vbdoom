@@ -6,6 +6,7 @@
 #include <languages.h>
 #include "doomgfx.h"
 #include "enemy.h"
+#include "pickup.h"
 
 extern BYTE vb_doomTiles[];
 extern BYTE vb_doomMap[];
@@ -42,6 +43,34 @@ void initEnemyBGMaps() {
 		for (row = 0; row < ZOMBIE_TILE_H; row++) {
 			for (col = 0; col < ZOMBIE_TILE_W; col++) {
 				u16 charIndex = charBase + row * ZOMBIE_TILE_W + col;
+				bgmap[row * 64 + col] = charIndex;  /* palette 0, no flip */
+			}
+		}
+	}
+}
+
+void loadPickupFrame(u8 pickupSlot, const unsigned int* tileData) {
+	/* Copy one pickup's tile data into char memory.
+	 * Pickup 0 -> chars starting at PICKUP_CHAR_START (1081)
+	 * Pickup 1 -> chars starting at PICKUP_CHAR_START + PICKUP_CHAR_STRIDE (1093)
+	 * etc.
+	 */
+	u32 addr = 0x00078000 + (PICKUP_CHAR_START + pickupSlot * PICKUP_CHAR_STRIDE) * 16;
+	copymem((void*)addr, (void*)tileData, PICKUP_FRAME_BYTES);
+}
+
+void initPickupBGMaps(void) {
+	/* Set up BGMap(6), (7), (8) with tile entries for pickup slots 0, 1, 2.
+	 * Each pickup slot gets its own BGMap + char range.
+	 * 4x3 tile grid (32x24 px).
+	 */
+	u8 p, row, col;
+	for (p = 0; p < MAX_VISIBLE_PICKUPS; p++) {
+		u16 *bgmap = (u16*)BGMap(PICKUP_BGMAP_START + p);
+		u16 charBase = PICKUP_CHAR_START + p * PICKUP_CHAR_STRIDE;
+		for (row = 0; row < PICKUP_TILE_H; row++) {
+			for (col = 0; col < PICKUP_TILE_W; col++) {
+				u16 charIndex = charBase + row * PICKUP_TILE_W + col;
 				bgmap[row * 64 + col] = charIndex;  /* palette 0, no flip */
 			}
 		}

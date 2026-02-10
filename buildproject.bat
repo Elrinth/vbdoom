@@ -1,0 +1,1 @@
+"c:/vbde/system/msys32/usr/bin/bash.exe" --login -c "cd /c/vbde/my_projects/vbdoom/src/vbdoom && export VBDE=/c/vbde && export PATH=\$PATH:/v810/v810-win32/bin && /usr/bin/make all -f \$VBDE/libs/libgccvb/makefile-game 2>&1"
