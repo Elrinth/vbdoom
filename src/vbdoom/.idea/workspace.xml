@@ -1,134 +1,45 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="BookmarkManager">
-    <bookmark url="file://$PROJECT_DIR$/functions/doomgfx.c" line="191" />
-    <bookmark url="file://$PROJECT_DIR$/functions/RayCasterRenderer.c" line="281" mnemonic="9" />
-    <bookmark url="file://$PROJECT_DIR$/functions/doomgfx.c" line="188" />
-    <bookmark url="file://$PROJECT_DIR$/functions/doomgfx.c" line="667" />
+    <bookmark url="file://$PROJECT_DIR$/functions/doomgfx.c" line="177" />
+    <bookmark url="file://$PROJECT_DIR$/functions/RayCasterRenderer.c" line="296" mnemonic="9" />
+    <bookmark url="file://$PROJECT_DIR$/functions/doomgfx.c" line="174" />
+    <bookmark url="file://$PROJECT_DIR$/functions/doomgfx.c" line="340" />
   </component>
   <component name="ChangeListManager">
     <list default="true" id="01989b41-c5d7-416e-b48f-ef72adc98476" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/../../.cursor/rules/vbdoom-project.mdc" beforeDir="false" afterPath="$PROJECT_DIR$/../../.cursor/rules/vbdoom-project.mdc" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../grit_conversions/vb_doom.c" beforeDir="false" afterPath="$PROJECT_DIR$/../../grit_conversions/vb_doom.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../convert_midi.py" beforeDir="false" afterPath="$PROJECT_DIR$/../../convert_midi.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../../grit_conversions/vb_doom.png" beforeDir="false" afterPath="$PROJECT_DIR$/../../grit_conversions/vb_doom.png" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../../pickup_previews/pickup_shotgun.png" beforeDir="false" afterPath="$PROJECT_DIR$/../../pickup_previews/pickup_shotgun.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../prepare_doom_sfx.py" beforeDir="false" afterPath="$PROJECT_DIR$/../../prepare_doom_sfx.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/assets/audio/doom_sfx.c" beforeDir="false" afterPath="$PROJECT_DIR$/assets/audio/doom_sfx.c" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/audio/doom_sfx.h" beforeDir="false" afterPath="$PROJECT_DIR$/assets/audio/doom_sfx.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/assets/audio/music_e1m1.h" beforeDir="false" afterPath="$PROJECT_DIR$/assets/audio/music_e1m1.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/assets/audio/music_e1m2.h" beforeDir="false" afterPath="$PROJECT_DIR$/assets/audio/music_e1m2.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/assets/audio/music_e1m3.h" beforeDir="false" afterPath="$PROJECT_DIR$/assets/audio/music_e1m3.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/audio/music_title.h" beforeDir="false" afterPath="$PROJECT_DIR$/assets/audio/music_title.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/AdjustmentScreen.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/sprites/demon/Demon_035.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/sprites/demon/Demon_036.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/sprites/demon/Demon_037.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/sprites/demon/Demon_038.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/sprites/demon/Demon_039.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/sprites/demon/Demon_040.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/sprites/demon/Demon_041.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/sprites/demon/Demon_042.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/sprites/demon/Demon_043.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/sprites/demon/Demon_044.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/sprites/demon/Demon_045.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/sprites/demon/Demon_046.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/sprites/demon/Demon_047.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/sprites/demon/Demon_048.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/sprites/demon/Demon_049.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/sprites/demon/Demon_050.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/sprites/demon/Demon_051.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/sprites/demon/Demon_052.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/sprites/demon/Demon_053.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/sprites/demon/Demon_054.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/sprites/demon/Demon_055.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/sprites/demon/Demon_058.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/sprites/demon/Demon_060.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/sprites/demon/Demon_063.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/sprites/demon/demon_sprites.h" beforeDir="false" afterPath="$PROJECT_DIR$/assets/images/sprites/demon/demon_sprites.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/sprites/faces/face_sprites.h" beforeDir="false" afterPath="$PROJECT_DIR$/assets/images/sprites/faces/face_sprites.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/sprites/zombie_sgt/Zombie_Sergeant_049.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/sprites/zombie_sgt/Zombie_Sergeant_050.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/sprites/zombie_sgt/Zombie_Sergeant_051.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/sprites/zombie_sgt/Zombie_Sergeant_052.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/sprites/zombie_sgt/Zombie_Sergeant_053.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/sprites/zombie_sgt/Zombie_Sergeant_054.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/sprites/zombie_sgt/Zombie_Sergeant_055.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/sprites/zombie_sgt/Zombie_Sergeant_056.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/sprites/zombie_sgt/Zombie_Sergeant_057.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/sprites/zombie_sgt/Zombie_Sergeant_058.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/sprites/zombie_sgt/Zombie_Sergeant_059.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/sprites/zombie_sgt/Zombie_Sergeant_060.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/sprites/zombie_sgt/Zombie_Sergeant_061.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/sprites/zombie_sgt/Zombie_Sergeant_062.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_00.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_00.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_01.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_01.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_02.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_02.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_03.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_03.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_04.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_04.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_05.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_05.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_06.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_06.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_07.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_07.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_08.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_08.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_09.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_09.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_10.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_10.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_11.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_11.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_12.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_12.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_13.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_13.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_14.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_14.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_15.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_15.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_16.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_16.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_17.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_17.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_18.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_18.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_19.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_19.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_20.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_20.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_21.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_21.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_22.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_22.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_23.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_23.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_24.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_24.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_25.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_25.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_26.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_26.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_27.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_27.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_28.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_28.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_29.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_29.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_30.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_30.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_31.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_31.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_32.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_32.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_33.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/images/weapons/weapon_sprite_33.h" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/assets/images/sprites/pickups/pickup_sprites.h" beforeDir="false" afterPath="$PROJECT_DIR$/assets/images/sprites/pickups/pickup_sprites.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/assets/images/wall_textures.h" beforeDir="false" afterPath="$PROJECT_DIR$/assets/images/wall_textures.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/build/output.vb" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/release/assets/images/AdjustmentScreen.d" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/release/assets/images/CREDIT_idsoftware.d" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/release/assets/images/CREDIT_virtualboy.d" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/release/assets/images/title_screen_384x224.d" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/release/assets/images/vb_doom_guy_face.d" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/release/c/vbde/libs/libgccvb/affine.d" beforeDir="false" afterPath="$PROJECT_DIR$/build/release/c/vbde/libs/libgccvb/affine.d" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/release/c/vbde/libs/libgccvb/asm.d" beforeDir="false" afterPath="$PROJECT_DIR$/build/release/c/vbde/libs/libgccvb/asm.d" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/release/c/vbde/libs/libgccvb/audio.d" beforeDir="false" afterPath="$PROJECT_DIR$/build/release/c/vbde/libs/libgccvb/audio.d" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/release/c/vbde/libs/libgccvb/controller.d" beforeDir="false" afterPath="$PROJECT_DIR$/build/release/c/vbde/libs/libgccvb/controller.d" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/release/c/vbde/libs/libgccvb/hw.d" beforeDir="false" afterPath="$PROJECT_DIR$/build/release/c/vbde/libs/libgccvb/hw.d" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/release/c/vbde/libs/libgccvb/math.d" beforeDir="false" afterPath="$PROJECT_DIR$/build/release/c/vbde/libs/libgccvb/math.d" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/release/c/vbde/libs/libgccvb/mem.d" beforeDir="false" afterPath="$PROJECT_DIR$/build/release/c/vbde/libs/libgccvb/mem.d" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/release/c/vbde/libs/libgccvb/misc.d" beforeDir="false" afterPath="$PROJECT_DIR$/build/release/c/vbde/libs/libgccvb/misc.d" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/release/c/vbde/libs/libgccvb/object.d" beforeDir="false" afterPath="$PROJECT_DIR$/build/release/c/vbde/libs/libgccvb/object.d" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/release/c/vbde/libs/libgccvb/random.d" beforeDir="false" afterPath="$PROJECT_DIR$/build/release/c/vbde/libs/libgccvb/random.d" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/release/c/vbde/libs/libgccvb/timer.d" beforeDir="false" afterPath="$PROJECT_DIR$/build/release/c/vbde/libs/libgccvb/timer.d" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/release/c/vbde/libs/libgccvb/video.d" beforeDir="false" afterPath="$PROJECT_DIR$/build/release/c/vbde/libs/libgccvb/video.d" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/release/c/vbde/libs/libgccvb/vip.d" beforeDir="false" afterPath="$PROJECT_DIR$/build/release/c/vbde/libs/libgccvb/vip.d" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/release/c/vbde/libs/libgccvb/world.d" beforeDir="false" afterPath="$PROJECT_DIR$/build/release/c/vbde/libs/libgccvb/world.d" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/release/components/adjustmentScreen.d" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/build/release/components/creditsScreen.d" beforeDir="false" afterPath="$PROJECT_DIR$/build/release/components/creditsScreen.d" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/build/release/components/gameLoop.d" beforeDir="false" afterPath="$PROJECT_DIR$/build/release/components/gameLoop.d" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/build/release/components/titleScreen.d" beforeDir="false" afterPath="$PROJECT_DIR$/build/release/components/titleScreen.d" afterDir="false" />
@@ -138,11 +49,21 @@
       <change beforePath="$PROJECT_DIR$/components/creditsScreen.c" beforeDir="false" afterPath="$PROJECT_DIR$/components/creditsScreen.c" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/components/gameLoop.c" beforeDir="false" afterPath="$PROJECT_DIR$/components/gameLoop.c" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/components/intermission.c" beforeDir="false" afterPath="$PROJECT_DIR$/components/intermission.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/menu_options.c" beforeDir="false" afterPath="$PROJECT_DIR$/components/menu_options.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/titleScreen.c" beforeDir="false" afterPath="$PROJECT_DIR$/components/titleScreen.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/functions/RayCaster.h" beforeDir="false" afterPath="$PROJECT_DIR$/functions/RayCaster.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/functions/RayCasterData.h" beforeDir="false" afterPath="$PROJECT_DIR$/functions/RayCasterData.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/functions/RayCasterFixed.c" beforeDir="false" afterPath="$PROJECT_DIR$/functions/RayCasterFixed.c" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/functions/RayCasterRenderer.c" beforeDir="false" afterPath="$PROJECT_DIR$/functions/RayCasterRenderer.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/functions/RayCasterRenderer.h" beforeDir="false" afterPath="$PROJECT_DIR$/functions/RayCasterRenderer.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/functions/doomgfx.c" beforeDir="false" afterPath="$PROJECT_DIR$/functions/doomgfx.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/functions/doomgfx.h" beforeDir="false" afterPath="$PROJECT_DIR$/functions/doomgfx.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/functions/door.c" beforeDir="false" afterPath="$PROJECT_DIR$/functions/door.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/functions/door.h" beforeDir="false" afterPath="$PROJECT_DIR$/functions/door.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/functions/enemy.c" beforeDir="false" afterPath="$PROJECT_DIR$/functions/enemy.c" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/functions/enemy.h" beforeDir="false" afterPath="$PROJECT_DIR$/functions/enemy.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/functions/pickup.c" beforeDir="false" afterPath="$PROJECT_DIR$/functions/pickup.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/functions/pickup.h" beforeDir="false" afterPath="$PROJECT_DIR$/functions/pickup.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/functions/projectile.c" beforeDir="false" afterPath="$PROJECT_DIR$/functions/projectile.c" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/functions/sndplay.c" beforeDir="false" afterPath="$PROJECT_DIR$/functions/sndplay.c" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/functions/sndplay.h" beforeDir="false" afterPath="$PROJECT_DIR$/functions/sndplay.h" afterDir="false" />
@@ -252,13 +173,13 @@
       </usages-collector>
       <usages-collector id="statistics.file.extensions.edit">
         <counts>
-          <entry key="c" value="26346" />
-          <entry key="h" value="2844" />
+          <entry key="c" value="26387" />
+          <entry key="h" value="2845" />
         </counts>
       </usages-collector>
       <usages-collector id="statistics.file.types.edit">
         <counts>
-          <entry key="C++" value="29190" />
+          <entry key="C++" value="29232" />
         </counts>
       </usages-collector>
       <usages-collector id="statistics.file.extensions.open">
@@ -266,14 +187,14 @@
           <entry key="c" value="141" />
           <entry key="c___jb_tmp___" value="6" />
           <entry key="elf" value="2" />
-          <entry key="h" value="202" />
+          <entry key="h" value="204" />
           <entry key="h___jb_tmp___" value="1" />
           <entry key="header" value="1" />
         </counts>
       </usages-collector>
       <usages-collector id="statistics.file.types.open">
         <counts>
-          <entry key="C++" value="343" />
+          <entry key="C++" value="345" />
           <entry key="PLAIN_TEXT" value="10" />
         </counts>
       </usages-collector>
@@ -284,35 +205,44 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/main.c">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="120">
-              <caret line="11" column="25" selection-start-line="11" selection-start-column="25" selection-end-line="11" selection-end-column="25" />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/components/components.h">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="96">
-              <caret line="4" column="25" selection-start-line="4" selection-start-column="25" selection-end-line="4" selection-end-column="25" />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/components/gameLoop.c">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="1444">
-              <caret line="1167" column="34" selection-start-line="1167" selection-start-column="34" selection-end-line="1167" selection-end-column="34" />
+            <state relative-caret-position="888">
+              <caret line="40" column="21" selection-start-line="40" selection-start-column="21" selection-end-line="40" selection-end-column="21" />
             </state>
           </provider>
         </entry>
       </file>
       <file pinned="false" current-in-tab="true">
+        <entry file="file://$PROJECT_DIR$/components/gameLoop.c">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="129">
+              <caret line="178" column="35" lean-forward="true" selection-start-line="178" selection-start-column="35" selection-end-line="178" selection-end-column="35" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/functions/RayCaster.h">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="168">
+              <caret line="7" column="18" lean-forward="true" selection-start-line="7" selection-start-column="18" selection-end-line="7" selection-end-column="18" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/functions/RayCasterData.h">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="635">
+              <caret line="85" lean-forward="true" selection-start-line="85" selection-end-line="85" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/components/intermission.c">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="600">
-              <caret line="25" column="41" lean-forward="true" selection-start-line="25" selection-start-column="41" selection-end-line="25" selection-end-column="41" />
+            <state relative-caret-position="432">
+              <caret line="18" column="33" selection-start-line="18" selection-start-column="33" selection-end-line="18" selection-end-column="33" />
             </state>
           </provider>
         </entry>
@@ -326,7 +256,7 @@
         <entry file="file://$PROJECT_DIR$/components/titleScreen.c">
           <provider selected="true" editor-type-id="text-editor">
             <state relative-caret-position="443">
-              <caret line="185" column="16" selection-start-line="185" selection-start-column="16" selection-end-line="186" selection-end-column="23" />
+              <caret line="198" column="16" selection-start-line="198" selection-start-column="16" selection-end-line="199" selection-end-column="23" />
             </state>
           </provider>
         </entry>
@@ -335,7 +265,7 @@
         <entry file="file://$PROJECT_DIR$/components/menu_options.c">
           <provider selected="true" editor-type-id="text-editor">
             <state relative-caret-position="405">
-              <caret line="575" column="23" selection-start-line="575" selection-start-column="23" selection-end-line="575" selection-end-column="23" />
+              <caret line="602" column="23" selection-start-line="602" selection-start-column="23" selection-end-line="602" selection-end-column="23" />
             </state>
           </provider>
         </entry>
@@ -348,15 +278,6 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/components/menu_multiplayer.h">
           <provider selected="true" editor-type-id="text-editor" />
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/functions/doomgfx.c">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="244">
-              <caret line="284" column="7" selection-start-line="284" selection-start-column="7" selection-end-line="284" selection-end-column="7" />
-            </state>
-          </provider>
         </entry>
       </file>
     </leaf>
@@ -372,9 +293,6 @@
   </component>
   <component name="FindInProjectRecents">
     <findStrings>
-      <find>WA[31].gy</find>
-      <find>drawDoomStageTile</find>
-      <find>isFixed</find>
       <find>allowPushAgain</find>
       <find>drawSkull</find>
       <find>drawDoomTitle</find>
@@ -402,6 +320,9 @@
       <find>enemyX</find>
       <find>BULL</find>
       <find>waitForFrameTimer</find>
+      <find>levelNum</find>
+      <find>MAP_CELLS</find>
+      <find>e1m3_map</find>
     </findStrings>
   </component>
   <component name="Git.Settings">
@@ -432,7 +353,6 @@
         <option value="$PROJECT_DIR$/functions/drawlevel.c" />
         <option value="$PROJECT_DIR$/functions/drawlevel.h" />
         <option value="$PROJECT_DIR$/../../libs/libgccvb/types.h" />
-        <option value="$PROJECT_DIR$/functions/RayCasterData.h" />
         <option value="$PROJECT_DIR$/functions/constants.h" />
         <option value="$PROJECT_DIR$/components/gameLoop.h" />
         <option value="$PROJECT_DIR$/functions/voices.h" />
@@ -456,17 +376,18 @@
         <option value="$PROJECT_DIR$/functions/RayCasterFixed.h" />
         <option value="$PROJECT_DIR$/functions/RayCasterFixed.c" />
         <option value="$PROJECT_DIR$/functions/RayCasterRenderer.c" />
-        <option value="$PROJECT_DIR$/components/gameLoop.c" />
         <option value="$PROJECT_DIR$/functions/doomgfx.c" />
         <option value="$PROJECT_DIR$/main.c" />
         <option value="$PROJECT_DIR$/components/titleScreen.c" />
         <option value="$PROJECT_DIR$/components/menu_options.c" />
+        <option value="$PROJECT_DIR$/functions/RayCasterData.h" />
+        <option value="$PROJECT_DIR$/components/gameLoop.c" />
       </list>
     </option>
   </component>
   <component name="ProjectFrameBounds" extendedState="6">
-    <option name="x" value="61" />
-    <option name="y" value="201" />
+    <option name="x" value="2552" />
+    <option name="y" value="-8" />
     <option name="width" value="2558" />
     <option name="height" value="1100" />
   </component>
@@ -534,7 +455,7 @@
     </todo-panel>
   </component>
   <component name="ToolWindowManager">
-    <frame x="-8" y="-8" width="2576" height="1408" extended-state="6" />
+    <frame x="2552" y="-8" width="2576" height="1408" extended-state="6" />
     <editor active="true" />
     <layout>
       <window_info content_ui="combo" id="Project" order="0" visible="true" weight="0.18597321" />
@@ -714,13 +635,6 @@
     <entry file="file://$PROJECT_DIR$/assets/images/vb_doom.c">
       <provider selected="true" editor-type-id="text-editor" />
     </entry>
-    <entry file="file://$PROJECT_DIR$/functions/RayCasterData.h">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="3864">
-          <caret line="161" column="72" selection-start-line="161" selection-start-column="72" selection-end-line="161" selection-end-column="72" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/functions/RayCasterRenderer.c">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="171">
@@ -739,13 +653,6 @@
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="59">
           <caret line="435" column="34" selection-start-line="435" selection-start-column="34" selection-end-line="435" selection-end-column="34" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/functions/RayCaster.h">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="792">
-          <caret line="33" column="37" selection-end-line="37" selection-end-column="6" />
         </state>
       </provider>
     </entry>
@@ -803,8 +710,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/functions/doomgfx.c">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="244">
-          <caret line="284" column="7" selection-start-line="284" selection-start-column="7" selection-end-line="284" selection-end-column="7" />
+        <state relative-caret-position="196">
+          <caret line="282" column="7" selection-start-line="282" selection-start-column="7" selection-end-line="282" selection-end-column="7" />
         </state>
       </provider>
     </entry>
@@ -821,34 +728,20 @@
     <entry file="file://$PROJECT_DIR$/components/menu_multiplayer.h">
       <provider selected="true" editor-type-id="text-editor" />
     </entry>
-    <entry file="file://$PROJECT_DIR$/components/gameLoop.c">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1444">
-          <caret line="1167" column="34" selection-start-line="1167" selection-start-column="34" selection-end-line="1167" selection-end-column="34" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/components/creditsScreen.c">
       <provider selected="true" editor-type-id="text-editor" />
-    </entry>
-    <entry file="file://$PROJECT_DIR$/main.c">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="120">
-          <caret line="11" column="25" selection-start-line="11" selection-start-column="25" selection-end-line="11" selection-end-column="25" />
-        </state>
-      </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/components/titleScreen.c">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="443">
-          <caret line="185" column="16" selection-start-line="185" selection-start-column="16" selection-end-line="186" selection-end-column="23" />
+          <caret line="198" column="16" selection-start-line="198" selection-start-column="16" selection-end-line="199" selection-end-column="23" />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/components/menu_options.c">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="405">
-          <caret line="575" column="23" selection-start-line="575" selection-start-column="23" selection-end-line="575" selection-end-column="23" />
+          <caret line="602" column="23" selection-start-line="602" selection-start-column="23" selection-end-line="602" selection-end-column="23" />
         </state>
       </provider>
     </entry>
@@ -857,8 +750,36 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/components/intermission.c">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="600">
-          <caret line="25" column="41" lean-forward="true" selection-start-line="25" selection-start-column="41" selection-end-line="25" selection-end-column="41" />
+        <state relative-caret-position="432">
+          <caret line="18" column="33" selection-start-line="18" selection-start-column="33" selection-end-line="18" selection-end-column="33" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/functions/RayCaster.h">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="168">
+          <caret line="7" column="18" lean-forward="true" selection-start-line="7" selection-start-column="18" selection-end-line="7" selection-end-column="18" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/functions/RayCasterData.h">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="635">
+          <caret line="85" lean-forward="true" selection-start-line="85" selection-end-line="85" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/main.c">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="888">
+          <caret line="40" column="21" selection-start-line="40" selection-start-column="21" selection-end-line="40" selection-end-column="21" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/components/gameLoop.c">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="129">
+          <caret line="178" column="35" lean-forward="true" selection-start-line="178" selection-start-column="35" selection-end-line="178" selection-end-column="35" />
         </state>
       </provider>
     </entry>

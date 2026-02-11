@@ -79,8 +79,9 @@ u8 creditsScreen()
 	VIP_REGS[GPLT2] = 0x84;
 	VIP_REGS[GPLT3] = 0xE4;
 
-	/* Load logo tiles at CharSeg3+0 (char 1536+) */
-	copymem((void*)0x00078000, (void*)planet_virtualboyTiles, LOGO_TILES * 16);
+	/* Load logo tiles at char 1536 (0x600).
+	 * Contiguous char window: 0x78000 + char*16 = 0x78000 + 0x6000 = 0x7E000 */
+	copymem((void*)0x0007E000, (void*)planet_virtualboyTiles, LOGO_TILES * 16);
 
 	vbDisplayOn();
 
@@ -143,9 +144,27 @@ u8 creditsScreen()
 
 	vbDisplayShow();
 
+	/* Wait for all buttons to be released before accepting input.
+	 * Prevents the selection press from the title screen
+	 * from immediately exiting the credits. */
+	while (vbReadPad() & (K_STA|K_A|K_B|K_SEL)) {
+		updateMusic(true);
+		vbWaitFrame(0);
+	}
+
+#define CREDITS_EXIT_MASK  (K_STA|K_A|K_B|K_SEL)
+#define CREDITS_DEBOUNCE_FRAMES  3
+	u8 exitHoldFrames = 0;
+
 	while(1) {
-		if(buttonsPressed(K_STA|K_A|K_B|K_SEL, true)) {
-			break;
+		/* Require button held 3 consecutive frames to avoid false exit on noisy pad (real hardware) */
+		if ((vbReadPad() & CREDITS_EXIT_MASK) != 0) {
+			exitHoldFrames++;
+			if (exitHoldFrames >= CREDITS_DEBOUNCE_FRAMES) {
+				break;
+			}
+		} else {
+			exitHoldFrames = 0;
 		}
 
 		/* Scroll after initial delay */

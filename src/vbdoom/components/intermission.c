@@ -17,6 +17,7 @@
 #include <text.h>
 #include "../assets/images/win_gfx.h"
 #include "../functions/sndplay.h"
+#include "../assets/audio/doom_sfx.h"
 
 extern BYTE le_mapTiles[];
 extern unsigned short le_mapMap[];
@@ -55,15 +56,17 @@ extern u8 currentLevel;
 #define LEMAP_GX  ((384 - LEMAP_PX_W) >> 1)  /* = 32 */
 #define LEMAP_GY  12
 
-/* Skull position on screen (bottom-center of image) */
-#define SKULL_GX  (LEMAP_GX + 148)
-#define SKULL_GY  (LEMAP_GY + 182)
+/* Per-level skull positions on the episode map (x,y offsets from LEMAP_GX/GY).
+ * These mark the player's current level on the map image.
+ * E1M1 = level 1, E1M2 = level 2, E1M3 = level 3. */
+static const s16 SKULL_POS_X[] = { 0, 148, 230, 130 };  /* [0]=unused, [1]=E1M1, [2]=E1M2, [3]=E1M3 */
+static const s16 SKULL_POS_Y[] = { 0, 182, 150, 110 };  /* Approximate positions on le_map */
 
 /* Bleed-down speed: pixels revealed per frame */
 #define BLEED_STEP  8
 
 /* How long to display (in frames at ~20fps) before auto-dismiss */
-#define DISPLAY_FRAMES  80  /* ~4 seconds */
+#define DISPLAY_FRAMES  200  /* ~10 seconds */
 
 
 static void drawIntermissionSkull(u8 eyeFrame) {
@@ -115,11 +118,18 @@ void showIntermission(void) {
 	WA[31].gx = LEMAP_GX;
 	WA[31].gy = LEMAP_GY;
 
-	/* Position skull worlds */
-	WA[30].gx = WA[29].gx = SKULL_GX;
-	WA[30].gy = WA[29].gy = SKULL_GY;
-	WA[28].gx = SKULL_GX + 5;
-	WA[28].gy = SKULL_GY + 4;
+	/* Position skull worlds based on current level */
+	{
+		u8 lvl = currentLevel;
+		s16 skullX, skullY;
+		if (lvl < 1 || lvl > 3) lvl = 1;
+		skullX = LEMAP_GX + SKULL_POS_X[lvl];
+		skullY = LEMAP_GY + SKULL_POS_Y[lvl];
+		WA[30].gx = WA[29].gx = skullX;
+		WA[30].gy = WA[29].gy = skullY;
+		WA[28].gx = skullX + 5;
+		WA[28].gy = skullY + 4;
+	}
 
 	/* Skull and eye worlds start hidden during bleed-in */
 	WA[30].head = 0;
@@ -480,6 +490,9 @@ void showLevelStats(void) {
 			u8 nextCol = statsDrawNumber(20, 8, dispKill);
 			statsDrawPercent(nextCol, 8);
 		}
+		playPlayerSFX(SFX_PISTOL);
+		updateMusic(true);
+		vbWaitFrame(0);
 		updateMusic(true);
 		vbWaitFrame(0);
 		keyInputs = vbReadPad();
@@ -487,14 +500,17 @@ void showLevelStats(void) {
 			dispKill = killPct;
 			dispItem = itemPct;
 			dispSecret = secretPct;
+			playPlayerSFX(SFX_BARREL_EXPLODE);
 			goto draw_final;
 		}
 	}
-	/* Draw final kill value */
+	/* Draw final kill value + completion sound + pause */
 	{
 		u8 nextCol = statsDrawNumber(20, 8, killPct);
 		statsDrawPercent(nextCol, 8);
 	}
+	playPlayerSFX(SFX_BARREL_EXPLODE);
+	{ u8 w; for (w = 0; w < 20; w++) { updateMusic(true); vbWaitFrame(0); } }
 
 	/* Count up items */
 	while (dispItem < itemPct) {
@@ -504,12 +520,16 @@ void showLevelStats(void) {
 			u8 nextCol = statsDrawNumber(20, 11, dispItem);
 			statsDrawPercent(nextCol, 11);
 		}
+		playPlayerSFX(SFX_PISTOL);
+		updateMusic(true);
+		vbWaitFrame(0);
 		updateMusic(true);
 		vbWaitFrame(0);
 		keyInputs = vbReadPad();
 		if (keyInputs & (K_STA | K_A)) {
 			dispItem = itemPct;
 			dispSecret = secretPct;
+			playPlayerSFX(SFX_BARREL_EXPLODE);
 			goto draw_final;
 		}
 	}
@@ -517,6 +537,8 @@ void showLevelStats(void) {
 		u8 nextCol = statsDrawNumber(20, 11, itemPct);
 		statsDrawPercent(nextCol, 11);
 	}
+	playPlayerSFX(SFX_BARREL_EXPLODE);
+	{ u8 w; for (w = 0; w < 20; w++) { updateMusic(true); vbWaitFrame(0); } }
 
 	/* Count up secrets */
 	while (dispSecret < secretPct) {
@@ -526,11 +548,15 @@ void showLevelStats(void) {
 			u8 nextCol = statsDrawNumber(20, 14, dispSecret);
 			statsDrawPercent(nextCol, 14);
 		}
+		playPlayerSFX(SFX_PISTOL);
+		updateMusic(true);
+		vbWaitFrame(0);
 		updateMusic(true);
 		vbWaitFrame(0);
 		keyInputs = vbReadPad();
 		if (keyInputs & (K_STA | K_A)) {
 			dispSecret = secretPct;
+			playPlayerSFX(SFX_BARREL_EXPLODE);
 			goto draw_final;
 		}
 	}
@@ -546,6 +572,7 @@ draw_final:
 		nextCol = statsDrawNumber(20, 14, secretPct);
 		statsDrawPercent(nextCol, 14);
 	}
+	playPlayerSFX(SFX_BARREL_EXPLODE);
 	vbWaitFrame(0);
 
 	/* ---- Wait for button press to continue ---- */

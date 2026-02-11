@@ -1,10 +1,12 @@
 #ifndef _FUNCTIONS_RAYCASTERDATA_H
 #define _FUNCTIONS_RAYCASTERDATA_H
 
-#define LOOKUP_TBL PROGMEM
+#include "RayCaster.h"
+
+/* LOOKUP_TBL left as in RayCaster.h (empty); PROGMEM not used on V810 */
 
 /*
- * Active map buffer -- 32x32 byte array, written by loadLevel().
+ * Active map buffer (MAP_X*MAP_Y bytes), written by loadLevel().
  * Modified at runtime by door open/close, so must be writable (RAM).
  *
  * Tile values:
@@ -14,8 +16,10 @@
  *   3 = TECH wall (tech panels)
  *   4 = DOOR (opens upward when activated)
  *   5 = SWITCH (activatable wall)
+ *   6,7,8 = secret doors (look like brick/stone/tech, open like doors)
+ *   9,10,11 = key doors (red/yellow/blue) when implemented
  */
-u8 g_map[1024];
+u8 g_map[MAP_CELLS];
 
 /*
  * E1M1 source map (read-only). Copied into g_map by loadLevel(1).
@@ -77,6 +81,8 @@ const u8 e1m1_map[1024] = {
 #define E1M1_SPAWN_Y  (28 * 256 + 128)
 
 #include "../assets/doom/e1m2.h"
+#include "../assets/doom/e1m3.h"
+#include "../assets/doom/e1m4.h"
 
 /* g_texture8 removed -- was unused and wasted 4KB of ROM */
 

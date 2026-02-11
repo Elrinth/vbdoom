@@ -25,14 +25,20 @@
 //hfov = 0.7 * H; // * aspectW; // * H;
 //vfov = 0.8 * H; // * aspectW; // * H;
 
-#define MAP_X (u8)32
-#define MAP_XS (u8)5
-#define MAP_Y (u8)32
+#define MAP_X     (u8)64
+#define MAP_Y     (u8)64
+#define MAP_XS    (u8)6   /* log2(MAP_X) for shift */
+#define MAP_CELLS ((u16)(MAP_X) * (u16)(MAP_Y))
 #define INV_FACTOR_INT ((u16)(SCREEN_WIDTH * 75))
 #define MIN_DIST (int)((150 * ((float)SCREEN_WIDTH / (float)SCREEN_HEIGHT)))
 #define HORIZON_HEIGHT (SCREEN_HEIGHT / 2)
 #define INVERT(x) (u8)((x ^ 255) + 1)
 #define ABS(x) (x < 0 ? -x : x)
+
+/* Raycaster column step: 8 = full resolution (48 columns), 16 = half (24 columns). */
+#define RAYCAST_STEP 8
+#define RAYCAST_COLS (SCREEN_WIDTH / RAYCAST_STEP)
+#define RAYCAST_CENTER_COL (192 / RAYCAST_STEP)  /* screen center for USE/door activation */
 
 
 #endif

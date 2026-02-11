@@ -26,7 +26,8 @@ void drawOptionsSkull(u8 index, u16 posY) {
 	u16 pos = y*128 + x;
 
 	WA[29].gy = WA[30].gy = WA[31].gy + 118+((posY==3?4:posY)*16);
-	WA[29].gx = WA[30].gx = WA[31].gx + 62;
+	/* +32 so skull stays centered (world is now full 384px, content offset 32px) */
+	WA[29].gx = WA[30].gx = WA[31].gx + 62 + 32;
 
 	WA[28].gy = WA[29].gy+4;
 	WA[28].gx = WA[30].gx+5;
@@ -49,40 +50,60 @@ void drawOptionsSkull(u8 index, u16 posY) {
 	copymem((void*)BGMap(3), (void*)(title_screen_optionsMap+mapIndex+12+index), 2); //eyes
 	//copymem((void*)BGMap(0)+128, (void*)(title_screen_optionsTiles+mapIndex), 8);
 }
+#define OPTIONS_MAP_LEFT_OFF  8  /* 4-tile offset so left border is 0 */
+
 void hideNumbers() {
 	u16 mapIndex = 1000; // 25*40
 	u8 numberOfChars = 0;
 	for (numberOfChars = 0; numberOfChars < 20; numberOfChars++) {
-		copymem((void*)BGMap(0)+128*21 + 20 + (numberOfChars*2), (void*)(title_screen_optionsMap+mapIndex+15), 2);
-		copymem((void*)BGMap(0)+128*22 + 20 + (numberOfChars*2), (void*)(title_screen_optionsMap+mapIndex+15), 2);
+		copymem((void*)BGMap(0)+OPTIONS_MAP_LEFT_OFF+128*21 + 20 + (numberOfChars*2), (void*)(title_screen_optionsMap+mapIndex+15), 2);
+		copymem((void*)BGMap(0)+OPTIONS_MAP_LEFT_OFF+128*22 + 20 + (numberOfChars*2), (void*)(title_screen_optionsMap+mapIndex+15), 2);
 	}
 }
 void drawNumbers(Settings *settings) {
 	u16 mapIndex = 840;
 
 	// sfx
-	copymem((void*)BGMap(0)+128*15 + 60, (void*)(title_screen_optionsMap+mapIndex+10+((*settings).sfx*2)), 4);
-	copymem((void*)BGMap(0)+128*16 + 60, (void*)(title_screen_optionsMap+mapIndex+10+40+((*settings).sfx*2)), 4);
+	copymem((void*)BGMap(0)+OPTIONS_MAP_LEFT_OFF+128*15 + 60, (void*)(title_screen_optionsMap+mapIndex+10+((*settings).sfx*2)), 4);
+	copymem((void*)BGMap(0)+OPTIONS_MAP_LEFT_OFF+128*16 + 60, (void*)(title_screen_optionsMap+mapIndex+10+40+((*settings).sfx*2)), 4);
 
 	// music
-	copymem((void*)BGMap(0)+128*17 + 60, (void*)(title_screen_optionsMap+mapIndex+10+((*settings).music*2)), 4);
-	copymem((void*)BGMap(0)+128*18 + 60, (void*)(title_screen_optionsMap+mapIndex+10+40+((*settings).music*2)), 4);
+	copymem((void*)BGMap(0)+OPTIONS_MAP_LEFT_OFF+128*17 + 60, (void*)(title_screen_optionsMap+mapIndex+10+((*settings).music*2)), 4);
+	copymem((void*)BGMap(0)+OPTIONS_MAP_LEFT_OFF+128*18 + 60, (void*)(title_screen_optionsMap+mapIndex+10+40+((*settings).music*2)), 4);
 
 	// rumble
-	copymem((void*)BGMap(0)+128*19 + 60, (void*)(title_screen_optionsMap+mapIndex+10+((*settings).rumble*2)), 4);
-	copymem((void*)BGMap(0)+128*20 + 60, (void*)(title_screen_optionsMap+mapIndex+10+40+((*settings).rumble*2)), 4);
+	copymem((void*)BGMap(0)+OPTIONS_MAP_LEFT_OFF+128*19 + 60, (void*)(title_screen_optionsMap+mapIndex+10+((*settings).rumble*2)), 4);
+	copymem((void*)BGMap(0)+OPTIONS_MAP_LEFT_OFF+128*20 + 60, (void*)(title_screen_optionsMap+mapIndex+10+40+((*settings).rumble*2)), 4);
+}
+
+/* Clear BGMap(0) border so full screen shows 0 outside 320x200 content (real hardware). */
+static void clearOptionsBorder(void) {
+	u16 row;
+	/* Left: cols 0-3 (8 bytes) for content rows 0-24 */
+	for (row = 0; row < 25; row++) {
+		setmem((void*)BGMap(0) + row * 128, 0, 8);
+	}
+	/* Right: cols 44-63 (40 bytes) for content rows 0-24 */
+	for (row = 0; row < 25; row++) {
+		setmem((void*)BGMap(0) + row * 128 + 88, 0, 40);
+	}
+	/* Bottom: full rows 25-31 */
+	for (row = 25; row < 32; row++) {
+		setmem((void*)BGMap(0) + row * 128, 0, 128);
+	}
 }
 
 void drawOptionsScreen(u8 iOption) {
-	u16 pos = 0; //128 + 8;
-	u16 i = 0;
+	u16 i;
 	u16 y;
 	u16 mapIndex;
+	/* Draw at 4-tile (8 byte) offset so left 32px is 0; avoids upper-left garbage */
 	for (i = 0; i < 25; i++) {
-		y = pos + i*128;
-		mapIndex = i*40;
-		copymem((void*)BGMap(0)+y, (void*)(title_screen_optionsMap+mapIndex), 80);
+		y = 8 + i * 128;
+		mapIndex = i * 40;
+		copymem((void*)BGMap(0) + y, (void*)(title_screen_optionsMap + mapIndex), 80);
 	}
+	clearOptionsBorder();
 }
 
 const signed long ST[] = {
@@ -384,7 +405,8 @@ u8 optionsScreen(Settings *settings)
 	setmem((void*)BGMap(1), 0, 8192);
 	setmem((void*)BGMap(2), 0, 8192);
 	setmem((void*)BGMap(3), 0, 8192); /* clear previous data */
-	vbSetWorld(31, WRLD_ON|0, 0, 0, 0, 0, 0, 0, 320, 200);
+	/* Full-screen world so border (upper-left etc.) is from BGMap(0), not garbage */
+	vbSetWorld(31, WRLD_ON|0, 0, 0, 0, 0, 0, 0, 384, 224);
 	vbSetWorld(30, WRLD_ON|1, 0, 0, 0, 0, 0, 0, 32, 32); // skull
 	vbSetWorld(29, WRLD_ON|2, 0, 0, 0, 0, 0, 0, 32, 32); // skull blacks
 	vbSetWorld(28, WRLD_ON|3, 0, 0, 0, 0, 0, 0, 8, 8); // eyes
@@ -396,9 +418,9 @@ u8 optionsScreen(Settings *settings)
 	copymem((void*)0x00078000, (void*)title_screen_optionsTiles, 3296);  /* 206 tiles * 16 bytes */
 	vbDisplayOn(); // turns the display on
 
-
-	WA[31].gy = 12;
-	WA[31].gx = (384-320)>>1;
+	/* No offset: content is drawn at 4-tile offset in drawOptionsScreen so left border is 0 */
+	WA[31].gy = 0;
+	WA[31].gx = 0;
 
 	VIP_REGS[GPLT0] = 0xE4;	/* Set 1st palettes to: 11100100 */
 	VIP_REGS[GPLT1] = 0x00;	/* (i.e. "Normal" dark to light progression.) */
@@ -414,6 +436,9 @@ u8 optionsScreen(Settings *settings)
 	int pixelsToDraw = 0;
 
 	drawOptionsScreen(1);
+	clearOptionsBorder();
+	/* Clear upper-left of BGMap(0) immediately before first frame to avoid garbage on hardware */
+	setmem((void*)BGMap(0), 0, 64);
 	vbDisplayShow(); // shows the display
 
 	u8 pos = 0;
@@ -466,7 +491,8 @@ u8 optionsScreen(Settings *settings)
 			} else if (pos == 1) {
 				if ((*settings).music > 0) {
 					(*settings).music--;
-					g_musicVolume = (u8)((u16)(*settings).music * 15 / 9);
+					g_musicSetting = (*settings).music;
+					g_musicVolume = musicVolFromSetting((*settings).music);
 					playPlayerSFX(SFX_STONE_MOVE);
 				}
 			} else if (pos == 2) {
@@ -493,7 +519,8 @@ u8 optionsScreen(Settings *settings)
 			} else if (pos == 1) {
 				if ((*settings).music < 9) {
 					(*settings).music++;
-					g_musicVolume = (u8)((u16)(*settings).music * 15 / 9);
+					g_musicSetting = (*settings).music;
+					g_musicVolume = musicVolFromSetting((*settings).music);
 					playPlayerSFX(SFX_STONE_MOVE);
 				}
 			} else if (pos == 2) {

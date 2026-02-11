@@ -80,6 +80,18 @@ void initEnemyBGMaps() {
 				bgmap[row * 64 + col] = charIndex;  /* palette 0, no flip */
 			}
 		}
+
+		/* Zero-fill affine param table for this enemy world.
+		 * Param table lives at BGMap base + 0x1000 (set by WORLD_PARAM).
+		 * Max height = 64*4 = 256 scanlines, 8 entries (s16) per scanline.
+		 * This ensures entries 1,4,5,6,7 (always zero) are pre-cleared,
+		 * so affine_enemy_scale() only needs to write entries 0,2,3. */
+		{
+			s16 *param = (s16*)(BGMap(ENEMY_BGMAP_START + e) + 0x1000);
+			u16 i;
+			for (i = 0; i < 256 * 8; i++)
+				param[i] = 0;
+		}
 	}
 }
 
@@ -121,7 +133,9 @@ void loadWallTextures(void) {
 
 u16 drawPos;
 u16 startPos;
-u8 addForBlack;
+/* Blank pattern: two empty BGMap entries (tile 0 = transparent) */
+static const unsigned short blankTiles[2] __attribute__((aligned(4))) = {0x0000, 0x0000};
+
 void drawBigUINumbers(u8 iType, u8 iOnes, u8 iTens, u8 iHundreds, u8 iAmmoType) {
 
 	drawPos = 3202-3072; // ammo
@@ -134,31 +148,28 @@ void drawBigUINumbers(u8 iType, u8 iOnes, u8 iTens, u8 iHundreds, u8 iAmmoType) 
 		break;
 	}
 	startPos = 96*16;
-	addForBlack = 44;
 	if (iHundreds > 0) {
 		copymem((void*)BGMap(LAYER_UI)+drawPos, (void*)(vb_doomMap+startPos+(iHundreds*4)), 4);
-    	copymem((void*)BGMap(LAYER_UI)+drawPos+128, (void*)(vb_doomMap+startPos+(iHundreds*4)+96), 4);
+		copymem((void*)BGMap(LAYER_UI)+drawPos+128, (void*)(vb_doomMap+startPos+(iHundreds*4)+96), 4);
 	} else {
-		copymem((void*)BGMap(LAYER_UI)+drawPos, (void*)(vb_doomMap+startPos+addForBlack), 4);
-		copymem((void*)BGMap(LAYER_UI)+drawPos+128, (void*)(vb_doomMap+startPos+96+addForBlack), 4);
+		copymem((void*)BGMap(LAYER_UI)+drawPos, (void*)blankTiles, 4);
+		copymem((void*)BGMap(LAYER_UI)+drawPos+128, (void*)blankTiles, 4);
 	}
 	if (iHundreds > 0 || iTens > 0) {
 		copymem((void*)BGMap(LAYER_UI)+drawPos+4, (void*)(vb_doomMap+startPos+(iTens*4)), 4);
-    	copymem((void*)BGMap(LAYER_UI)+drawPos+4+128, (void*)(vb_doomMap+startPos+96+(iTens*4)), 4);
+		copymem((void*)BGMap(LAYER_UI)+drawPos+4+128, (void*)(vb_doomMap+startPos+96+(iTens*4)), 4);
 	} else {
-		copymem((void*)BGMap(LAYER_UI)+drawPos+4, (void*)(vb_doomMap+startPos+addForBlack), 4);
-		copymem((void*)BGMap(LAYER_UI)+drawPos+4+128, (void*)(vb_doomMap+startPos+96+addForBlack), 4);
+		copymem((void*)BGMap(LAYER_UI)+drawPos+4, (void*)blankTiles, 4);
+		copymem((void*)BGMap(LAYER_UI)+drawPos+4+128, (void*)blankTiles, 4);
 	}
 
 	if (iAmmoType > 0) {
 		copymem((void*)BGMap(LAYER_UI)+drawPos+8, (void*)(vb_doomMap+startPos+(iOnes*4)), 4);
-    	copymem((void*)BGMap(LAYER_UI)+drawPos+8+128, (void*)(vb_doomMap+startPos+96+(iOnes*4)), 4);
+		copymem((void*)BGMap(LAYER_UI)+drawPos+8+128, (void*)(vb_doomMap+startPos+96+(iOnes*4)), 4);
 	} else {
-		// draw blank
-		copymem((void*)BGMap(LAYER_UI)+drawPos+8, (void*)(vb_doomMap), 4);
-		copymem((void*)BGMap(LAYER_UI)+drawPos+8+128, (void*)(vb_doomMap), 4);
+		copymem((void*)BGMap(LAYER_UI)+drawPos+8, (void*)blankTiles, 4);
+		copymem((void*)BGMap(LAYER_UI)+drawPos+8+128, (void*)blankTiles, 4);
 	}
-
 
 	if (iType > 0) { // add percentage
 		copymem((void*)BGMap(LAYER_UI)+drawPos+12, (void*)(vb_doomMap+startPos+40), 4);
@@ -300,6 +311,13 @@ s16 prevSwayX = 0;
 s16 prevSwayY = 0;
 u8 prevWeaponChangeTimer = 0;
 bool cancel;
+
+/* Reset weapon draw cache so the next drawWeapon() call does a full redraw.
+ * Must be called after any operation that wipes VRAM (level transition, pause return). */
+void resetWeaponDrawState(void) {
+	prevWeapon = 99;
+	prevFrame = 99;
+}
 
 u8 posX;
 u16 pos;
@@ -614,7 +632,6 @@ const unsigned short test[2] __attribute__((aligned(4)))=
 {
 	0x4011,0x4011
 };
-static u8 uiPalettesInited = 0;
 void drawDoomUI(u8 bgmap, u16 x, u16 y) {
 	copymem((void*)BGMap(bgmap), (void*)(vb_doomMap), 96);
 	copymem((void*)BGMap(bgmap)+128, (void*)(vb_doomMap+96), 96);
@@ -635,26 +652,43 @@ void drawDoomUI(u8 bgmap, u16 x, u16 y) {
 		}
 	}
 
-	/* Palette bits persist in BGMap entries -- only set once */
-	if (!uiPalettesInited) {
-		for (y = 0; y < 24; y++) {
-			for (x = 0; x < 48; x++) {
-				BGM_PALSET(12, x, y, BGM_PAL1);
-				BGM_PALSET(LAYER_UI, x, y, BGM_PAL0);
-			}
+	/* Always re-apply palette bits (BGMap may have been cleared by
+	 * restoreGameDisplay or level transitions).
+	 * Black layer uses PAL1 (GPLT1=0x00) so all indices are dark on hardware. */
+	for (y = 0; y < 24; y++) {
+		for (x = 0; x < 48; x++) {
+			BGM_PALSET(12, x, y, BGM_PAL1);
+			BGM_PALSET(LAYER_UI, x, y, BGM_PAL0);
 		}
-		uiPalettesInited = 1;
 	}
 }
 void drawDoomFace(u8 *face)
 {
-	/* Fixed faceMap: always references chars 108-119 (12 entries, 24 bytes).
+	/* Fixed faceMap: always references chars 462-473 (12 entries, 24 bytes).
 	 * Tile data is loaded dynamically by loadFaceFrame(). */
 	copymem((void*)BGMap(LAYER_UI)+44, (BYTE*)faceMap, 6);
 	copymem((void*)(BGMap(LAYER_UI)+172), (BYTE*)faceMap + 6, 6);
 	copymem((void*)(BGMap(LAYER_UI)+300), (BYTE*)faceMap + 12, 6);
 	copymem((void*)(BGMap(LAYER_UI)+428), (BYTE*)faceMap + 18, 6);
 }
+
+/* Debug: draw USE target tile (center ray) and door flag: tileX tileY isDoor (5 digits + 2 blanks).
+ * Layout: "XX YY D" with blank tiles between for readability. */
+void drawUseTargetDebug(u8 tileX, u8 tileY, u8 isDoor) {
+	u16 sp = 96*18;
+	u16 blank = sp+20;  /* blank tile same as drawPlayerInfo */
+	u16 dp = 3*128;     /* row 3 = bottom of visible HUD */
+	u8 t0 = tileX / 10, t1 = tileX % 10;
+	u8 u0 = tileY / 10, u1 = tileY % 10;
+	copymem((void*)BGMap(LAYER_UI)+dp,     (void*)(vb_doomMap+sp+(t0*2)), 2);
+	copymem((void*)BGMap(LAYER_UI)+dp+2,   (void*)(vb_doomMap+sp+(t1*2)), 2);
+	copymem((void*)BGMap(LAYER_UI)+dp+4,   (void*)(vb_doomMap+blank), 2);
+	copymem((void*)BGMap(LAYER_UI)+dp+6,   (void*)(vb_doomMap+sp+(u0*2)), 2);
+	copymem((void*)BGMap(LAYER_UI)+dp+8,   (void*)(vb_doomMap+sp+(u1*2)), 2);
+	copymem((void*)BGMap(LAYER_UI)+dp+10,  (void*)(vb_doomMap+blank), 2);
+	copymem((void*)BGMap(LAYER_UI)+dp+12,  (void*)(vb_doomMap+sp+(isDoor*2)), 2);
+}
+
 void drawPlayerInfo(u16 *fPlayerX, u16 *fPlayerY, s16 *fPlayerAng) {
 
 	u8 ones = *fPlayerX % 10;
@@ -664,25 +698,22 @@ void drawPlayerInfo(u16 *fPlayerX, u16 *fPlayerY, s16 *fPlayerAng) {
 	u8 tenthousands = (*fPlayerX / 10000) % 10;
 
 	drawPos = 0;
-
 	startPos = 96*18;
 
 	if (tenthousands > 0) {
 		copymem((void*)BGMap(LAYER_UI)+drawPos, (void*)(vb_doomMap+startPos+(tenthousands*2)), 2);
 	} else {
-		copymem((void*)BGMap(LAYER_UI)+drawPos, (void*)(vb_doomMap+startPos+20), 2); // blank?
+		copymem((void*)BGMap(LAYER_UI)+drawPos, (void*)(vb_doomMap+startPos+20), 2);
 	}
-
 	if (tenthousands > 0 || thousands > 0) {
 		copymem((void*)BGMap(LAYER_UI)+drawPos+2, (void*)(vb_doomMap+startPos+(thousands*2)), 2);
 	} else {
-		copymem((void*)BGMap(LAYER_UI)+drawPos+2, (void*)(vb_doomMap+startPos+20), 2); // blank?
+		copymem((void*)BGMap(LAYER_UI)+drawPos+2, (void*)(vb_doomMap+startPos+20), 2);
 	}
-
 	if (tenthousands > 0 || thousands > 0 || hundreds > 0) {
 		copymem((void*)BGMap(LAYER_UI)+drawPos+4, (void*)(vb_doomMap+startPos+(hundreds*2)), 2);
 	} else {
-		copymem((void*)BGMap(LAYER_UI)+drawPos+4, (void*)(vb_doomMap+startPos+20), 2); // blank?
+		copymem((void*)BGMap(LAYER_UI)+drawPos+4, (void*)(vb_doomMap+startPos+20), 2);
 	}
 	if (tenthousands > 0 || thousands > 0 || hundreds > 0 || tens > 0) {
 		copymem((void*)BGMap(LAYER_UI)+drawPos+6, (void*)(vb_doomMap+startPos+(tens*2)), 2);
@@ -699,24 +730,20 @@ void drawPlayerInfo(u16 *fPlayerX, u16 *fPlayerY, s16 *fPlayerAng) {
 
 	drawPos = 16;
 
-	startPos = 96*18;
-
 	if (tenthousands > 0) {
 		copymem((void*)BGMap(LAYER_UI)+drawPos, (void*)(vb_doomMap+startPos+(tenthousands*2)), 2);
 	} else {
-		copymem((void*)BGMap(LAYER_UI)+drawPos, (void*)(vb_doomMap+startPos+20), 2); // blank?
+		copymem((void*)BGMap(LAYER_UI)+drawPos, (void*)(vb_doomMap+startPos+20), 2);
 	}
-
 	if (tenthousands > 0 || thousands > 0) {
 		copymem((void*)BGMap(LAYER_UI)+drawPos+2, (void*)(vb_doomMap+startPos+(thousands*2)), 2);
 	} else {
-		copymem((void*)BGMap(LAYER_UI)+drawPos+2, (void*)(vb_doomMap+startPos+20), 2); // blank?
+		copymem((void*)BGMap(LAYER_UI)+drawPos+2, (void*)(vb_doomMap+startPos+20), 2);
 	}
-
 	if (tenthousands > 0 || thousands > 0 || hundreds > 0) {
 		copymem((void*)BGMap(LAYER_UI)+drawPos+4, (void*)(vb_doomMap+startPos+(hundreds*2)), 2);
 	} else {
-		copymem((void*)BGMap(LAYER_UI)+drawPos+4, (void*)(vb_doomMap+startPos+20), 2); // blank?
+		copymem((void*)BGMap(LAYER_UI)+drawPos+4, (void*)(vb_doomMap+startPos+20), 2);
 	}
 	if (tenthousands > 0 || hundreds > 0 || tens > 0) {
 		copymem((void*)BGMap(LAYER_UI)+drawPos+6, (void*)(vb_doomMap+startPos+(tens*2)), 2);
@@ -735,13 +762,12 @@ void drawPlayerInfo(u16 *fPlayerX, u16 *fPlayerY, s16 *fPlayerAng) {
 	if (thousands > 0) {
 		copymem((void*)BGMap(LAYER_UI)+drawPos+2, (void*)(vb_doomMap+startPos+(thousands*2)), 2);
 	} else {
-		copymem((void*)BGMap(LAYER_UI)+drawPos+2, (void*)(vb_doomMap+startPos+20), 2); // blank?
+		copymem((void*)BGMap(LAYER_UI)+drawPos+2, (void*)(vb_doomMap+startPos+20), 2);
 	}
-
 	if (thousands > 0 || hundreds > 0) {
 		copymem((void*)BGMap(LAYER_UI)+drawPos+4, (void*)(vb_doomMap+startPos+(hundreds*2)), 2);
 	} else {
-		copymem((void*)BGMap(LAYER_UI)+drawPos+4, (void*)(vb_doomMap+startPos+20), 2); // blank?
+		copymem((void*)BGMap(LAYER_UI)+drawPos+4, (void*)(vb_doomMap+startPos+20), 2);
 	}
 	if (thousands > 0 || hundreds > 0 || tens > 0) {
 		copymem((void*)BGMap(LAYER_UI)+drawPos+6, (void*)(vb_doomMap+startPos+(tens*2)), 2);

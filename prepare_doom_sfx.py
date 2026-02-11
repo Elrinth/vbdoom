@@ -33,7 +33,7 @@ SFX_INPUT_DIR = os.path.join(SCRIPT_DIR, "doom_original_sfx")
 SFX_OUTPUT_DIR = os.path.join(SCRIPT_DIR, "doom_sfx_downsampled")
 C_OUTPUT_DIR = os.path.join(SCRIPT_DIR, "src", "vbdoom", "assets", "audio")
 
-TARGET_RATE = 10000      # ~10 kHz playback rate (timer at 100us)
+TARGET_RATE = 5000       # 5 kHz: correct pitch on real hardware (timer often ~5-8 kHz effective)
 SILENCE_THRESHOLD = 1    # 4-bit values 7-8 are center; threshold from center
 CENTER_4BIT = 8          # center of 4-bit range (0-15)
 

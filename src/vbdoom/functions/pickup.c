@@ -1,6 +1,7 @@
 #include <libgccvb.h>
 #include <mem.h>
 #include "pickup.h"
+#include "door.h"
 #include "doomgfx.h"
 #include "sndplay.h"
 #include "../assets/audio/doom_sfx.h"
@@ -200,6 +201,164 @@ void initPickupsE1M2(void) {
     g_pickups[11].active = true;
 }
 
+void initPickupsE1M3(void) {
+    u8 i;
+    for (i = 0; i < MAX_PICKUPS; i++) {
+        g_pickups[i].active = false;
+        g_pickups[i].animFrame = 0;
+        g_pickups[i].animTimer = 0;
+    }
+
+    /* E1M3: Hell-touched research facility pickups */
+
+    /* 0: Shotgun, south corridor (accessible early) (10, 23) */
+    g_pickups[0].x = 10 * 256 + 128;
+    g_pickups[0].y = 23 * 256 + 128;
+    g_pickups[0].type = PICKUP_WEAPON_SHOTGUN;
+    g_pickups[0].active = true;
+
+    /* 1: Ammo clip, start room (13, 28) */
+    g_pickups[1].x = 13 * 256 + 128;
+    g_pickups[1].y = 28 * 256 + 128;
+    g_pickups[1].type = PICKUP_AMMO_CLIP;
+    g_pickups[1].active = true;
+
+    /* 2: Shells box, south corridor east (22, 24) */
+    g_pickups[2].x = 22 * 256 + 128;
+    g_pickups[2].y = 24 * 256 + 128;
+    g_pickups[2].type = PICKUP_SHELLS;
+    g_pickups[2].active = true;
+
+    /* 3: Small health, west wing storage (3, 19) */
+    g_pickups[3].x = 3 * 256 + 128;
+    g_pickups[3].y = 19 * 256 + 128;
+    g_pickups[3].type = PICKUP_HEALTH_SMALL;
+    g_pickups[3].active = true;
+
+    /* 4: Large health, west wing (4, 16) */
+    g_pickups[4].x = 4 * 256 + 128;
+    g_pickups[4].y = 16 * 256 + 128;
+    g_pickups[4].type = PICKUP_HEALTH_LARGE;
+    g_pickups[4].active = true;
+
+    /* 5: Shells box, east wing lab (29, 17) */
+    g_pickups[5].x = 29 * 256 + 128;
+    g_pickups[5].y = 17 * 256 + 128;
+    g_pickups[5].type = PICKUP_SHELLS;
+    g_pickups[5].active = true;
+
+    /* 6: Ammo clip, east wing entrance (27, 15) */
+    g_pickups[6].x = 27 * 256 + 128;
+    g_pickups[6].y = 15 * 256 + 128;
+    g_pickups[6].type = PICKUP_AMMO_CLIP;
+    g_pickups[6].active = true;
+
+    /* 7: Small health, central arena west (2, 9) */
+    g_pickups[7].x = 2 * 256 + 128;
+    g_pickups[7].y = 9 * 256 + 128;
+    g_pickups[7].type = PICKUP_HEALTH_SMALL;
+    g_pickups[7].active = true;
+
+    /* 8: Helmet, central arena east (25, 9) */
+    g_pickups[8].x = 25 * 256 + 128;
+    g_pickups[8].y = 9 * 256 + 128;
+    g_pickups[8].type = PICKUP_HELMET;
+    g_pickups[8].active = true;
+
+    /* 9: Armor, hidden armory (secret 1) (2, 4) */
+    g_pickups[9].x = 2 * 256 + 128;
+    g_pickups[9].y = 4 * 256 + 128;
+    g_pickups[9].type = PICKUP_ARMOR;
+    g_pickups[9].active = true;
+
+    /* 10: Rocket launcher, locked tech room (secret 2) (29, 3) */
+    g_pickups[10].x = 29 * 256 + 128;
+    g_pickups[10].y = 3 * 256 + 128;
+    g_pickups[10].type = PICKUP_WEAPON_ROCKET;
+    g_pickups[10].active = true;
+
+    /* 11: Large health, command center near exit (14, 2) */
+    g_pickups[11].x = 14 * 256 + 128;
+    g_pickups[11].y = 2 * 256 + 128;
+    g_pickups[11].type = PICKUP_HEALTH_LARGE;
+    g_pickups[11].active = true;
+}
+
+void initPickupsE1M4(void) {
+    u8 i;
+    for (i = 0; i < MAX_PICKUPS; i++) {
+        g_pickups[i].active = false;
+        g_pickups[i].animFrame = 0;
+        g_pickups[i].animTimer = 0;
+    }
+
+    /* E1M4: web-editor export */
+    g_pickups[0].x = 14 * 256 + 128;
+    g_pickups[0].y = 27 * 256 + 128;
+    g_pickups[0].type = PICKUP_SHELLS;
+    g_pickups[0].active = true;
+    g_pickups[1].x = 15 * 256 + 128;
+    g_pickups[1].y = 27 * 256 + 128;
+    g_pickups[1].type = PICKUP_SHELLS;
+    g_pickups[1].active = true;
+    g_pickups[2].x = 16 * 256 + 128;
+    g_pickups[2].y = 27 * 256 + 128;
+    g_pickups[2].type = PICKUP_HEALTH_SMALL;
+    g_pickups[2].active = true;
+    g_pickups[3].x = 14 * 256 + 128;
+    g_pickups[3].y = 19 * 256 + 128;
+    g_pickups[3].type = PICKUP_WEAPON_ROCKET;
+    g_pickups[3].active = true;
+    g_pickups[4].x = 17 * 256 + 128;
+    g_pickups[4].y = 17 * 256 + 128;
+    g_pickups[4].type = PICKUP_HELMET;
+    g_pickups[4].active = true;
+    g_pickups[5].x = 20 * 256 + 128;
+    g_pickups[5].y = 19 * 256 + 128;
+    g_pickups[5].type = PICKUP_ARMOR;
+    g_pickups[5].active = true;
+    g_pickups[6].x = 16 * 256 + 128;
+    g_pickups[6].y = 23 * 256 + 128;
+    g_pickups[6].type = PICKUP_WEAPON_SHOTGUN;
+    g_pickups[6].active = true;
+    g_pickups[7].x = 2 * 256 + 128;
+    g_pickups[7].y = 21 * 256 + 128;
+    g_pickups[7].type = PICKUP_HEALTH_LARGE;
+    g_pickups[7].active = true;
+    g_pickups[8].x = 2 * 256 + 128;
+    g_pickups[8].y = 5 * 256 + 128;
+    g_pickups[8].type = PICKUP_HELMET;
+    g_pickups[8].active = true;
+    g_pickups[9].x = 3 * 256 + 128;
+    g_pickups[9].y = 5 * 256 + 128;
+    g_pickups[9].type = PICKUP_SHELLS;
+    g_pickups[9].active = true;
+    g_pickups[10].x = 13 * 256 + 128;
+    g_pickups[10].y = 13 * 256 + 128;
+    g_pickups[10].type = PICKUP_HEALTH_SMALL;
+    g_pickups[10].active = true;
+    g_pickups[11].x = 1 * 256 + 128;
+    g_pickups[11].y = 5 * 256 + 128;
+    g_pickups[11].type = PICKUP_HELMET;
+    g_pickups[11].active = true;
+    g_pickups[12].x = 4 * 256 + 128;
+    g_pickups[12].y = 21 * 256 + 128;
+    g_pickups[12].type = PICKUP_AMMO_CLIP;
+    g_pickups[12].active = true;
+    g_pickups[13].x = 23 * 256 + 128;
+    g_pickups[13].y = 14 * 256 + 128;
+    g_pickups[13].type = PICKUP_AMMO_CLIP;
+    g_pickups[13].active = true;
+    g_pickups[14].x = 16 * 256 + 128;
+    g_pickups[14].y = 9 * 256 + 128;
+    g_pickups[14].type = PICKUP_AMMO_CLIP;
+    g_pickups[14].active = true;
+    g_pickups[15].x = 4 * 256 + 128;
+    g_pickups[15].y = 5 * 256 + 128;
+    g_pickups[15].type = PICKUP_WEAPON_ROCKET;
+    g_pickups[15].active = true;
+}
+
 bool spawnPickup(u8 type, u16 x, u16 y) {
     u8 i;
     for (i = 0; i < MAX_PICKUPS; i++) {
@@ -323,11 +482,22 @@ bool updatePickups(u16 playerX, u16 playerY, u8 *ammo, u8 *health,
             case PICKUP_WEAPON_ROCKET:
                 g_pickedUpWeapon = 4;  /* W_ROCKET */
                 break;
+            case PICKUP_KEY_RED:
+                g_hasKeyRed = 1;
+                break;
+            case PICKUP_KEY_YELLOW:
+                g_hasKeyYellow = 1;
+                break;
+            case PICKUP_KEY_BLUE:
+                g_hasKeyBlue = 1;
+                break;
             }
 
             p->active = false;
             pickedUp = true;
-            g_itemsCollected++;
+            /* Only count weapons and helmets toward items% */
+            if (p->type == PICKUP_WEAPON_SHOTGUN || p->type == PICKUP_HELMET || p->type == PICKUP_WEAPON_ROCKET)
+                g_itemsCollected++;
 
             g_flashTimer = 3;
             g_flashType = 0;

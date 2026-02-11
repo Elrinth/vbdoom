@@ -10,7 +10,7 @@
  * Switches are wall type 5 (WALL_TYPE_SWITCH).
  */
 
-#define MAX_DOORS     4
+#define MAX_DOORS     24
 #define MAX_SWITCHES  4
 
 /* Door states */
@@ -49,6 +49,11 @@ extern u8 g_numDoors;
 extern u8 g_numSwitches;
 extern u8 g_levelComplete;  /* set to 1 when exit switch is hit */
 
+/* Key state (set by key pickups, checked when opening key doors 9/10/11) */
+extern u8 g_hasKeyRed;
+extern u8 g_hasKeyYellow;
+extern u8 g_hasKeyBlue;
+
 /* Initialize doors and switches from the map data */
 void initDoors(void);
 
@@ -63,7 +68,10 @@ void updateDoors(void);
  * Checks adjacent tiles in facing direction within activation range.
  * Returns: 0 = nothing in range, 1 = activated door/switch,
  *          2 = hit non-interactive wall (play umf) */
-u8 playerActivate(u16 playerX, u16 playerY, s16 playerA);
+u8 playerActivate(u16 playerX, u16 playerY, s16 playerA, u8 levelNum);
+
+/* Find a registered door at a tile position. Returns index or -1. */
+s8 findDoorAt(u8 tileX, u8 tileY);
 
 /* Get door open amount for a tile position (0 if not a door or closed).
  * Used by raycaster to reduce wall height. */

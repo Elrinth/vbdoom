@@ -26,7 +26,8 @@ extern u8 g_map[];
 
 /* Inlined tile write macros -- eliminates function call + copymem overhead.
  * Each call saved: ~30 cycles (call) + ~30 cycles (copymem for 2 bytes).
- * At ~576 calls/frame, this saves ~34,000 cycles/frame. */
+ * At ~576 calls/frame, this saves ~34,000 cycles/frame.
+ */
 #define BGMAP1_ENTRY(py, px) (*((u16*)(BGMap(1) + ((u32)(py) << 4) + ((u32)((px) << 1) >> 3))))
 #define DRAW_TILE(px, py, tilePos)    BGMAP1_ENTRY(py, px) = *((u16*)(vb_doomMap + (tilePos)))
 #define DRAW_TILE_CHAR(px, py, ch)    BGMAP1_ENTRY(py, px) = (u16)(ch) | 0xC000u  /* BGM_PAL3 */
@@ -118,6 +119,19 @@ static void worldToView(s16 dX, s16 dY, s16 *viewZ, s16 *viewX) {
     }
 }
 
+/* Cast center column only and update g_center* / g_wallSso for USE activation (current frame). */
+void UpdateCenterRay(u16 playerX, u16 playerY, s16 playerA)
+{
+	u8 sso_c, tn_c, tc_c;
+	u16 tso_c, tst_c;
+	Start(playerX, playerY, playerA);
+	Trace(192, &sso_c, &tn_c, &tc_c, &tso_c, &tst_c);
+	g_centerWallType = g_lastWallType;
+	g_centerWallTileX = g_lastWallTileX;
+	g_centerWallTileY = g_lastWallTileY;
+	g_wallSso[RAYCAST_CENTER_COL] = sso_c;
+}
+
 void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
 {
 	Start(*playerX, *playerY, *playerA);
@@ -132,18 +146,18 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
                (u16)(playerY * 256.0),
                (s16)(playerA / (2.0 * M_PI) * 1024.0));*/
 
-    for(x = 0; x < SCREEN_WIDTH; x+=8)
+    for(x = 0; x < SCREEN_WIDTH; x+=RAYCAST_STEP)
     {
 		/* --- See-through door locals --- */
 		u8 isDoorPartial = 0;
 		u8 door_sso_s, door_tc_s, door_tn_s;
-		u8 door_tileX_s, door_tileY_s, door_openAmt;
+		u8 door_tileX_s, door_tileY_s, door_openAmt, door_tileValue_s;
 		u16 door_tso_s, door_tst_s;
 
     	// reset
 		drawnTop = false;
 		drawnBottom = false;
-		g_doorGapY[x >> 3] = 0;  /* clear door gap for this column */
+		g_doorGapY[x / RAYCAST_STEP] = 0;  /* clear door gap for this column */
 
         Trace(x, &sso, &tn, &tc, &tso, &tst);
 		/* Save center column wall data for USE activation (before re-trace) */
@@ -153,8 +167,8 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
 			g_centerWallTileY = g_lastWallTileY;
 		}
 
-		/* See-through door: detect partially-open door and re-trace for background */
-		if (g_lastWallType == WALL_TYPE_DOOR) {
+		/* See-through door: 4=door, 6-8=secret, 9-11=key door */
+		if (g_lastWallType == WALL_TYPE_DOOR || (g_lastWallType >= 6 && g_lastWallType <= 11)) {
 			u8 dOpen = getDoorOpenAmount(g_lastWallTileX, g_lastWallTileY);
 			if (dOpen > 0) {
 				isDoorPartial = 1;
@@ -166,10 +180,11 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
 				door_tileX_s = g_lastWallTileX;
 				door_tileY_s = g_lastWallTileY;
 				door_openAmt = dOpen;
+				door_tileValue_s = g_map[(u16)door_tileY_s * MAP_X + (u16)door_tileX_s];
 				/* Temporarily clear door tile and re-trace for background wall */
 				g_map[(u16)door_tileY_s * MAP_X + (u16)door_tileX_s] = 0;
 				Trace(x, &sso, &tn, &tc, &tso, &tst);
-				g_map[(u16)door_tileY_s * MAP_X + (u16)door_tileX_s] = WALL_TYPE_DOOR;
+				g_map[(u16)door_tileY_s * MAP_X + (u16)door_tileX_s] = door_tileValue_s;
 			}
 		}
 
@@ -186,7 +201,7 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
 		/* For enemy occlusion at door columns, use background sso so enemies
 		 * behind the door can pass the depth test and be visible through the gap.
 		 * The vertical door-gap clipping in the enemy renderer handles the rest. */
-		g_wallSso[x >> 3] = sso;
+		g_wallSso[x / RAYCAST_STEP] = sso;
         wsPercent8 = ws & 7;
 		y = 0;
 		curY = 0;
@@ -195,15 +210,15 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
 		drawnTop = false;
 		drawnBottom = false;
 
-		/* Compute wall type early so ceiling transitions can use it */
+		/* Compute wall type: secret (6,7,8) and key doors (9,10,11) draw as STARTAN/STONE/TECH (1,2,3). */
 		wt = g_lastWallType;
+		if (wt >= 6 && wt <= 8) wt = (u8)(wt - 5);
+		else if (wt >= 9 && wt <= 11) wt = (u8)(wt - 8);
 		if (wt < 1 || wt > WALL_TEX_COUNT) wt = 1;
 		if (wt == WALL_TYPE_DOOR) tv = 0;  /* doors always use bright face */
 
-		/* Door height reduction: only for non-see-through cases.
-		 * When isDoorPartial, the background wall is rendered at full height;
-		 * the door itself is drawn as an overdraw pass below. */
-		if (!isDoorPartial && wt == WALL_TYPE_DOOR) {
+		/* Door height reduction: only for non-see-through cases (4 or 6-11). */
+		if (!isDoorPartial && (g_lastWallType == WALL_TYPE_DOOR || (g_lastWallType >= 6 && g_lastWallType <= 11))) {
 			u8 doorOpen = getDoorOpenAmount(g_lastWallTileX, g_lastWallTileY);
 			if (doorOpen > 0) {
 				u16 reduction = ((u16)ssoX2 * doorOpen) / DOOR_OPEN_MAX;
@@ -312,6 +327,10 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
 			u16 door_wTexBase;
 			u16 door_wallDrawLen;
 			u8 door_bFill;
+			/* Secret (6,7,8) and key doors (9,10,11) use brick/stone/tech texture (1,2,3) */
+			u8 door_vis = WALL_TYPE_DOOR;
+			if (door_tileValue_s >= 6 && door_tileValue_s <= 8) door_vis = (u8)(door_tileValue_s - 5);
+			else if (door_tileValue_s >= 9 && door_tileValue_s <= 11) door_vis = (u8)(door_tileValue_s - 8);
 
 			/* Compute door geometry from saved trace data */
 			door_ssoX2_v = (u16)door_sso_s << 1;
@@ -331,9 +350,9 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
 			else
 				door_ssoX2_v -= door_reduction;
 
-			/* Door texture base (doors always use bright face: tv=0) */
+			/* Door texture base (secret doors use wall texture 1/2/3) */
 			door_wTexBase = WALL_TEX_CHAR_START
-			              + (u16)(WALL_TYPE_DOOR - 1) * WALL_TEX_PER_TYPE
+			              + (u16)(door_vis - 1) * WALL_TEX_PER_TYPE
 			              + (door_tc_s >> 5);
 
 			/* Reset curY and overdraw ceiling + shortened wall */
@@ -345,7 +364,7 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
 				if (y + 7 >= door_ws_v && door_wsP8 > 0) {
 					drawnTop = true;
 					transChar = TRANS_TEX_CHAR_START
-					          + (u16)(WALL_TYPE_DOOR - 1) * 14
+					          + (u16)(door_vis - 1) * 14
 					          + (7 - door_wsP8);
 					DRAW_TILE_CHAR(x, curY, transChar);
 				} else {
@@ -374,7 +393,7 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
 					DRAW_TILE_CHAR(x, curY, wallTexChar);
 				} else if (y + 7 >= door_wallDrawLen && door_bFill > 0) {
 					transChar = TRANS_TEX_CHAR_START
-					          + (u16)(WALL_TYPE_DOOR - 1) * 14
+					          + (u16)(door_vis - 1) * 14
 					          + (door_bFill - 1);
 					DRAW_TILE_CHAR(x, curY, transChar | 0x1000);  /* V-flip */
 				} else {
@@ -384,7 +403,7 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
 				curY += 8;
 			}
 			/* Record where the door gap starts for enemy/pickup vertical clipping */
-			g_doorGapY[x >> 3] = curY;
+			g_doorGapY[x / RAYCAST_STEP] = curY;
 		}
     }
 
@@ -448,6 +467,12 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
             scrX = (s16)(192 + ((s32)viewX * 192) / (s32)viewZ) - (scaledW >> 1);
             scrY = 104 - (s16)(((s32)scaledH * 85) >> 8);  /* 85/256 ~ 1/3 */
 
+            /* Clamp screen position to safe range to prevent HW register overflow */
+            if (scrX < -384) scrX = -384;
+            if (scrX >  384) scrX =  384;
+            if (scrY < -224) scrY = -224;
+            if (scrY >  224) scrY =  224;
+
             /* Only render if on screen */
             if (scrX + scaledW <= 0 || scrX >= 384 || scrY + scaledH <= 0 || scrY >= 208) continue;
 
@@ -468,12 +493,12 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
                     enemySso = HORIZON_HEIGHT; /* very close = treat as always in front */
                 }
 
-                /* Column range of enemy on screen (clamped to 0..47) */
-                colStart = scrX >> 3;
+                /* Column range of enemy on screen (clamped to 0..RAYCAST_COLS-1) */
+                colStart = scrX / RAYCAST_STEP;
                 if (colStart < 0) colStart = 0;
-                colEnd = (scrX + scaledW - 1) >> 3;
-                if (colEnd > 47) colEnd = 47;
-                if (colStart > 47 || colEnd < 0) continue;
+                colEnd = (scrX + scaledW - 1) / RAYCAST_STEP;
+                if (colEnd >= RAYCAST_COLS) colEnd = RAYCAST_COLS - 1;
+                if (colStart >= RAYCAST_COLS || colEnd < 0) continue;
 
                 /* Scan for leftmost and rightmost visible (not occluded) columns */
                 visLeft = -1;
@@ -491,9 +516,9 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
                 if (!anyVisible) continue; /* fully behind walls, skip */
 
                 /* Compute pixel clipping amounts */
-                clipL = (visLeft << 3) - scrX;
+                clipL = (visLeft * RAYCAST_STEP) - scrX;
                 if (clipL < 0) clipL = 0;
-                clipR = (scrX + scaledW) - ((visRight + 1) << 3);
+                clipR = (scrX + scaledW) - ((visRight + 1) * RAYCAST_STEP);
                 if (clipR < 0) clipR = 0;
 
                 /* Apply clipping to screen position and width */
@@ -630,6 +655,12 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
             scrX = (s16)(192 + ((s32)viewX * 192) / (s32)viewZ) - (scaledW >> 1);
             scrY = (s16)(104 + (s16)(34133 / (s32)viewZ)) - scaledH;
 
+            /* Clamp screen position to safe range */
+            if (scrX < -384) scrX = -384;
+            if (scrX >  384) scrX =  384;
+            if (scrY < -224) scrY = -224;
+            if (scrY >  224) scrY =  224;
+
             /* Only render if on screen */
             if (scrX + scaledW <= 0 || scrX >= 384 || scrY + scaledH <= 0 || scrY >= 208) continue;
 
@@ -650,12 +681,12 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
                     pickupSso = HORIZON_HEIGHT;
                 }
 
-                /* Column range on screen (clamped to 0..47) */
-                colStart = scrX >> 3;
+                /* Column range on screen (clamped to 0..RAYCAST_COLS-1) */
+                colStart = scrX / RAYCAST_STEP;
                 if (colStart < 0) colStart = 0;
-                colEnd = (scrX + scaledW - 1) >> 3;
-                if (colEnd > 47) colEnd = 47;
-                if (colStart > 47 || colEnd < 0) continue;
+                colEnd = (scrX + scaledW - 1) / RAYCAST_STEP;
+                if (colEnd >= RAYCAST_COLS) colEnd = RAYCAST_COLS - 1;
+                if (colStart >= RAYCAST_COLS || colEnd < 0) continue;
 
                 /* Scan for visible columns */
                 visLeft = -1;
@@ -672,9 +703,9 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
                 if (!anyVisible) continue; /* fully behind walls */
 
                 /* Compute pixel clipping */
-                clipL = (visLeft << 3) - scrX;
+                clipL = (visLeft * RAYCAST_STEP) - scrX;
                 if (clipL < 0) clipL = 0;
-                clipR = (scrX + scaledW) - ((visRight + 1) << 3);
+                clipR = (scrX + scaledW) - ((visRight + 1) * RAYCAST_STEP);
                 if (clipR < 0) clipR = 0;
 
                 scrX += clipL;
@@ -843,6 +874,12 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
             scrX = (s16)(192 + ((s32)viewX * 192) / (s32)viewZ) - (scaledW >> 1);
             scrY = 104 - (scaledH >> 1);
 
+            /* Clamp screen position to safe range */
+            if (scrX < -384) scrX = -384;
+            if (scrX >  384) scrX =  384;
+            if (scrY < -224) scrY = -224;
+            if (scrY >  224) scrY =  224;
+
             if (scrX + scaledW <= 0 || scrX >= 384 || scrY + scaledH <= 0 || scrY >= 208)
                 continue;
 
@@ -917,6 +954,12 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
             scrX = (s16)(192 + ((s32)viewX * 192) / (s32)viewZ) - (scaledW >> 1);
             scrY = 104 - (scaledH >> 1);
 
+            /* Clamp screen position to safe range */
+            if (scrX < -384) scrX = -384;
+            if (scrX >  384) scrX =  384;
+            if (scrY < -224) scrY = -224;
+            if (scrY >  224) scrY =  224;
+
             if (scrX + scaledW <= 0 || scrX >= 384 || scrY + scaledH <= 0 || scrY >= 208)
                 continue;
 
@@ -969,8 +1012,9 @@ void drawTileChar(u16 *iX, u8 *iStartY, u16 charIdx) {
 }
 
 /* Custom affine scaler for enemy sprites.
- * Same fixed-point accumulation as affine_fast_scale but writes ALL 8
- * param entries per scanline (zeroing unused ones) to prevent stale data.
+ * Same fixed-point accumulation as affine_fast_scale but optimized:
+ * only writes entries 0 (Mx), 2 (My), 3 (Dx) per scanline.
+ * Entries 1, 4-7 (always zero) are pre-cleared by initEnemyBGMaps().
  * Uses rounding (+32) when converting YSrc from 23.9 to 13.3 fixed-point.
  */
 void affine_enemy_scale(u8 world, f16 invScale, s16 mxOffset, s16 myOffset) {
@@ -978,6 +1022,9 @@ void affine_enemy_scale(u8 world, f16 invScale, s16 mxOffset, s16 myOffset) {
 	s16 *param;
 	f16 XScl, YScl;
 	f32 YSrc;
+
+	/* Guard against extreme invScale values that would cause overflow */
+	if (invScale < 8 || invScale > 4096) return;
 
 	tmp = (world << 4);
 	param = (s16*)((WAM[tmp + 9] << 1) + 0x00020000);
@@ -987,14 +1034,10 @@ void affine_enemy_scale(u8 world, f16 invScale, s16 mxOffset, s16 myOffset) {
 
 	for (scanline = 0; scanline < height; scanline++) {
 		int base = scanline << 3;
-		param[base]     = mxOffset;             /* Mx: source X start (13.3), offset for clipping */
-		param[base + 1] = 0;                    /* Mp: parallax */
+		param[base]     = mxOffset;             /* Mx: source X start (13.3) */
 		param[base + 2] = (YSrc + 32) >> 6;    /* My: 23.9 to 13.3 with rounding */
 		param[base + 3] = XScl;                 /* Dx: X increment (7.9) */
-		param[base + 4] = 0;                    /* unused */
-		param[base + 5] = 0;                    /* unused */
-		param[base + 6] = 0;                    /* unused */
-		param[base + 7] = 0;                    /* unused */
+		/* entries 1, 4-7 are always 0, pre-cleared at init */
 		YSrc += YScl;
 	}
 }

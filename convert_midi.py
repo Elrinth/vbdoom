@@ -94,15 +94,15 @@ PAU = 0x000  # Silence
 # ----------------------------------------------------------------
 
 GM_DRUM_MAP = {
-    # Kick drums (MIDI 35-36): tonal tap7 (len=28), low freq, fast decay
-    35: (7, 1, 0x020),   # Acoustic Bass Drum -- deep thud
-    36: (7, 1, 0x030),   # Bass Drum 1 -- punchy kick
+    # Kick drums (MIDI 35-36): tonal tap7 (len=28), low freq, medium decay for more body
+    35: (7, 2, 0x020),   # Acoustic Bass Drum -- deep thud
+    36: (7, 2, 0x030),   # Bass Drum 1 -- punchy kick
 
-    # Snare drums (MIDI 37-40): noisy tap1 (len=1953), medium freq, fast decay
-    37: (2, 0, 0x180),   # Side Stick -- short click (tap2=254, very fast)
-    38: (1, 1, 0x100),   # Acoustic Snare -- crunchy crack
-    39: (1, 0, 0x0C0),   # Hand Clap -- sharp pop
-    40: (1, 1, 0x120),   # Electric Snare -- bright snare
+    # Snare drums (MIDI 37-40): noisy tap1 (len=1953), medium freq, medium decay for presence
+    37: (2, 1, 0x180),   # Side Stick -- short click (tap2=254)
+    38: (1, 2, 0x100),   # Acoustic Snare -- more body
+    39: (1, 1, 0x0C0),   # Hand Clap -- sharp pop
+    40: (1, 2, 0x120),   # Electric Snare -- bright snare
 
     # Toms (MIDI 41-50): tonal tap6 (len=42) or tap7 (len=28), scaled freq
     41: (6, 1, 0x040),   # Low Floor Tom
@@ -131,8 +131,8 @@ GM_DRUM_MAP = {
     56: (3, 0, 0x180),   # Cowbell -- tap3 (len=217), short
 }
 
-# Default fallback for unmapped GM drum notes
-GM_DRUM_DEFAULT = (1, 1, 0x100)  # snare-like
+# Default fallback for unmapped GM drum notes (slightly longer decay for presence)
+GM_DRUM_DEFAULT = (1, 2, 0x100)  # snare-like
 
 
 def gm_drum_to_packed(midi_note):
@@ -710,27 +710,15 @@ SONGS = [
         'vel_scales': [1.0, 1.0, 2.0],  # boost strings (vel 29-68 are quiet)
         'max_seconds': 120,  # song is ~1:08, no truncation needed
     },
-    # e1m1: type-1 -- C64-style arpeggios from tracks 3+4+5 (harmony voices),
-    #   Track 1(ch0)=bass riff transposed +24, Track 8(ch7)=late melody,
-    #   Track 9(ch9)=drums with kick>snare>hihat priority
+    # e1m1: rott_018.mid (Rise of the Triad) — replaces original e1m1
+    # Output written to music_e1m1.h so game still uses SONG_E1M1
     {
-        'midi': 'e1m1.mid',
+        'midi': 'maybes/rott_018.mid',
         'prefix': 'music_e1m1',
         'header': 'music_e1m1.h',
-        'type': 'tracks',
-        'melody': {
-            'arpeggio': True,
-            'tracks': [
-                {'track': 3, 'channels': {2}},
-                {'track': 4, 'channels': {3}},
-                {'track': 5, 'channels': {4}},
-            ],
-            'arp_ticks': 4,  # ~21ms at 95 BPM = C64 PAL arpeggio rate
-        },
-        'bass':   {'track': 1, 'channels': {0}, 'transpose': 24},
-        'chords': {'track': 8, 'channels': {7}},
-        'drums':  {'track': 9, 'priority': True},
-        'vel_scales': [1.0, 1.0, 1.8],  # boost late melody on chords channel
+        'type': 'auto',
+        'drums': 'auto',
+        'vel_scales': [1.0, 1.0, 1.8],
         'max_seconds': 180,
     },
     # e1m2: type-0 -- ch1=melody(46-70), ch3=bass(32-50), ch2=chords(44-62)
@@ -758,6 +746,30 @@ SONGS = [
         'chords': {'track': 3, 'channels': {2}},
         'drums':  'auto',
         'vel_scales': [1.0, 1.0, 1.8],  # boost chords to be audible
+        'max_seconds': 60,
+    },
+    {
+        'midi': 'e1m5.mid',
+        'prefix': 'music_e1m5',
+        'header': 'music_e1m5.h',
+        'type': 'tracks',
+        'melody': {'track': 2, 'channels': {1}},
+        'bass':   {'track': 1, 'channels': {0}},
+        'chords': {'track': 3, 'channels': {2}},
+        'drums':  'auto',
+        'vel_scales': [1.0, 1.0, 1.8],
+        'max_seconds': 60,
+    },
+    {
+        'midi': 'e1m6.mid',
+        'prefix': 'music_e1m6',
+        'header': 'music_e1m6.h',
+        'type': 'tracks',
+        'melody': {'track': 2, 'channels': {1}},
+        'bass':   {'track': 1, 'channels': {0}},
+        'chords': {'track': 3, 'channels': {2}},
+        'drums':  'auto',
+        'vel_scales': [1.0, 1.0, 1.8],
         'max_seconds': 60,
     },
 ]

@@ -3,6 +3,7 @@
 #include <settings.h>
 #include "functions/sndplay.h"
 #include "functions/timer.h"
+#include "components/intermission.h"
 
 int main()
 {
@@ -10,17 +11,17 @@ int main()
 
 	Settings settings = {
 		9,
-		4, // music at half volume so sfx is more audible...
+		5,
 		0
 	};
     initSystem();
+    setFrameTime(43);  /* ~23.3 fps target; further slowed to match hardware */
     mp_init();  /* Initialize PCM audio before title screen (for menu SFX) */
 
-    /* Map settings.sfx (0-9) to g_sfxVolume (0-15) */
+    /* Map settings to hardware volume levels */
     g_sfxVolume = (u8)((u16)settings.sfx * 15 / 9);
-
-    /* Map settings.music (0-9) to g_musicVolume (0-15) */
-    g_musicVolume = (u8)((u16)settings.music * 15 / 9);
+    g_musicSetting = settings.music;
+    g_musicVolume = musicVolFromSetting(settings.music);
 
     /* Start title screen music */
     musicLoadSong(SONG_TITLE);
@@ -33,6 +34,8 @@ int main()
     		/* Switch to level music when entering the game */
     		musicLoadSong(SONG_E1M1);
     		musicStart();
+			/* Show the episode map before gameplay starts */
+			showIntermission();
 			scene = gameLoop();
 			/* When returning from game, switch back to title music */
 			musicLoadSong(SONG_TITLE);
@@ -42,7 +45,8 @@ int main()
 			scene = optionsScreen(&settings);
 			/* Update volumes from potentially changed settings */
 			g_sfxVolume = (u8)((u16)settings.sfx * 15 / 9);
-			g_musicVolume = (u8)((u16)settings.music * 15 / 9);
+			g_musicSetting = settings.music;
+			g_musicVolume = musicVolFromSetting(settings.music);
 			/* No stop/start needed -- sequencer keeps running silently at vol 0
 			 * and resumes audibly when vol comes back. */
 		}

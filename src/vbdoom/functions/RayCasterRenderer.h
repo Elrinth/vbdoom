@@ -4,6 +4,7 @@
 #include <stdint.h>
 typedef int64_t s64;
 u32 GetARGB(u8 brightness);
+void UpdateCenterRay(u16 playerX, u16 playerY, s16 playerA);
 void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA);
 void clearTiles(u8 bgmap);
 

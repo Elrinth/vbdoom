@@ -71,6 +71,17 @@ void drawDoomTitle(u8 iOption) {
 	}
 }
 
+/* Clear BGMap(0) border so 320x200 content doesn't show garbage when returning from options (real hardware). */
+static void clearTitleBorder(void) {
+	u16 row;
+	for (row = 0; row < 25; row++) {
+		setmem((void*)BGMap(0) + row * 128 + 80, 0, 48);
+	}
+	for (row = 25; row < 32; row++) {
+		setmem((void*)BGMap(0) + row * 128, 0, 128);
+	}
+}
+
 u8 titleScreen()
 {
 	setmem((void*)BGMap(0), 0, 8192);
@@ -105,6 +116,7 @@ u8 titleScreen()
 	copymem((void*)0x00078000, (void*)title_screenTiles, 9712);  /* 607 tiles * 16 bytes */
 
 	drawDoomTitle(1);
+	clearTitleBorder();
 	vbDisplayShow(); // shows the display
 
 	/* Only fade in on the very first visit (cold boot).
@@ -155,6 +167,7 @@ u8 titleScreen()
 
 		drawSkull(skullAnim, pos);
 		drawDoomTitle(1);
+		clearTitleBorder();
 
 		if (count > 6) {
 			count = 0;

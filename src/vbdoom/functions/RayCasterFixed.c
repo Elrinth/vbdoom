@@ -1,6 +1,8 @@
 #include "RayCasterFixed.h"
 #include "RayCasterData.h"
 #include "enemy.h"
+#include "door.h"
+#include "../assets/images/wall_textures.h"
 
 #define LOOKUP_STORAGE extern
 #include "RayCasterTables.h"
@@ -329,7 +331,19 @@ bool hasLineOfSight(u16 fromX, u16 fromY, u16 toX, u16 toY)
             if (e2 <  (s16)dx) { err += dx; y0 += sy; }
             /* Reached destination -- don't test the enemy's own tile */
             if (x0 == x1 && y0 == y1) break;
-            if (IsWall((u8)x0, (u8)y0)) return false;
+            /* Door-aware wall check: allow LOS through half-open doors (4, 6-11) */
+            {
+                u8 tv = g_map[(u16)(u8)y0 * MAP_X + (u16)(u8)x0];
+                if (tv != 0) {
+                    if (tv == WALL_TYPE_DOOR || (tv >= 6 && tv <= 11)) {
+                        if (getDoorOpenAmount((u8)x0, (u8)y0) < DOOR_OPEN_MAX / 2)
+                            return false;
+                        /* door is open enough -- continue tracing */
+                    } else {
+                        return false;  /* solid wall */
+                    }
+                }
+            }
         }
     }
     return true;
@@ -923,8 +937,11 @@ void fPlayerMoveForward(u16 *ifPlayerX, u16 *ifPlayerY, s16 ifPlayerAng, s16 iSp
 }
 
 void fPlayerStrafe(u16 *ifPlayerX, u16 *ifPlayerY, s16 ifPlayerAng, s16 iSpeed) {
-	s16 strafeAngle = ifPlayerAng+256;
-	if (iSpeed < 0)
-		strafeAngle = ifPlayerAng+310; // dunno what this value should be...
-	fPlayerMoveForward(ifPlayerX, ifPlayerY, strafeAngle, iSpeed);
+	s16 strafeAngle;
+	/* 90 deg right = +256, 90 deg left = +768; normalize to 0..1023 so 768+256=1024 doesn't wrap to 0 */
+	if (iSpeed >= 0)
+		strafeAngle = (s16)((ifPlayerAng + 256) & 1023);
+	else
+		strafeAngle = (s16)((ifPlayerAng + 768) & 1023);
+	fPlayerMoveForward(ifPlayerX, ifPlayerY, strafeAngle, iSpeed >= 0 ? iSpeed : -iSpeed);
 }

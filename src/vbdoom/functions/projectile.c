@@ -103,16 +103,26 @@ void spawnFireball(u16 sx, u16 sy, u16 tx, u16 ty, u8 sourceIdx) {
     p->angle = projAtan2(dy, dx);
 }
 
-/* Lookup table: sin/cos approximation for 8 compass directions (8.8 fixed)
- * 0=north(0,+), 1=NE(+,+), 2=east(+,0), 3=SE(+,-), etc. */
-static const s16 cosTable8[8] = {  0, 181, 256, 181, 0, -181, -256, -181};
-static const s16 sinTable8[8] = {256, 181,   0,-181,-256,-181,    0,  181};
+/* 32-direction velocity tables (s16, 8.8 fixed-point).
+ * rocketDx[i] = round(sin(i * 2*pi/32) * 256)  -- X component
+ * rocketDy[i] = round(cos(i * 2*pi/32) * 256)  -- Y component
+ * Direction 0=north(+Y), 8=east(+X), 16=south(-Y), 24=west(-X). */
+static const s16 rocketDx[32] = {
+      0,  50,  98, 142, 181, 213, 237, 251,
+    256, 251, 237, 213, 181, 142,  98,  50,
+      0, -50, -98,-142,-181,-213,-237,-251,
+   -256,-251,-237,-213,-181,-142, -98, -50
+};
+static const s16 rocketDy[32] = {
+    256, 251, 237, 213, 181, 142,  98,  50,
+      0, -50, -98,-142,-181,-213,-237,-251,
+   -256,-251,-237,-213,-181,-142, -98, -50,
+      0,  50,  98, 142, 181, 213, 237, 251
+};
 
 void spawnRocket(u16 px, u16 py, s16 angle) {
     u8 i;
     Projectile *p = 0;
-    s16 sa, ca;
-    u8 dir8;
 
     /* Find free slot */
     for (i = 0; i < MAX_PROJECTILES; i++) {
@@ -123,26 +133,15 @@ void spawnRocket(u16 px, u16 py, s16 angle) {
     }
     if (!p) return;
 
-    /* Convert 10-bit angle to velocity using sin/cos.
+    /* Convert 10-bit angle (0-1023) to velocity using 32-direction LUT.
      * VB angle 0=north, CW. 1024 steps.
-     * Map to 8 directions for speed table, then refine with actual angle. */
-    /* Use actual trig approximation for smooth direction */
-    /* angle 0=north, 256=east, 512=south, 768=west */
+     * Map to 32 directions (11.25 deg each, max error 5.625 deg). */
     {
-        /* Approximate sin/cos from the angle (0-1023):
-         * dx = sin(angle) * ROCKET_SPEED / 256
-         * dy = cos(angle) * ROCKET_SPEED / 256
-         * We use the VB LUT approach: quarter-wave lookup */
         s16 a = angle & 1023;
-        s16 sval, cval;
+        u8 dir32 = (u8)(((a + 16) >> 5) & 31);
 
-        /* Simple 8-direction approximation for rocket speed */
-        dir8 = (u8)(((a + 64) >> 7) & 7);
-        sval = cosTable8[dir8]; /* note: cos for VB coord system */
-        cval = sinTable8[dir8];
-
-        p->dx = (s16)(((s32)sval * ROCKET_SPEED) >> 8);
-        p->dy = (s16)(((s32)cval * ROCKET_SPEED) >> 8);
+        p->dx = (s16)(((s32)rocketDx[dir32] * ROCKET_SPEED) >> 8);
+        p->dy = (s16)(((s32)rocketDy[dir32] * ROCKET_SPEED) >> 8);
     }
 
     p->x = px;
@@ -212,7 +211,8 @@ void updateProjectiles(u16 playerX, u16 playerY, s16 playerA) {
                     /* Hit player with fireball */
                     u8 damage = FIREBALL_DAMAGE_MIN +
                         (projRandom() % (FIREBALL_DAMAGE_MAX - FIREBALL_DAMAGE_MIN + 1));
-                    g_lastEnemyDamage = damage;
+                    g_lastEnemyDamage += damage;
+                    if (g_lastEnemyDamage > 25) g_lastEnemyDamage = 25;  /* per-frame cap */
 
                     /* Compute damage direction */
                     {
@@ -274,7 +274,9 @@ void updateProjectiles(u16 playerX, u16 playerY, s16 playerA) {
                         if (pdist < ROCKET_SPLASH_RADIUS) {
                             u8 selfDmg = (u8)((u16)(ROCKET_SPLASH_RADIUS - pdist) >> 2);
                             if (selfDmg > 0) {
-                                g_lastEnemyDamage = selfDmg;
+                                /* Self-damage uses += but allows higher cap (player's own rocket) */
+                                g_lastEnemyDamage += selfDmg;
+                                if (g_lastEnemyDamage > 50) g_lastEnemyDamage = 50;
                                 g_lastEnemyDamageDir = 0;
                             }
                         }

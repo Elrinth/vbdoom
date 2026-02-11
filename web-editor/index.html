@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>VB Doom Level Editor</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>VB Doom Level Editor</h1>
+    <div class="toolbar">
+      <label>Map size:</label>
+      <select id="mapSize">
+        <option value="32,32">32×32</option>
+        <option value="48,32">48×32</option>
+        <option value="64,32">64×32</option>
+        <option value="48,48">48×48</option>
+        <option value="64,64">64×64</option>
+      </select>
+      <label>Level ID (e.g. e1m4):</label>
+      <input type="text" id="levelId" value="e1m4" maxlength="8" />
+      <input type="file" id="loadJsonInput" accept=".json" style="display: none" />
+      <input type="file" id="loadHInput" accept=".h" style="display: none" />
+      <button type="button" id="btnSaveJson">Save JSON</button>
+      <button type="button" id="btnLoadJson">Load JSON</button>
+      <button type="button" id="btnLoadH" title="Import a map from a C header (.h) file">Load H</button>
+      <button type="button" id="btnExport">Export C</button>
+      <button type="button" id="btnExportHeader">Export header only</button>
+      <button type="button" id="btnLinkMode" title="Click a switch then a door to link">Link switch to door</button>
+      <button type="button" id="btnHelp">Help</button>
+    </div>
+  </header>
+
+  <div id="toast" class="toast hidden" aria-live="polite"></div>
+
+  <div class="main">
+    <div class="left">
+      <div class="panel">
+        <h3>Brush (walls)</h3>
+        <div class="brush-grid" id="brushGrid"></div>
+      </div>
+      <div class="panel">
+        <h3>Entities <span id="entityListCap" class="cap-label" title="Game limits (enemy.h, pickup.h)">0/21 · 0/16</span></h3>
+        <button type="button" id="brushSpawn1" class="entity-btn">Spawn 1</button>
+        <button type="button" id="brushSpawn2" class="entity-btn">Spawn 2</button>
+        <select id="brushEnemy">
+          <option value="">Enemy (place on grid)</option>
+          <option value="0">Zombie</option>
+          <option value="1">Sergeant</option>
+          <option value="2">Imp</option>
+          <option value="3">Demon</option>
+        </select>
+        <select id="brushPickup">
+          <option value="">Pickup (place on grid)</option>
+          <option value="0">Ammo clip</option>
+          <option value="1">Health small</option>
+          <option value="2">Health large</option>
+          <option value="3">Shotgun</option>
+          <option value="4">Helmet</option>
+          <option value="5">Armor</option>
+          <option value="6">Shells</option>
+          <option value="7">Rocket launcher</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="center">
+      <div class="grid-wrap">
+        <canvas id="grid" tabindex="0"></canvas>
+        <canvas id="gridOverlay" class="grid-overlay" aria-hidden="true"></canvas>
+      </div>
+      <div class="status" id="status">Click grid to paint. Select brush above. 32×32</div>
+      <div id="gridTooltip" class="grid-tooltip hidden" aria-hidden="true"></div>
+      <div class="preview-section">
+        <h3 class="preview-heading">Preview <span class="preview-hint">(focus canvas to drive: WASD or arrows)</span></h3>
+        <canvas id="previewCanvas" tabindex="0"></canvas>
+        <button type="button" id="btnResetPreview">Reset view</button>
+      </div>
+    </div>
+
+    <div class="right">
+      <div class="panel entity-list-panel">
+        <h3>Entities</h3>
+        <p class="hint">Spawn points, enemies, and pickups on the map. Hover to highlight on grid.</p>
+        <ul id="entityList"></ul>
+      </div>
+      <div class="panel">
+        <h3>Doors <span id="doorListCap" class="cap-label" title="MAX_DOORS in door.h">0/24</span></h3>
+        <p class="hint">Place door tiles (4 or 6/7/8). Use <strong>N-S</strong> / <strong>E-W</strong> for wall direction (corridor runs the other way). If a door won't open in-game, stand right in front and press Use, or try the other orientation.</p>
+        <ul id="doorList"></ul>
+      </div>
+      <div class="panel">
+        <h3>Switches <span id="switchListCap" class="cap-label" title="MAX_SWITCHES in door.h">0/4</span></h3>
+        <p class="hint">Place switch (5) on map. In export you link each switch to a door index or exit.</p>
+        <div id="linkModeExit" class="link-mode-exit hidden">
+          Switch <span id="pendingSwitchNum">0</span> selected. <button type="button" id="btnSetExit">Set EXIT</button>
+        </div>
+        <ul id="switchList"></ul>
+      </div>
+    </div>
+  </div>
+
+  <div id="exportModal" class="modal hidden">
+    <div class="modal-content">
+      <h3>Export</h3>
+      <div class="integration-checklist">
+        <p class="checklist-title">Where to put what (add a new level):</p>
+        <ol class="checklist-steps">
+          <li><strong>Save as <span id="exportFileNameChecklist">e1m4.h</span></strong> → put the file in <code>src/vbdoom/assets/doom/</code>. Use the &quot;Save as …&quot; button below (it saves only map + defines, not the init functions).</li>
+          <li><strong>RayCasterData.h</strong> → add <code>#include "../assets/doom/LEVELID.h"</code> (e.g. e1m4.h).</li>
+          <li><strong>enemy.c</strong> → paste <code>initEnemiesLEVELID()</code> from the export text. <strong>enemy.h</strong> → add <code>void initEnemiesLEVELID(void);</code></li>
+          <li><strong>pickup.c</strong> → paste <code>initPickupsLEVELID()</code>. <strong>pickup.h</strong> → add <code>void initPickupsLEVELID(void);</code></li>
+          <li><strong>gameLoop.c</strong> → in <code>loadLevel()</code> add <code>else if (levelNum == N) { ... }</code> and paste the block from the export (the &quot;PASTE THIS INTO gameLoop.c&quot; section). If your level is not 4, change the <code>levelNum == 4</code> to your level number and add a new case.</li>
+        </ol>
+        <p class="hint">If you have more than 21 enemies or 16 pickups, increase <code>MAX_ENEMIES</code> / <code>MAX_PICKUPS</code> in enemy.h / pickup.h. Same for doors (6) and switches (4) in door.h.</p>
+      </div>
+      <p>Copy the code below into your project.</p>
+      <textarea id="exportText" readonly></textarea>
+      <div class="modal-buttons">
+        <button type="button" id="btnSaveAsHeader">Save as <span id="exportFileName">e1m4.h</span></button>
+        <button type="button" id="btnCloseExport">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="helpModal" class="modal hidden">
+    <div class="modal-content modal-content-wide">
+      <h3>How to use export</h3>
+      <div class="help-content">
+        <p><strong>Quick start:</strong> Export C → save as <code>e1m4.h</code> in <code>src/vbdoom/assets/doom/</code> → include in RayCasterData.h → add level case in gameLoop.c <code>loadLevel()</code>.</p>
+        <p><strong>Where to put exported files:</strong></p>
+        <ul>
+          <li>Map + defines: save as e.g. <code>src/vbdoom/assets/doom/e1m4.h</code></li>
+          <li>RayCasterData.h: add <code>#include "../assets/doom/e1m4.h"</code></li>
+          <li>Paste <code>initEnemiesE1M4()</code> into enemy.c; declare in enemy.h</li>
+          <li>Paste <code>initPickupsE1M4()</code> into pickup.c; declare in pickup.h</li>
+        </ul>
+        <p><strong>In gameLoop.c loadLevel():</strong></p>
+        <ul>
+          <li>Add <code>else if (levelNum == 4) { ... }</code> for your level</li>
+          <li><code>copymem((u8*)g_map, (u8*)e1m4_map, cells);</code> — if map is smaller than MAP_CELLS, zero-fill the rest</li>
+          <li>Set fPlayerX, fPlayerY, fPlayerAng from E1M4_SPAWN_X, E1M4_SPAWN_Y and spawn angle</li>
+          <li>Call initDoors(), then all registerDoor/registerSwitch from the export comment</li>
+          <li>Call initEnemiesE1M4(); initPickupsE1M4();</li>
+        </ul>
+        <p><strong>Also:</strong> Ensure door.h has MAX_DOORS and MAX_SWITCHES large enough. Extend level transition checks (e.g. currentLevel &lt; 6) for your max level.</p>
+      </div>
+      <button type="button" id="btnCloseHelp">Close</button>
+    </div>
+  </div>
+
+  <div id="loadJsonModal" class="modal hidden">
+    <div class="modal-content">
+      <h3>Load JSON</h3>
+      <p>Paste level JSON below or choose a file.</p>
+      <textarea id="loadJsonText" placeholder='{"version":1,"mapW":32,...}'></textarea>
+      <div class="modal-buttons">
+        <button type="button" id="btnLoadJsonChooseFile">Choose file</button>
+        <button type="button" id="btnLoadJsonApply">Load</button>
+        <button type="button" id="btnCloseLoadJson">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="editor.js"></script>
+</body>
+</html>

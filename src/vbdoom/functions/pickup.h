@@ -22,6 +22,9 @@
 #define PICKUP_ARMOR           5  /* 100 armor */
 #define PICKUP_SHELLS          6  /* +20 shotgun shells */
 #define PICKUP_WEAPON_ROCKET   7  /* rocket launcher pickup */
+#define PICKUP_KEY_RED         8
+#define PICKUP_KEY_YELLOW      9
+#define PICKUP_KEY_BLUE        10
 
 /* Gameplay constants */
 #define PICKUP_RADIUS        80   /* collision radius (8.8 fixed-point units) */
@@ -68,6 +71,8 @@ extern u8 g_totalItems;
 /* Initialize pickups: place items on the map. Call once at level start. */
 void initPickups(void);
 void initPickupsE1M2(void);
+void initPickupsE1M3(void);
+void initPickupsE1M4(void);
 
 /* Spawn a pickup at a position (e.g., ammo drop from dead enemy).
  * Returns true if spawned, false if no free slot. */

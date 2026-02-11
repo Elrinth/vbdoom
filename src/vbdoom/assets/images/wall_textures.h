@@ -36,9 +36,17 @@ extern const unsigned int switchOnTiles[512];
 #define SWITCH_VRAM_OFFSET     512
 
 #define WALL_TYPE_STARTAN  1
-#define WALL_TYPE_STONE  2
-#define WALL_TYPE_TECH  3
-#define WALL_TYPE_DOOR  4
-#define WALL_TYPE_SWITCH  5
+#define WALL_TYPE_STONE    2
+#define WALL_TYPE_TECH     3
+#define WALL_TYPE_DOOR     4
+#define WALL_TYPE_SWITCH   5
+/* Secret doors: look like brick/stone/tech when closed, open like doors */
+#define WALL_TYPE_SECRET_BRICK  6
+#define WALL_TYPE_SECRET_STONE  7
+#define WALL_TYPE_SECRET_TECH  8
+/* Key-locked doors: require matching key to open */
+#define WALL_TYPE_KEY_RED    9
+#define WALL_TYPE_KEY_YELLOW 10
+#define WALL_TYPE_KEY_BLUE   11
 
 #endif

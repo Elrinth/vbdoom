@@ -12,6 +12,13 @@
 /* Global enemy array */
 EnemyState g_enemies[MAX_ENEMIES];
 
+/* Frame counter from game loop -- used for distant enemy AI throttling */
+extern u16 g_levelFrames;
+
+/* Distance threshold for AI throttling: enemies farther than this
+ * only get full AI updates every 4th frame.  ~8 map tiles squared. */
+#define ENEMY_FAR_DIST_SQ  2000000
+
 /* Visible enemy indices (closest 5, sorted by distance) */
 u8 g_visibleEnemies[MAX_VISIBLE_ENEMIES] = {255, 255, 255, 255, 255};
 u8 g_numVisibleEnemies = 0;
@@ -460,6 +467,261 @@ void initEnemiesE1M2(void) {
     g_enemies[11].health = IMP_HEALTH;
 }
 
+void initEnemiesE1M3(void) {
+    u8 i;
+    for (i = 0; i < MAX_ENEMIES; i++) {
+        g_enemies[i].active = false;
+        g_enemies[i].state = ES_IDLE;
+        g_enemies[i].animFrame = 0;
+        g_enemies[i].animTimer = 0;
+        g_enemies[i].stateTimer = 0;
+        g_enemies[i].lastRenderedFrame = 255;
+        g_enemies[i].health = ZOMBIE_HEALTH;
+        g_enemies[i].angle = 0;
+        g_enemies[i].movedir = DI_NODIR;
+        g_enemies[i].movecount = 0;
+        g_enemies[i].enemyType = ETYPE_ZOMBIEMAN;
+    }
+
+    /* E1M3: Hell-touched research facility -- heavy combat */
+
+    /* 0: zombieman, south corridor west */
+    g_enemies[0].x = 5 * 256 + 128;
+    g_enemies[0].y = 23 * 256 + 128;
+    g_enemies[0].active = true;
+    g_enemies[0].enemyType = ETYPE_ZOMBIEMAN;
+    g_enemies[0].health = ZOMBIE_HEALTH;
+
+    /* 1: zombieman, south corridor east */
+    g_enemies[1].x = 20 * 256 + 128;
+    g_enemies[1].y = 24 * 256 + 128;
+    g_enemies[1].active = true;
+    g_enemies[1].enemyType = ETYPE_ZOMBIEMAN;
+    g_enemies[1].health = ZOMBIE_HEALTH;
+
+    /* 2: zombieman, central arena south */
+    g_enemies[2].x = 8 * 256 + 128;
+    g_enemies[2].y = 12 * 256 + 128;
+    g_enemies[2].active = true;
+    g_enemies[2].enemyType = ETYPE_ZOMBIEMAN;
+    g_enemies[2].health = ZOMBIE_HEALTH;
+
+    /* 3: zombieman, east wing lab */
+    g_enemies[3].x = 28 * 256 + 128;
+    g_enemies[3].y = 16 * 256 + 128;
+    g_enemies[3].active = true;
+    g_enemies[3].enemyType = ETYPE_ZOMBIEMAN;
+    g_enemies[3].health = ZOMBIE_HEALTH;
+
+    /* 4: sergeant, central arena north */
+    g_enemies[4].x = 15 * 256 + 128;
+    g_enemies[4].y = 9 * 256 + 128;
+    g_enemies[4].active = true;
+    g_enemies[4].enemyType = ETYPE_SERGEANT;
+    g_enemies[4].health = SGT_HEALTH;
+
+    /* 5: sergeant, west wing */
+    g_enemies[5].x = 3 * 256 + 128;
+    g_enemies[5].y = 17 * 256 + 128;
+    g_enemies[5].active = true;
+    g_enemies[5].enemyType = ETYPE_SERGEANT;
+    g_enemies[5].health = SGT_HEALTH;
+
+    /* 6: sergeant, east wing */
+    g_enemies[6].x = 28 * 256 + 128;
+    g_enemies[6].y = 18 * 256 + 128;
+    g_enemies[6].active = true;
+    g_enemies[6].enemyType = ETYPE_SERGEANT;
+    g_enemies[6].health = SGT_HEALTH;
+
+    /* 7: imp, central arena east */
+    g_enemies[7].x = 22 * 256 + 128;
+    g_enemies[7].y = 10 * 256 + 128;
+    g_enemies[7].active = true;
+    g_enemies[7].enemyType = ETYPE_IMP;
+    g_enemies[7].health = IMP_HEALTH;
+
+    /* 8: imp, south corridor center */
+    g_enemies[8].x = 15 * 256 + 128;
+    g_enemies[8].y = 17 * 256 + 128;
+    g_enemies[8].active = true;
+    g_enemies[8].enemyType = ETYPE_IMP;
+    g_enemies[8].health = IMP_HEALTH;
+
+    /* 9: imp, command center */
+    g_enemies[9].x = 16 * 256 + 128;
+    g_enemies[9].y = 4 * 256 + 128;
+    g_enemies[9].active = true;
+    g_enemies[9].enemyType = ETYPE_IMP;
+    g_enemies[9].health = IMP_HEALTH;
+
+    /* 10: demon, central arena center */
+    g_enemies[10].x = 15 * 256 + 128;
+    g_enemies[10].y = 11 * 256 + 128;
+    g_enemies[10].active = true;
+    g_enemies[10].enemyType = ETYPE_DEMON;
+    g_enemies[10].health = DEMON_HEALTH;
+
+    /* 11: demon, west wing storage */
+    g_enemies[11].x = 4 * 256 + 128;
+    g_enemies[11].y = 15 * 256 + 128;
+    g_enemies[11].active = true;
+    g_enemies[11].enemyType = ETYPE_DEMON;
+    g_enemies[11].health = DEMON_HEALTH;
+
+    /* 12: demon, command center guard */
+    g_enemies[12].x = 14 * 256 + 128;
+    g_enemies[12].y = 6 * 256 + 128;
+    g_enemies[12].active = true;
+    g_enemies[12].enemyType = ETYPE_DEMON;
+    g_enemies[12].health = DEMON_HEALTH;
+}
+
+void initEnemiesE1M4(void) {
+    u8 i;
+    for (i = 0; i < MAX_ENEMIES; i++) {
+        g_enemies[i].active = false;
+        g_enemies[i].state = ES_IDLE;
+        g_enemies[i].animFrame = 0;
+        g_enemies[i].animTimer = 0;
+        g_enemies[i].stateTimer = 0;
+        g_enemies[i].lastRenderedFrame = 255;
+        g_enemies[i].health = ZOMBIE_HEALTH;
+        g_enemies[i].angle = 0;
+        g_enemies[i].movedir = DI_NODIR;
+        g_enemies[i].movecount = 0;
+        g_enemies[i].enemyType = ETYPE_ZOMBIEMAN;
+    }
+
+    /* E1M4: web-editor export */
+    g_enemies[0].x = 23 * 256 + 128;
+    g_enemies[0].y = 29 * 256 + 128;
+    g_enemies[0].angle = 768;
+    g_enemies[0].active = true;
+    g_enemies[0].enemyType = ETYPE_ZOMBIEMAN;
+    g_enemies[0].health = ZOMBIE_HEALTH;
+    g_enemies[1].x = 20 * 256 + 128;
+    g_enemies[1].y = 29 * 256 + 128;
+    g_enemies[1].angle = 768;
+    g_enemies[1].active = true;
+    g_enemies[1].enemyType = ETYPE_ZOMBIEMAN;
+    g_enemies[1].health = ZOMBIE_HEALTH;
+    g_enemies[2].x = 30 * 256 + 128;
+    g_enemies[2].y = 19 * 256 + 128;
+    g_enemies[2].angle = 0;
+    g_enemies[2].active = true;
+    g_enemies[2].enemyType = ETYPE_ZOMBIEMAN;
+    g_enemies[2].health = ZOMBIE_HEALTH;
+    g_enemies[3].x = 28 * 256 + 128;
+    g_enemies[3].y = 19 * 256 + 128;
+    g_enemies[3].angle = 0;
+    g_enemies[3].active = true;
+    g_enemies[3].enemyType = ETYPE_ZOMBIEMAN;
+    g_enemies[3].health = ZOMBIE_HEALTH;
+    g_enemies[4].x = 30 * 256 + 128;
+    g_enemies[4].y = 21 * 256 + 128;
+    g_enemies[4].angle = 0;
+    g_enemies[4].active = true;
+    g_enemies[4].enemyType = ETYPE_ZOMBIEMAN;
+    g_enemies[4].health = ZOMBIE_HEALTH;
+    g_enemies[5].x = 26 * 256 + 128;
+    g_enemies[5].y = 10 * 256 + 128;
+    g_enemies[5].angle = 512;
+    g_enemies[5].active = true;
+    g_enemies[5].enemyType = ETYPE_IMP;
+    g_enemies[5].health = IMP_HEALTH;
+    g_enemies[6].x = 29 * 256 + 128;
+    g_enemies[6].y = 10 * 256 + 128;
+    g_enemies[6].angle = 512;
+    g_enemies[6].active = true;
+    g_enemies[6].enemyType = ETYPE_IMP;
+    g_enemies[6].health = IMP_HEALTH;
+    g_enemies[7].x = 15 * 256 + 128;
+    g_enemies[7].y = 25 * 256 + 128;
+    g_enemies[7].angle = 0;
+    g_enemies[7].active = true;
+    g_enemies[7].enemyType = ETYPE_ZOMBIEMAN;
+    g_enemies[7].health = ZOMBIE_HEALTH;
+    g_enemies[8].x = 23 * 256 + 128;
+    g_enemies[8].y = 19 * 256 + 128;
+    g_enemies[8].angle = 256;
+    g_enemies[8].active = true;
+    g_enemies[8].enemyType = ETYPE_DEMON;
+    g_enemies[8].health = DEMON_HEALTH;
+    g_enemies[9].x = 5 * 256 + 128;
+    g_enemies[9].y = 26 * 256 + 128;
+    g_enemies[9].angle = 0;
+    g_enemies[9].active = true;
+    g_enemies[9].enemyType = ETYPE_DEMON;
+    g_enemies[9].health = DEMON_HEALTH;
+    g_enemies[10].x = 2 * 256 + 128;
+    g_enemies[10].y = 30 * 256 + 128;
+    g_enemies[10].angle = 0;
+    g_enemies[10].active = true;
+    g_enemies[10].enemyType = ETYPE_SERGEANT;
+    g_enemies[10].health = SGT_HEALTH;
+    g_enemies[11].x = 4 * 256 + 128;
+    g_enemies[11].y = 30 * 256 + 128;
+    g_enemies[11].angle = 0;
+    g_enemies[11].active = true;
+    g_enemies[11].enemyType = ETYPE_IMP;
+    g_enemies[11].health = IMP_HEALTH;
+    g_enemies[12].x = 3 * 256 + 128;
+    g_enemies[12].y = 12 * 256 + 128;
+    g_enemies[12].angle = 0;
+    g_enemies[12].active = true;
+    g_enemies[12].enemyType = ETYPE_ZOMBIEMAN;
+    g_enemies[12].health = ZOMBIE_HEALTH;
+    g_enemies[13].x = 4 * 256 + 128;
+    g_enemies[13].y = 11 * 256 + 128;
+    g_enemies[13].angle = 0;
+    g_enemies[13].active = true;
+    g_enemies[13].enemyType = ETYPE_SERGEANT;
+    g_enemies[13].health = SGT_HEALTH;
+    g_enemies[14].x = 7 * 256 + 128;
+    g_enemies[14].y = 7 * 256 + 128;
+    g_enemies[14].angle = 0;
+    g_enemies[14].active = true;
+    g_enemies[14].enemyType = ETYPE_ZOMBIEMAN;
+    g_enemies[14].health = ZOMBIE_HEALTH;
+    g_enemies[15].x = 21 * 256 + 128;
+    g_enemies[15].y = 11 * 256 + 128;
+    g_enemies[15].angle = 0;
+    g_enemies[15].active = true;
+    g_enemies[15].enemyType = ETYPE_IMP;
+    g_enemies[15].health = IMP_HEALTH;
+    g_enemies[16].x = 22 * 256 + 128;
+    g_enemies[16].y = 8 * 256 + 128;
+    g_enemies[16].angle = 0;
+    g_enemies[16].active = true;
+    g_enemies[16].enemyType = ETYPE_DEMON;
+    g_enemies[16].health = DEMON_HEALTH;
+    g_enemies[17].x = 18 * 256 + 128;
+    g_enemies[17].y = 6 * 256 + 128;
+    g_enemies[17].angle = 0;
+    g_enemies[17].active = true;
+    g_enemies[17].enemyType = ETYPE_ZOMBIEMAN;
+    g_enemies[17].health = ZOMBIE_HEALTH;
+    g_enemies[18].x = 29 * 256 + 128;
+    g_enemies[18].y = 2 * 256 + 128;
+    g_enemies[18].angle = 0;
+    g_enemies[18].active = true;
+    g_enemies[18].enemyType = ETYPE_SERGEANT;
+    g_enemies[18].health = SGT_HEALTH;
+    g_enemies[19].x = 9 * 256 + 128;
+    g_enemies[19].y = 16 * 256 + 128;
+    g_enemies[19].angle = 0;
+    g_enemies[19].active = true;
+    g_enemies[19].enemyType = ETYPE_ZOMBIEMAN;
+    g_enemies[19].health = ZOMBIE_HEALTH;
+    g_enemies[20].x = 1 * 256 + 128;
+    g_enemies[20].y = 2 * 256 + 128;
+    g_enemies[20].angle = 0;
+    g_enemies[20].active = true;
+    g_enemies[20].enemyType = ETYPE_IMP;
+    g_enemies[20].health = IMP_HEALTH;
+}
+
 void alertAllEnemies(void) {
     u8 i;
     for (i = 0; i < MAX_ENEMIES; i++) {
@@ -519,11 +781,11 @@ bool applyDamageToEnemy(EnemyState *e, u8 damage, u16 playerX, u16 playerY) {
             u8 sdist = (u8)(d > 4080 ? 255 : d >> 4);
             if (sdist == 0) sdist = 1;
             if (e->enemyType == ETYPE_IMP)
-                playEnemySFX(SFX_IMP_DEATH1 + (enemyRandom() & 1), sdist);
+                playEnemySFX(SFX_IMP_DEATH1, sdist);
             else if (e->enemyType == ETYPE_DEMON)
                 playEnemySFX(SFX_PINKY_DEATH, sdist);
             else
-                playEnemySFX(SFX_POSSESSED_DEATH1 + (enemyRandom() % 3), sdist);
+                playEnemySFX(SFX_POSSESSED_DEATH1, sdist);
         }
         return true;
     } else {
@@ -644,8 +906,19 @@ u8 playerShoot(u16 playerX, u16 playerY, s16 playerA, u8 weaponType) {
         hitIdx = (anyKill != 255) ? anyKill : anyHit;
     } else {
         /* ---- Pistol / Fist: single hitscan ---- */
-        u8 target = hitscanFindEnemy(playerX, playerY, playerA & 1023, 32);
+        /* Fist gets wider cone (64) for easier melee hits; pistol uses 32 */
+        s16 cone = (weaponType == 1) ? 64 : 32;
+        u8 target = hitscanFindEnemy(playerX, playerY, playerA & 1023, cone);
 
+        if (target != 255) {
+            /* Fist: enforce melee range -- reject if enemy is too far */
+            if (weaponType == 1) {
+                s16 dx = (s16)g_enemies[target].x - (s16)playerX;
+                s16 dy = (s16)g_enemies[target].y - (s16)playerY;
+                s32 dist = ((s32)dx * dx + (s32)dy * dy) >> 8;
+                if (dist > FIST_MELEE_RANGE) target = 255;
+            }
+        }
         if (target != 255) {
             u8 damage;
             if (weaponType == 1) {
@@ -707,7 +980,8 @@ static void enemyFireAtPlayer(EnemyState *e, u16 playerX, u16 playerY, s16 playe
     }
 
     if (totalDamage > 0) {
-        g_lastEnemyDamage = totalDamage;
+        g_lastEnemyDamage += totalDamage;
+        if (g_lastEnemyDamage > 25) g_lastEnemyDamage = 25;  /* per-frame cap */
 
         /* Compute damage direction relative to player facing */
         {
@@ -745,7 +1019,8 @@ static void impAttack(EnemyState *e, u8 idx, u16 playerX, u16 playerY, s16 playe
         /* Melee claw attack */
         u8 damage = (FAST_MOD5(enemyRandom()) + 1) * 3 + 3;  /* 6-18 */
         if (hasLineOfSight(e->x, e->y, playerX, playerY)) {
-            g_lastEnemyDamage = damage;
+            g_lastEnemyDamage += damage;
+            if (g_lastEnemyDamage > 25) g_lastEnemyDamage = 25;  /* per-frame cap */
             /* Compute damage direction */
             {
                 s16 angleToEnemy = (256 - fixedAtan2(dy, dx)) & 1023;
@@ -778,9 +1053,10 @@ static void demonAttack(EnemyState *e, u8 idx, u16 playerX, u16 playerY, s16 pla
 
     /* Only melee -- check close range */
     if (dist < DEMON_MELEE_DIST * 2) {
-        u8 damage = (FAST_MOD10(enemyRandom()) + 1) * 4;  /* 4-40 */
+        u8 damage = (FAST_MOD10(enemyRandom()) + 1) * 2;  /* 2-20 */
         if (hasLineOfSight(e->x, e->y, playerX, playerY)) {
-            g_lastEnemyDamage = damage;
+            g_lastEnemyDamage += damage;
+            if (g_lastEnemyDamage > 25) g_lastEnemyDamage = 25;  /* per-frame cap */
             /* Compute damage direction */
             {
                 s16 angleToEnemy = (256 - fixedAtan2(dy, dx)) & 1023;
@@ -809,6 +1085,15 @@ void updateEnemies(u16 playerX, u16 playerY, s16 playerA) {
         dy = (s16)playerY - (s16)e->y;
         dist = ((s32)dx * dx + (s32)dy * dy) >> 8;
 
+        /* Throttle distant WALK-state enemies only.
+         * Keep ATTACK/reaction states full-rate so close combat remains responsive. */
+        if (dist > ENEMY_FAR_DIST_SQ && (g_levelFrames & 3) != 0
+            && e->state == ES_WALK) {
+            e->animTimer++;
+            if (e->stateTimer > 0) e->stateTimer++;
+            continue;
+        }
+
         switch (e->state) {
         case ES_IDLE: {
             if (dist < (s32)ENEMY_SIGHT_DIST) {
@@ -824,11 +1109,11 @@ void updateEnemies(u16 playerX, u16 playerY, s16 playerA) {
                     u8 sdist = (u8)(d > 4080 ? 255 : d >> 4);
                     if (sdist == 0) sdist = 1;
                     if (e->enemyType == ETYPE_IMP)
-                        playEnemySFX(SFX_IMP_SIGHT1 + (enemyRandom() & 1), sdist);
+                        playEnemySFX(SFX_IMP_SIGHT1, sdist);
                     else if (e->enemyType == ETYPE_DEMON)
                         playEnemySFX(SFX_PINKY_SIGHT, sdist);
                     else
-                        playEnemySFX(SFX_POSSESSED_SIGHT1 + (enemyRandom() % 3), sdist);
+                        playEnemySFX(SFX_POSSESSED_SIGHT1, sdist);
                 }
             }
             break;

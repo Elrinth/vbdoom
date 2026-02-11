@@ -7,6 +7,7 @@
 #include "sndplay.h"
 #include "../assets/audio/doom_sfx.h"
 #include "doomstage.h"
+#include "RayCaster.h"
 #include "RayCasterRenderer.h"
 #include "RayCasterFixed.h"
 #include "enemy.h"
@@ -22,6 +23,7 @@
 #include "projectile.h"
 #include "door.h"
 #include "intermission.h"
+#include "menu_options.h"
 extern BYTE FontTiles[];
 #include <stdint.h>
 #include <stdbool.h>
@@ -32,12 +34,22 @@ int rand(void);  /* forward declaration -- avoids pulling in full stdlib */
 extern u8 g_map[];
 extern const u8 e1m1_map[];
 extern const u8 e1m2_map[];
+extern const u8 e1m3_map[];
+extern const u8 e1m4_map[];
 
 /* Player spawn positions (must match RayCasterData.h / e1m2.h) */
 #define E1M1_SPAWN_X  (15 * 256 + 128)
 #define E1M1_SPAWN_Y  (28 * 256 + 128)
 #define E1M2_SPAWN_X  (15 * 256 + 128)
 #define E1M2_SPAWN_Y  (28 * 256 + 128)
+#define E1M3_SPAWN_X  (15 * 256 + 128)
+#define E1M3_SPAWN_Y  (28 * 256 + 128)
+/* VBDOOM_LEVEL_FORMAT 1 */
+/* e1m4 spawn and level data */
+#define E1M4_SPAWN_X  (30 * 256 + 128)
+#define E1M4_SPAWN_Y  (30 * 256 + 128)
+#define E1M4_SPAWN2_X (30 * 256 + 128)
+#define E1M4_SPAWN2_Y (27 * 256 + 128)
 
 /* Precomputed constants -- no runtime float math needed.
  * fixedAngleRatioz = FTOFIX23_9(512.0f/360.0f) = 729
@@ -169,6 +181,9 @@ static void autoSwitchOnEmpty(void) {
 	}
 }
 
+/* Set to 4 (or 2, 3, etc.) to start at that level for debugging. Use 1 for normal play. */
+#define START_LEVEL 4
+
 u8 currentLevel = 1;
 
 /* Restore all game worlds, palettes, BGMaps, and VRAM tile data.
@@ -208,7 +223,7 @@ static void restoreGameDisplay(u8 doomface, u8 weapon) {
 	vbSetWorld(21, WRLD_ON|LAYER_WEAPON,       0, 0, 0, 0, 0, 0, 136, 128);
 	vbSetWorld(20, WRLD_ON|LAYER_UI_BLACK,     0, 0, 0, 0, 0, 0, 384, 32);
 	vbSetWorld(19, WRLD_ON|LAYER_UI,           0, 0, 0, 0, 0, 0, 384, 32);
-	vbSetWorld(18, WRLD_ON|(LAYER_UI+1),       0, 0, 0, 0, 0, 0, 384, 32);
+	vbSetWorld(18, 0, 0, 0, 0, 0, 0, 0, 384, 32);  /* disabled: was third HUD layer (BGMap 14), caused even-tile glitch on hardware */
 
 	WA[20].gy = 192;
 	WA[19].gy = 192;
@@ -248,7 +263,7 @@ static void restoreGameDisplay(u8 doomface, u8 weapon) {
 	initPickupBGMaps();
 	loadPickupFrame(0, PICKUP_TILES[PICKUP_AMMO_CLIP]);
 	loadPickupFrame(1, PICKUP_TILES[PICKUP_HEALTH_SMALL]);
-	loadPickupFrame(2, PICKUP_TILES[PICKUP_HEALTH_LARGE]);
+	/* Slot 2 removed: overlaps WALL_TEX_CHAR_START (char 1327) */
 
 	/* Face + weapon sprites */
 	loadFaceFrame(doomface);
@@ -269,7 +284,9 @@ void loadLevel(u8 levelNum) {
 	g_levelComplete = 0;
 
 	if (levelNum == 1) {
-		copymem((u8*)g_map, (u8*)e1m1_map, 1024);
+		{ u16 row; for (row = 0; row < 32; row++) copymem((u8*)g_map + row * MAP_X, (const u8*)e1m1_map + row * 32, 32); }
+		{ u16 i; for (i = 32 * MAP_X; i < MAP_CELLS; i++) ((u8*)g_map)[i] = 0; }
+		{ u16 row; for (row = 0; row < 32; row++) { u16 c; for (c = 32; c < MAP_X; c++) ((u8*)g_map)[row * MAP_X + c] = 0; } }
 		fPlayerX = E1M1_SPAWN_X;
 		fPlayerY = E1M1_SPAWN_Y;
 		fPlayerAng = 512;  /* face south */
@@ -281,7 +298,9 @@ void loadLevel(u8 levelNum) {
 		registerSwitch(27, 3, SW_EXIT, 0);   /* exit switch */
 		registerSwitch(18, 10, SW_DOOR, 1);  /* opens armor room door */
 	} else if (levelNum == 2) {
-		copymem((u8*)g_map, (u8*)e1m2_map, 1024);
+		{ u16 row; for (row = 0; row < 32; row++) copymem((u8*)g_map + row * MAP_X, (const u8*)e1m2_map + row * 32, 32); }
+		{ u16 i; for (i = 32 * MAP_X; i < MAP_CELLS; i++) ((u8*)g_map)[i] = 0; }
+		{ u16 row; for (row = 0; row < 32; row++) { u16 c; for (c = 32; c < MAP_X; c++) ((u8*)g_map)[row * MAP_X + c] = 0; } }
 		fPlayerX = E1M2_SPAWN_X;
 		fPlayerY = E1M2_SPAWN_Y;
 		fPlayerAng = 512;  /* face south */
@@ -294,7 +313,77 @@ void loadLevel(u8 levelNum) {
 		registerDoor(26, 19);  /* east armory */
 		registerSwitch(28, 3, SW_EXIT, 0);   /* exit switch */
 		registerSwitch(4, 4, SW_DOOR, 1);    /* opens weapon closet door */
-	}
+	} else if (levelNum == 3) {
+		{ u16 row; for (row = 0; row < 32; row++) copymem((u8*)g_map + row * MAP_X, (const u8*)e1m3_map + row * 32, 32); }
+		{ u16 i; for (i = 32 * MAP_X; i < MAP_CELLS; i++) ((u8*)g_map)[i] = 0; }
+		{ u16 row; for (row = 0; row < 32; row++) { u16 c; for (c = 32; c < MAP_X; c++) ((u8*)g_map)[row * MAP_X + c] = 0; } }
+		fPlayerX = E1M3_SPAWN_X;
+		fPlayerY = E1M3_SPAWN_Y;
+		fPlayerAng = 0;  /* face north */
+		initEnemiesE1M3();
+		initPickupsE1M3();
+		initDoors();
+		registerDoor(15, 21);  /* center passage south corridor to central area */
+		registerDoor(5, 14);   /* west wing entrance */
+		registerDoor(26, 14);  /* east wing entrance */
+		registerDoor(15, 7);   /* north gate arena to command center */
+		registerDoor(4, 7);    /* hidden armory entrance (switch-opened) */
+		registerDoor(28, 5);   /* locked tech room (switch-opened) */
+		registerSwitch(15, 3, SW_EXIT, 0);   /* exit switch */
+		registerSwitch(10, 10, SW_DOOR, 4);  /* opens hidden armory door */
+		registerSwitch(20, 10, SW_DOOR, 5);  /* opens locked tech room door */
+	} else if (levelNum == 4) {
+		{ u16 row; for (row = 0; row < 32; row++) copymem((u8*)g_map + row * MAP_X, (const u8*)e1m4_map + row * 32, 32); }
+    	{ u16 i; for (i = 32 * MAP_X; i < MAP_CELLS; i++) ((u8*)g_map)[i] = 0; }
+    	{ u16 row; for (row = 0; row < 32; row++) { u16 c; for (c = 32; c < MAP_X; c++) ((u8*)g_map)[row * MAP_X + c] = 0; } }
+    	/* E1M4: use SPAWN 1 only (tile 30,30). E1M4_SPAWN2_X/Y (30,27) is unused. */
+    	fPlayerX = E1M4_SPAWN_X;
+    	fPlayerY = E1M4_SPAWN_Y;
+    	fPlayerAng = 768;
+    	initEnemiesE1M4();
+    	initPickupsE1M4();
+    	initDoors();
+    	registerDoor(13, 1);
+    	registerDoor(25, 10);   /* was 26,10: door tile is at (25,10) in map */
+    	registerDoor(13, 11);
+    	registerDoor(22, 16);
+    	registerDoor(14, 17);
+    	registerDoor(28, 18);   /* was 29,18: door tile is at (28,18) in map */
+    	registerDoor(16, 19);
+    	registerDoor(23, 19);
+    	registerDoor(6, 21);
+    	registerDoor(17, 21);
+    	registerDoor(3, 23);
+    	registerDoor(18, 24);
+    	registerDoor(13, 25);
+    	registerDoor(15, 25);
+    	registerDoor(16, 25);
+    	registerDoor(23, 26);
+    	registerDoor(27, 28);   /* door index 16: spawn room exit (27,28) in map */
+    	registerDoor(17, 29);
+    	registerSwitch(29, 0, SW_DOOR, 5);
+    	registerSwitch(0, 21, SW_EXIT, 0);
+	} else if (levelNum == 5 || levelNum == 6) {
+     		/* Placeholder: reuse E1M3 until e1m4/e1m5/e1m6 maps and inits are added */
+     		{ u16 row; for (row = 0; row < 32; row++) copymem((u8*)g_map + row * MAP_X, (const u8*)e1m3_map + row * 32, 32); }
+     		{ u16 i; for (i = 32 * MAP_X; i < MAP_CELLS; i++) ((u8*)g_map)[i] = 0; }
+     		{ u16 row; for (row = 0; row < 32; row++) { u16 c; for (c = 32; c < MAP_X; c++) ((u8*)g_map)[row * MAP_X + c] = 0; } }
+     		fPlayerX = E1M3_SPAWN_X;
+     		fPlayerY = E1M3_SPAWN_Y;
+     		fPlayerAng = 0;
+     		initEnemiesE1M3();
+     		initPickupsE1M3();
+     		initDoors();
+     		registerDoor(15, 21);
+     		registerDoor(5, 14);
+     		registerDoor(26, 14);
+     		registerDoor(15, 7);
+     		registerDoor(4, 7);
+     		registerDoor(28, 5);
+     		registerSwitch(15, 3, SW_EXIT, 0);
+     		registerSwitch(10, 10, SW_DOOR, 4);
+     		registerSwitch(20, 10, SW_DOOR, 5);
+     	}
 
 	/* Reset particles and projectiles for the new level */
 	initParticles();
@@ -324,6 +413,11 @@ void loadLevel(u8 levelNum) {
 		/* E1M2: weapon closet (3,16) is a secret */
 		g_secrets[0].tx = 3;  g_secrets[0].ty = 16;
 		g_totalSecrets = 1;
+	} else if (levelNum == 3) {
+		/* E1M3: hidden armory (2,4) and locked tech room (29,3) */
+		g_secrets[0].tx = 2;  g_secrets[0].ty = 4;
+		g_secrets[1].tx = 29; g_secrets[1].ty = 3;
+		g_totalSecrets = 2;
 	}
 	{
 		u8 ei;
@@ -336,7 +430,11 @@ void loadLevel(u8 levelNum) {
 	{
 		u8 pi;
 		for (pi = 0; pi < MAX_PICKUPS; pi++) {
-			if (g_pickups[pi].active) g_totalItems++;
+			if (g_pickups[pi].active) {
+				u8 t = g_pickups[pi].type;
+				if (t == PICKUP_WEAPON_SHOTGUN || t == PICKUP_HELMET || t == PICKUP_WEAPON_ROCKET)
+					g_totalItems++;
+			}
 		}
 	}
 }
@@ -379,8 +477,7 @@ u8 gameLoop()
 	vbSetWorld(21, WRLD_ON|LAYER_WEAPON, 					0, 0, 0, 0, 0, 0, 136, 128); // weapon
 	vbSetWorld(20, WRLD_ON|LAYER_UI_BLACK, 					0, 0, 0, 0, 0, 0, 384, 32); // ui black
 	vbSetWorld(19, WRLD_ON|LAYER_UI, 						0, 0, 0, 0, 0, 0, 384, 32); // ui
-
-	vbSetWorld(18, WRLD_ON|(LAYER_UI+1), 					0, 0, 0, 0, 0, 0, 384, 32); // ui
+	vbSetWorld(18, 0, 0, 0, 0, 0, 0, 0, 384, 32);  /* disabled: third HUD layer caused even-tile glitch on hardware */
 
 	// ui position starts at pixel y 192, we use 2 layers because we wanna use all 4 colors
 	WA[20].gy = 192;
@@ -390,7 +487,7 @@ u8 gameLoop()
 	WA[17].head = WRLD_END;
 
 	loadDoomGfxToMem();
-	loadLevel(1);              /* copy E1M1 map, init enemies/pickups/doors/particles */
+	loadLevel(START_LEVEL);     /* START_LEVEL: 1=normal, 4=E1M4 debug, etc. */
 	loadParticleTiles();
 
     vbDisplayShow();
@@ -407,6 +504,18 @@ u8 gameLoop()
 	u8 currentHealth = 100;
 	u16 currentArmour = 0;
 	u8 armorType = 0;  /* 0=none, 1=green (1/3 absorb), 2=blue (1/2 absorb) */
+
+	/* HUD dirty tracking: only redraw when value changed (avoids redundant BGMap/copymem) */
+	u16 lastHealth = 0xFFFF;
+	u16 lastArmour = 0xFFFF;
+	u8 lastHasPistol = 0xFF;
+	u8 lastHasShotgun = 0xFF;
+	u8 lastHasRocket = 0xFF;
+	u8 lastCurrentWeapon = 0xFF;
+	u16 lastCurrentAmmo = 0xFFFF;
+	u16 lastPistolAmmo = 0xFFFF;
+	u16 lastShotgunAmmo = 0xFFFF;
+	u16 lastRocketAmmo = 0xFFFF;
 
 	VIP_REGS[GPLT0] = 0xE4;	/* Set 1st palettes to: 11100100 */
 	VIP_REGS[GPLT1] = 0x00;	/* (i.e. "Normal" dark to light progression.) */
@@ -444,7 +553,7 @@ u8 gameLoop()
 	/* Pre-load one of each pickup type into char slots */
 	loadPickupFrame(0, PICKUP_TILES[PICKUP_AMMO_CLIP]);
 	loadPickupFrame(1, PICKUP_TILES[PICKUP_HEALTH_SMALL]);
-	loadPickupFrame(2, PICKUP_TILES[PICKUP_HEALTH_LARGE]);
+	/* Slot 2 removed: overlaps WALL_TEX_CHAR_START (char 1327) */
 
 	/* Load default face tiles into char memory (dynamic per-face loading) */
 	loadFaceFrame(1);  /* start with center-looking idle face */
@@ -466,14 +575,29 @@ u8 gameLoop()
 	drawHealth(currentHealth);
 	drawArmour((u8)currentArmour);
 	highlightWeaponHUD(currentWeapon);
-
-
+	lastHealth = currentHealth;
+	lastArmour = currentArmour;
+	lastHasPistol = weapons[W_PISTOL].hasWeapon;
+	lastHasShotgun = weapons[W_SHOTGUN].hasWeapon;
+	lastHasRocket = weapons[W_ROCKET].hasWeapon;
+	lastCurrentWeapon = currentWeapon;
+	lastCurrentAmmo = weapons[currentWeapon].ammo;
+	lastPistolAmmo = weapons[W_PISTOL].ammo;
+	lastShotgunAmmo = weapons[W_SHOTGUN].ammo;
+	lastRocketAmmo = weapons[W_ROCKET].ammo;
 
 	drawDoomFace(&doomface);
+	resetWeaponDrawState();  /* force full redraw after VRAM init */
 	drawWeapon(currentWeapon, swayXTBL[weaponSwayIndex], swayYTBL[weaponSwayIndex], weaponAnimation, 0);
 	u16 keyInputs;
 	u16 prevKeyInputs = 0;
 	u16 keyPressed; /* newly pressed this frame (edge detection) */
+
+	/* Settings struct for in-game options screen (pause) */
+	Settings pauseSettings;
+	pauseSettings.sfx = (u8)((u16)g_sfxVolume * 9 / 15);
+	pauseSettings.music = g_musicSetting;
+	pauseSettings.rumble = 0;
 
 	/* mp_init() already called in main.c before title screen */
 	while(1) {
@@ -587,20 +711,27 @@ u8 gameLoop()
 					autoSwitchOnEmpty();
 				}
 		} else {
-		 	weaponAnimation = 1; // punch!?
-			/* Fist punch - cast ray and spawn puff on wall if within melee range */
+		 	weaponAnimation = 1; // punch!
+			isShooting = true;
+			playPlayerSFX(SFX_PUNCH);
+			/* Try to hit an enemy first */
 			{
-				s16 wallHitX, wallHitY;
-				s16 dx, dy;
-				s32 dist2;
-				CastRayHitPos(fPlayerX, fPlayerY, (u16)fPlayerAng & 1023, &wallHitX, &wallHitY);
-				dx = wallHitX - (s16)fPlayerX;
-				dy = wallHitY - (s16)fPlayerY;
-				dist2 = (s32)dx * dx + (s32)dy * dy;
-				/* Only spawn puff + punch sound if wall is within melee range (~80 units) */
-				if (dist2 < (s32)80 * 80) {
-					spawnPuff(wallHitX, wallHitY);
-					playPlayerSFX(SFX_PUNCH);
+				u8 hitIdx = playerShoot(fPlayerX, fPlayerY, fPlayerAng, currentWeapon);
+				if (ENEMY_JUST_KILLED(hitIdx)) {
+					killFaceTimer = 30;
+				}
+				if (hitIdx == 255) {
+					/* No enemy hit -- check wall for puff within melee range */
+					s16 wallHitX, wallHitY;
+					s16 dx, dy;
+					s32 dist2;
+					CastRayHitPos(fPlayerX, fPlayerY, (u16)fPlayerAng & 1023, &wallHitX, &wallHitY);
+					dx = wallHitX - (s16)fPlayerX;
+					dy = wallHitY - (s16)fPlayerY;
+					dist2 = (s32)dx * dx + (s32)dy * dy;
+					if (dist2 < (s32)80 * 80) {
+						spawnPuff(wallHitX, wallHitY);
+					}
 				}
 			}
 		}
@@ -640,14 +771,62 @@ u8 gameLoop()
 			drawDoomStage(0);
 		}*/
 		/* Door/switch activation (Select button -- requires fresh press) */
+		UpdateCenterRay(fPlayerX, fPlayerY, fPlayerAng);
 		if (keyPressed & K_SEL) {
-			u8 activateResult = playerActivate(fPlayerX, fPlayerY, fPlayerAng);
+			u8 activateResult = playerActivate(fPlayerX, fPlayerY, fPlayerAng, currentLevel);
 			if (activateResult == 2) {
 				/* Hit a non-interactive wall -- play "umf" sound */
 				playPlayerSFX(SFX_PLAYER_UMF);
 			}
 			/* activateResult == 1: door/switch activated (sound in door.c) */
 			/* activateResult == 0: nothing in range, no sound */
+		}
+
+		/* In-game pause: Start button opens options screen */
+		if (keyPressed & K_STA) {
+			optionsScreen(&pauseSettings);
+
+			/* Update volumes from potentially changed settings */
+			g_sfxVolume = (u8)((u16)pauseSettings.sfx * 15 / 9);
+			g_musicSetting = pauseSettings.music;
+			g_musicVolume = musicVolFromSetting(pauseSettings.music);
+
+			/* Restore all game VRAM, worlds, palettes, BGMaps */
+			restoreGameDisplay(doomface, currentWeapon);
+
+			/* Re-draw the full HUD (dirty flags will force health/armour/slots on next frame) */
+			drawDoomUI(LAYER_UI, 0, 0);
+			drawUpdatedAmmo(weapons[currentWeapon].ammo, weapons[currentWeapon].ammoType);
+			drawSmallAmmo(weapons[W_PISTOL].ammo, 1);
+			drawSmallAmmo(weapons[W_SHOTGUN].ammo, 2);
+			drawSmallAmmo(weapons[W_ROCKET].ammo, 3);
+			lastHealth = 0xFFFF;
+			lastArmour = 0xFFFF;
+			lastHasPistol = 0xFF;
+			lastHasShotgun = 0xFF;
+			lastHasRocket = 0xFF;
+			lastCurrentWeapon = 0xFF;
+			lastCurrentAmmo = weapons[currentWeapon].ammo;
+			lastPistolAmmo = weapons[W_PISTOL].ammo;
+			lastShotgunAmmo = weapons[W_SHOTGUN].ammo;
+			lastRocketAmmo = weapons[W_ROCKET].ammo;
+			highlightWeaponHUD(currentWeapon);
+			drawDoomFace(&doomface);
+			resetWeaponDrawState();  /* force full redraw after pause return */
+			drawWeapon(currentWeapon, swayXTBL[weaponSwayIndex], swayYTBL[weaponSwayIndex], weaponAnimation, 0);
+
+			/* Re-apply palettes */
+			VIP_REGS[GPLT0] = 0xE4;
+			VIP_REGS[GPLT1] = 0x00;
+			VIP_REGS[GPLT2] = 0x84;
+			VIP_REGS[GPLT3] = 0xE4;
+			VIP_REGS[JPLT0] = 0xE4;
+			VIP_REGS[JPLT1] = 0xE4;
+			VIP_REGS[JPLT2] = 0xE4;
+			VIP_REGS[JPLT3] = 0xE4;
+
+			/* Reset input state to avoid leftover button press */
+			prevKeyInputs = 0xFFFF;
 		}
 
 		/* Update door animations */
@@ -671,7 +850,7 @@ u8 gameLoop()
 			u8 shellAmmo = weapons[3].ammo;   /* shotgun shells */
 		if (updatePickups(fPlayerX, fPlayerY, &pickupAmmo, &currentHealth,
 		                  &currentArmour, &armorType, &shellAmmo)) {
-			/* Something was picked up - update ammo and HUD */
+			/* Something was picked up - update ammo and HUD (health/armour redrawn by per-frame dirty check) */
 			weapons[2].ammo = pickupAmmo;
 			weapons[3].ammo = shellAmmo;
 			/* Update big numbers (left side) for current weapon */
@@ -680,8 +859,6 @@ u8 gameLoop()
 			drawSmallAmmo(weapons[2].ammo, 1);  /* BULL */
 			drawSmallAmmo(weapons[3].ammo, 2);  /* SHEL */
 			drawSmallAmmo(weapons[4].ammo, 3);  /* RCKT */
-			drawHealth(currentHealth);
-			drawArmour((u8)currentArmour);
 		}
 			/* Handle weapon pickups */
 			if (g_pickedUpWeapon > 0) {
@@ -697,10 +874,10 @@ u8 gameLoop()
 				else
 					loadShotgunSprites();
 				drawUpdatedAmmo(weapons[currentWeapon].ammo, weapons[currentWeapon].ammoType);
-				drawWeaponSlotNumbers(weapons[W_PISTOL].hasWeapon,
-				                     weapons[W_SHOTGUN].hasWeapon,
-				                     weapons[W_ROCKET].hasWeapon,
-				                     currentWeapon);
+				lastHasPistol = 0xFF;
+				lastHasShotgun = 0xFF;
+				lastHasRocket = 0xFF;
+				lastCurrentWeapon = 0xFF;
 				highlightWeaponHUD(currentWeapon);
 				weaponAnimation = 0;
 				updatePistolCount = 0;
@@ -729,11 +906,27 @@ u8 gameLoop()
 		/* Compute 3 closest active enemies for rendering.
 		 * Alive enemies always have priority over dead ones. */
 		{
-			static u8 lastSlotEnemy[MAX_VISIBLE_ENEMIES] = {255,255,255};
+			static u8 lastSlotEnemy[MAX_VISIBLE_ENEMIES] = {255,255,255,255,255};
+			/* Cached line-of-sight results: only recompute every 4 frames */
+			static bool losCache[MAX_ENEMIES];
+			static u8 losInited = 0;
 			u8 ei, vi;
 			u32 dists[MAX_ENEMIES];
 			u8 sorted[MAX_ENEMIES];
 			u8 activeCount = 0;
+			u8 doLosCheck;
+			u8 doVisibilityRefresh;
+
+			/* New level: invalidate visibility/LOS caches cleanly. */
+			if (g_levelFrames == 0) {
+				losInited = 0;
+				for (ei = 0; ei < MAX_ENEMIES; ei++) {
+					losCache[ei] = false;
+				}
+			}
+			doLosCheck = ((g_levelFrames & 3) == 0) || !losInited;
+			doVisibilityRefresh = ((g_levelFrames & 1) == 0) || (g_numVisibleEnemies == 0) || !losInited;
+			if (!losInited) losInited = 1;
 
 			/* Forward vector from player angle (octant approximation).
 			 * Used to detect enemies behind the player so they don't
@@ -742,56 +935,72 @@ u8 gameLoop()
 			static const s8 fwdY[8] = { 1, 1, 0,-1,-1,-1, 0, 1};
 			u8 fwdOct = ((u16)(fPlayerAng + 64) >> 7) & 7;
 
-			/* Compute squared distance for all active enemies.
-			 * Priority tiers (lower = higher priority):
-			 *   visible alive       -> raw distance
-			 *   visible dead        -> distance + 0x40000000
-			 *   not-visible alive   -> distance + 0x80000000
-			 *   not-visible dead    -> distance + 0xC0000000
-			 * "Not-visible" = behind player OR blocked by a wall. */
-			for (ei = 0; ei < MAX_ENEMIES; ei++) {
-				if (!g_enemies[ei].active) continue;
-				{
-					s16 dx = (s16)g_enemies[ei].x - (s16)fPlayerX;
-					s16 dy = (s16)g_enemies[ei].y - (s16)fPlayerY;
-					u32 d = ((u32)((s32)dx * dx + (s32)dy * dy)) >> 8;
-					bool visible = true;
-					/* Cheap check first: behind player? */
-					s32 dot = (s32)dx * fwdX[fwdOct] + (s32)dy * fwdY[fwdOct];
-					if (dot <= 0) {
-						visible = false;
-					} else if (!hasLineOfSight(fPlayerX, fPlayerY,
-								g_enemies[ei].x, g_enemies[ei].y)) {
-						visible = false;
+			if (doVisibilityRefresh) {
+				/* Compute squared distance for all active enemies.
+				 * Priority tiers (lower = higher priority):
+				 *   visible alive       -> raw distance
+				 *   visible dead        -> distance + 0x40000000
+				 *   not-visible alive   -> distance + 0x80000000
+				 *   not-visible dead    -> distance + 0xC0000000
+				 * "Not-visible" = behind player OR blocked by a wall.
+				 * hasLineOfSight is expensive (Bresenham walk); only recheck every 4 frames. */
+				for (ei = 0; ei < MAX_ENEMIES; ei++) {
+					if (!g_enemies[ei].active) continue;
+					{
+						s16 dx = (s16)g_enemies[ei].x - (s16)fPlayerX;
+						s16 dy = (s16)g_enemies[ei].y - (s16)fPlayerY;
+						u32 d = ((u32)((s32)dx * dx + (s32)dy * dy)) >> 8;
+						bool visible = true;
+						/* Cheap check first: behind player? */
+						s32 dot = (s32)dx * fwdX[fwdOct] + (s32)dy * fwdY[fwdOct];
+						if (dot <= 0) {
+							visible = false;
+						} else if (doLosCheck) {
+							/* Full LOS check: only every 4 frames */
+							if (!hasLineOfSight(fPlayerX, fPlayerY,
+										g_enemies[ei].x, g_enemies[ei].y)) {
+								visible = false;
+							}
+							losCache[ei] = visible;
+						} else {
+							/* Use cached result */
+							visible = losCache[ei];
+						}
+						if (g_enemies[ei].state == ES_DEAD)
+							d += visible ? 0x40000000u : 0xC0000000u;
+						else if (!visible)
+							d += 0x80000000u;
+						dists[activeCount] = d;
+						sorted[activeCount] = ei;
+						activeCount++;
 					}
-					if (g_enemies[ei].state == ES_DEAD)
-						d += visible ? 0x40000000u : 0xC0000000u;
-					else if (!visible)
-						d += 0x80000000u;
-					dists[activeCount] = d;
-					sorted[activeCount] = ei;
-					activeCount++;
 				}
-			}
 
-			/* Simple selection sort for top 3 closest */
-			{
-				u8 j, minIdx;
-				u32 minDist;
-				for (vi = 0; vi < activeCount && vi < MAX_VISIBLE_ENEMIES; vi++) {
-					minIdx = vi;
-					minDist = dists[vi];
-					for (j = vi + 1; j < activeCount; j++) {
-						if (dists[j] < minDist) {
-							minDist = dists[j];
-							minIdx = j;
+				/* Simple selection sort for top N closest */
+				{
+					u8 j, minIdx;
+					u32 minDist;
+					for (vi = 0; vi < activeCount && vi < MAX_VISIBLE_ENEMIES; vi++) {
+						minIdx = vi;
+						minDist = dists[vi];
+						for (j = vi + 1; j < activeCount; j++) {
+							if (dists[j] < minDist) {
+								minDist = dists[j];
+								minIdx = j;
+							}
+						}
+						if (minIdx != vi) {
+							/* Swap */
+							u32 tmpD = dists[vi]; dists[vi] = dists[minIdx]; dists[minIdx] = tmpD;
+							u8 tmpI = sorted[vi]; sorted[vi] = sorted[minIdx]; sorted[minIdx] = tmpI;
 						}
 					}
-					if (minIdx != vi) {
-						/* Swap */
-						u32 tmpD = dists[vi]; dists[vi] = dists[minIdx]; dists[minIdx] = tmpD;
-						u8 tmpI = sorted[vi]; sorted[vi] = sorted[minIdx]; sorted[minIdx] = tmpI;
-					}
+				}
+			} else {
+				/* Reuse previous visible ordering on alternate frames. */
+				activeCount = g_numVisibleEnemies;
+				for (vi = 0; vi < g_numVisibleEnemies && vi < MAX_VISIBLE_ENEMIES; vi++) {
+					sorted[vi] = g_visibleEnemies[vi];
 				}
 			}
 
@@ -855,20 +1064,18 @@ u8 gameLoop()
 					if (armorType >= 2)
 						armorAbsorb = dmg >> 1;     /* blue: absorb 1/2 */
 					else
-						armorAbsorb = dmg / 3;      /* green: absorb 1/3 */
+						armorAbsorb = (dmg + 2) / 3;  /* green: absorb 1/3, round up */
 					if (armorAbsorb > (u8)currentArmour) armorAbsorb = (u8)currentArmour;
 					currentArmour -= armorAbsorb;
 					dmg -= armorAbsorb;
 					if (currentArmour == 0) armorType = 0;
-					drawArmour((u8)currentArmour);
 				}
 
-				/* Apply damage to player health */
+				/* Apply damage to player health (HUD redrawn by per-frame dirty check) */
 				if (dmg >= currentHealth)
 					currentHealth = 0;
 				else
 					currentHealth -= dmg;
-				drawHealth(currentHealth);
 
 				/* Player pain/death sound */
 				if (currentHealth == 0)
@@ -945,7 +1152,7 @@ u8 gameLoop()
 				isShooting = true;
 			}
 			updatePistolCount++;
-			if (updatePistolCount > 3) {
+			if (updatePistolCount > 1) {
 				weaponAnimation++;
 				if (weaponAnimation >= weapons[currentWeapon].attackFrames) {
 					isShooting = false;
@@ -1006,6 +1213,8 @@ u8 gameLoop()
 
 		/* Debug: draws player X, Y, angle over the HUD.
 		 * Uncomment to re-enable: drawPlayerInfo(&fPlayerX, &fPlayerY, &fPlayerAng); */
+		drawUseTargetDebug(g_centerWallTileX, g_centerWallTileY,
+			(g_centerWallType == 4 || (g_centerWallType >= 6 && g_centerWallType <= 11)) ? 1u : 0u);
 
 		/* Screen flash effect (pickup or damage) */
 		if (g_flashTimer > 0) {
@@ -1034,27 +1243,34 @@ u8 gameLoop()
 		//vbWaitFrame(0); /* Sync to VBlank for tear-free display */
 
 		/* ---- Level transition ---- */
-		if (g_levelComplete && currentLevel < 2) {
+		if (g_levelComplete && currentLevel < 6) {
+			/* Stop level music before transition */
+			musicStop();
 			/* Fade out current level */
 			vbFXFadeOut(0);
 			vbWaitFrame(10);
 
-			/* Show intermission screen (le_map with bleed-down effect) */
-			showIntermission();
-
-			/* Show level completion stats (kills, items, secrets, time) */
+			/* Show level completion stats first (kills, items, secrets, time) */
 			showLevelStats();
+
+			/* Advance currentLevel so the intermission map skull shows the NEXT level */
+			currentLevel++;
+
+			/* Then show intermission map (le_map with bleed-down effect) */
+			showIntermission();
 
 			/* Switch music to next level's song */
 			{
-				u8 nextLevel = currentLevel + 1;
-				if (nextLevel == 2) musicLoadSong(SONG_E1M2);
-				else if (nextLevel == 3) musicLoadSong(SONG_E1M3);
+				if (currentLevel == 2) musicLoadSong(SONG_E1M2);
+				else if (currentLevel == 3) musicLoadSong(SONG_E1M3);
+				else if (currentLevel == 4) musicLoadSong(SONG_E1M3);  /* E1M4 uses E1M3 until e1m4.mid added */
+				else if (currentLevel == 5) musicLoadSong(SONG_E1M5);
+				else if (currentLevel == 6) musicLoadSong(SONG_E1M6);
 				musicStart();
 			}
 
 			/* Load next level (map, enemies, pickups, doors, particles) */
-			loadLevel(currentLevel + 1);
+			loadLevel(currentLevel);
 
 			/* Restore all game VRAM, worlds, palettes, BGMaps
 			 * (intermission overwrote them with le_map data) */
@@ -1067,20 +1283,25 @@ u8 gameLoop()
 			weaponSwayIndex = 0;
 			walkSwayIndex = 0;
 
-			/* Re-draw HUD (weapons, ammo, health carry over) */
+			/* Re-draw HUD (weapons, ammo, health carry over; health/armour/slots via per-frame dirty check) */
 			drawDoomUI(LAYER_UI, 0, 0);
 			drawUpdatedAmmo(weapons[currentWeapon].ammo, weapons[currentWeapon].ammoType);
 			drawSmallAmmo(weapons[W_PISTOL].ammo, 1);
 			drawSmallAmmo(weapons[W_SHOTGUN].ammo, 2);
 			drawSmallAmmo(weapons[W_ROCKET].ammo, 3);
-			drawWeaponSlotNumbers(weapons[W_PISTOL].hasWeapon,
-			                     weapons[W_SHOTGUN].hasWeapon,
-			                     weapons[W_ROCKET].hasWeapon,
-			                     currentWeapon);
-			drawHealth(currentHealth);
-			drawArmour((u8)currentArmour);
+			lastHealth = 0xFFFF;
+			lastArmour = 0xFFFF;
+			lastHasPistol = 0xFF;
+			lastHasShotgun = 0xFF;
+			lastHasRocket = 0xFF;
+			lastCurrentWeapon = 0xFF;
+			lastCurrentAmmo = weapons[currentWeapon].ammo;
+			lastPistolAmmo = weapons[W_PISTOL].ammo;
+			lastShotgunAmmo = weapons[W_SHOTGUN].ammo;
+			lastRocketAmmo = weapons[W_ROCKET].ammo;
 			highlightWeaponHUD(currentWeapon);
 			drawDoomFace(&doomface);
+			resetWeaponDrawState();  /* force full redraw after level transition */
 			drawWeapon(currentWeapon, swayXTBL[weaponSwayIndex], swayYTBL[weaponSwayIndex], weaponAnimation, 0);
 
 			/* Fade in to new level */
@@ -1097,10 +1318,60 @@ u8 gameLoop()
 			VIP_REGS[JPLT3] = 0xE4;
 		}
 
-		/* Timer-based FPS cap: ensures consistent game speed.
-		 * Uses 100us hardware timer. Default: 50ms = 20fps.
-		 * If frame was faster than target, this blocks until target time.
-		 * If frame was slower, this returns immediately (timer already expired). */
+		/* ---- Episode ending (completed E1M6) ---- */
+		if (g_levelComplete && currentLevel == 6) {
+			musicStop();
+			vbFXFadeOut(0);
+			vbWaitFrame(10);
+			showLevelStats();
+			/* Return to title screen (scene 0 triggers title in main loop) */
+			currentLevel = 1;
+			return 0;
+		}
+
+		/* HUD: redraw health/armour/weapon slots only when values changed */
+		if (currentHealth != lastHealth) {
+			drawHealth(currentHealth);
+			lastHealth = currentHealth;
+		}
+		if (currentArmour != lastArmour) {
+			drawArmour((u8)currentArmour);
+			lastArmour = currentArmour;
+		}
+		if (weapons[W_PISTOL].hasWeapon != lastHasPistol ||
+		    weapons[W_SHOTGUN].hasWeapon != lastHasShotgun ||
+		    weapons[W_ROCKET].hasWeapon != lastHasRocket ||
+		    currentWeapon != lastCurrentWeapon) {
+			drawWeaponSlotNumbers(weapons[W_PISTOL].hasWeapon,
+			                     weapons[W_SHOTGUN].hasWeapon,
+			                     weapons[W_ROCKET].hasWeapon,
+			                     currentWeapon);
+			lastHasPistol = weapons[W_PISTOL].hasWeapon;
+			lastHasShotgun = weapons[W_SHOTGUN].hasWeapon;
+			lastHasRocket = weapons[W_ROCKET].hasWeapon;
+			lastCurrentWeapon = currentWeapon;
+		}
+
+		/* Ammo HUD: redraw only when values changed (saves VRAM writes on real hardware) */
+		if (weapons[currentWeapon].ammo != lastCurrentAmmo) {
+			drawUpdatedAmmo(weapons[currentWeapon].ammo, weapons[currentWeapon].ammoType);
+			lastCurrentAmmo = weapons[currentWeapon].ammo;
+		}
+		if (weapons[W_PISTOL].ammo != lastPistolAmmo) {
+			drawSmallAmmo(weapons[W_PISTOL].ammo, 1);
+			lastPistolAmmo = weapons[W_PISTOL].ammo;
+		}
+		if (weapons[W_SHOTGUN].ammo != lastShotgunAmmo) {
+			drawSmallAmmo(weapons[W_SHOTGUN].ammo, 2);
+			lastShotgunAmmo = weapons[W_SHOTGUN].ammo;
+		}
+		if (weapons[W_ROCKET].ammo != lastRocketAmmo) {
+			drawSmallAmmo(weapons[W_ROCKET].ammo, 3);
+			lastRocketAmmo = weapons[W_ROCKET].ammo;
+		}
+
+		/* Timer-based frame pacing: keeps emulator speed closer to hardware.
+		 * If a frame is already slow on hardware, waitForFrameTimer() returns immediately. */
 		g_levelFrames++;
 		prevKeyInputs = keyInputs;
 		waitForFrameTimer();
