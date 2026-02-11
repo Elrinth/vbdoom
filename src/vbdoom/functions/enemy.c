@@ -2,18 +2,30 @@
 #include <mem.h>
 #include "enemy.h"
 #include "pickup.h"
+#include "projectile.h"
 #include "RayCasterFixed.h"
 #include "RayCaster.h"
 #include "doomgfx.h"
+#include "sndplay.h"
+#include "../assets/audio/doom_sfx.h"
 
 /* Global enemy array */
 EnemyState g_enemies[MAX_ENEMIES];
+
+/* Visible enemy indices (closest 5, sorted by distance) */
+u8 g_visibleEnemies[MAX_VISIBLE_ENEMIES] = {255, 255, 255, 255, 255};
+u8 g_numVisibleEnemies = 0;
 
 /* Damage feedback globals (read+cleared by game loop each frame) */
 u8 g_lastEnemyDamage = 0;
 s8 g_lastEnemyDamageDir = 0;
 
-/* Sound event globals (read+cleared by sndplay.c each frame) */
+/* Kill tracking (for level stats screen) */
+u8 g_enemiesKilled = 0;
+u8 g_totalEnemies = 0;
+
+/* Sound event globals -- kept for backward compatibility but no longer
+ * read by sndplay.c. Direct playEnemySFX() calls are used instead. */
 u8 g_enemySndAggro = 0;
 u8 g_enemySndShoot = 0;
 u8 g_enemySndShootType = 0;
@@ -79,7 +91,7 @@ static s16 fixedAtan2(s16 dy, s16 dx) {
 }
 
 /* ---- Distance helper (returns sqrt-ish approx in fixed-point units) ---- */
-static u16 approxDist(s16 dx, s16 dy) {
+u16 approxDist(s16 dx, s16 dy) {
     u16 adx = (u16)(dx < 0 ? -dx : dx);
     u16 ady = (u16)(dy < 0 ? -dy : dy);
     if (adx > ady) return adx + (ady >> 1);
@@ -200,20 +212,7 @@ static void enemyNewChaseDir(EnemyState *e, u8 idx, u16 playerX, u16 playerY) {
     e->movedir = DI_NODIR;
 }
 
-/* ---- Line-of-sight check ---- */
-static bool hasLineOfSight(u16 px, u16 py, u16 ex, u16 ey) {
-    s16 dx = (s16)ex - (s16)px;
-    s16 dy = (s16)ey - (s16)py;
-    u8 i;
-    for (i = 1; i < 8; i++) {
-        s16 cx = (s16)px + ((dx * i) >> 3);
-        s16 cy = (s16)py + ((dy * i) >> 3);
-        u8 tx = (u8)(cx >> 8);
-        u8 ty = (u8)(cy >> 8);
-        if (IsWall(tx, ty)) return false;
-    }
-    return true;
-}
+/* hasLineOfSight() now provided by RayCasterFixed.c (Bresenham tile-walk) */
 
 /*
  * Doom-style P_CheckMissileRange: determines if an enemy decides to fire.
@@ -239,6 +238,11 @@ static bool checkMissileRange(EnemyState *e, u16 playerX, u16 playerY) {
     dist >>= 2;
     if (dist > 200) dist = 200;
 
+    /* Increase effective distance so enemies fire less often overall.
+     * This adds a base "reluctance" -- even close enemies only fire ~60% of frames. */
+    dist += 100;
+    if (dist > 255) dist = 255;
+
     /* Random check: if random < dist, don't fire (farther = less likely) */
     if (enemyRandom() < (u8)dist) return false;
 
@@ -261,29 +265,199 @@ void initEnemies(void) {
         g_enemies[i].enemyType = ETYPE_ZOMBIEMAN;
     }
 
-    /* Enemy 0: zombieman, main hall */
+    /* Enemy 0: zombieman, main hall south */
     g_enemies[0].x = 15 * 256 + 128;
     g_enemies[0].y = 21 * 256 + 128;
     g_enemies[0].active = true;
-    g_enemies[0].animFrame = 0;
     g_enemies[0].enemyType = ETYPE_ZOMBIEMAN;
     g_enemies[0].health = ZOMBIE_HEALTH;
 
-    /* Enemy 1: zombieman, zigzag room */
-    g_enemies[1].x = 8 * 256 + 128;
-    g_enemies[1].y = 14 * 256 + 128;
+    /* Enemy 1: zombieman, main hall east */
+    g_enemies[1].x = 17 * 256 + 128;
+    g_enemies[1].y = 23 * 256 + 128;
     g_enemies[1].active = true;
-    g_enemies[1].animFrame = 1;
     g_enemies[1].enemyType = ETYPE_ZOMBIEMAN;
     g_enemies[1].health = ZOMBIE_HEALTH;
 
     /* Enemy 2: sergeant (shotgun guy), zigzag room */
-    g_enemies[2].x = 24 * 256 + 128;
-    g_enemies[2].y = 13 * 256 + 128;
+    g_enemies[2].x = 8 * 256 + 128;
+    g_enemies[2].y = 14 * 256 + 128;
     g_enemies[2].active = true;
-    g_enemies[2].animFrame = 2;
     g_enemies[2].enemyType = ETYPE_SERGEANT;
     g_enemies[2].health = SGT_HEALTH;
+
+    /* Enemy 3: zombieman, zigzag room east */
+    g_enemies[3].x = 18 * 256 + 128;
+    g_enemies[3].y = 16 * 256 + 128;
+    g_enemies[3].active = true;
+    g_enemies[3].enemyType = ETYPE_ZOMBIEMAN;
+    g_enemies[3].health = ZOMBIE_HEALTH;
+
+    /* Enemy 4: IMP, zigzag room center */
+    g_enemies[4].x = 12 * 256 + 128;
+    g_enemies[4].y = 15 * 256 + 128;
+    g_enemies[4].active = true;
+    g_enemies[4].enemyType = ETYPE_IMP;
+    g_enemies[4].health = IMP_HEALTH;
+
+    /* Enemy 5: IMP, computer room */
+    g_enemies[5].x = 15 * 256 + 128;
+    g_enemies[5].y = 7 * 256 + 128;
+    g_enemies[5].active = true;
+    g_enemies[5].enemyType = ETYPE_IMP;
+    g_enemies[5].health = IMP_HEALTH;
+
+    /* Enemy 6: zombieman, east side room */
+    g_enemies[6].x = 27 * 256 + 128;
+    g_enemies[6].y = 14 * 256 + 128;
+    g_enemies[6].active = true;
+    g_enemies[6].enemyType = ETYPE_ZOMBIEMAN;
+    g_enemies[6].health = ZOMBIE_HEALTH;
+
+    /* Enemy 7: sergeant, near north door */
+    g_enemies[7].x = 15 * 256 + 128;
+    g_enemies[7].y = 12 * 256 + 128;
+    g_enemies[7].active = true;
+    g_enemies[7].enemyType = ETYPE_SERGEANT;
+    g_enemies[7].health = SGT_HEALTH;
+
+    /* Enemy 8: IMP, exit room guard */
+    g_enemies[8].x = 26 * 256 + 128;
+    g_enemies[8].y = 3 * 256 + 128;
+    g_enemies[8].active = true;
+    g_enemies[8].enemyType = ETYPE_IMP;
+    g_enemies[8].health = IMP_HEALTH;
+
+    /* Enemy 9: zombieman, west side room */
+    g_enemies[9].x = 4 * 256 + 128;
+    g_enemies[9].y = 22 * 256 + 128;
+    g_enemies[9].active = true;
+    g_enemies[9].enemyType = ETYPE_ZOMBIEMAN;
+    g_enemies[9].health = ZOMBIE_HEALTH;
+
+    /* Enemy 10: Demon (Pinky), main hall center */
+    g_enemies[10].x = 14 * 256 + 128;
+    g_enemies[10].y = 18 * 256 + 128;
+    g_enemies[10].active = true;
+    g_enemies[10].enemyType = ETYPE_DEMON;
+    g_enemies[10].health = DEMON_HEALTH;
+
+    /* Enemy 11: Demon (Pinky), computer room south */
+    g_enemies[11].x = 16 * 256 + 128;
+    g_enemies[11].y = 10 * 256 + 128;
+    g_enemies[11].active = true;
+    g_enemies[11].enemyType = ETYPE_DEMON;
+    g_enemies[11].health = DEMON_HEALTH;
+
+    /* Enemy 12: Demon (Pinky), east corridor */
+    g_enemies[12].x = 24 * 256 + 128;
+    g_enemies[12].y = 8 * 256 + 128;
+    g_enemies[12].active = true;
+    g_enemies[12].enemyType = ETYPE_DEMON;
+    g_enemies[12].health = DEMON_HEALTH;
+}
+
+void initEnemiesE1M2(void) {
+    u8 i;
+    for (i = 0; i < MAX_ENEMIES; i++) {
+        g_enemies[i].active = false;
+        g_enemies[i].state = ES_IDLE;
+        g_enemies[i].animFrame = 0;
+        g_enemies[i].animTimer = 0;
+        g_enemies[i].stateTimer = 0;
+        g_enemies[i].lastRenderedFrame = 255;
+        g_enemies[i].health = ZOMBIE_HEALTH;
+        g_enemies[i].angle = 0;
+        g_enemies[i].movedir = DI_NODIR;
+        g_enemies[i].movecount = 0;
+        g_enemies[i].enemyType = ETYPE_ZOMBIEMAN;
+    }
+
+    /* E1M2: Wolfenstein bunker -- guards patrol corridors */
+
+    /* Guard 0: zombieman, south corridor west */
+    g_enemies[0].x = 5 * 256 + 128;
+    g_enemies[0].y = 21 * 256 + 128;
+    g_enemies[0].active = true;
+    g_enemies[0].enemyType = ETYPE_ZOMBIEMAN;
+    g_enemies[0].health = ZOMBIE_HEALTH;
+
+    /* Guard 1: zombieman, south corridor east */
+    g_enemies[1].x = 26 * 256 + 128;
+    g_enemies[1].y = 21 * 256 + 128;
+    g_enemies[1].active = true;
+    g_enemies[1].enemyType = ETYPE_ZOMBIEMAN;
+    g_enemies[1].health = ZOMBIE_HEALTH;
+
+    /* Guard 2: zombieman, central command room */
+    g_enemies[2].x = 12 * 256 + 128;
+    g_enemies[2].y = 10 * 256 + 128;
+    g_enemies[2].active = true;
+    g_enemies[2].enemyType = ETYPE_ZOMBIEMAN;
+    g_enemies[2].health = ZOMBIE_HEALTH;
+
+    /* Guard 3: zombieman, central room east */
+    g_enemies[3].x = 19 * 256 + 128;
+    g_enemies[3].y = 11 * 256 + 128;
+    g_enemies[3].active = true;
+    g_enemies[3].enemyType = ETYPE_ZOMBIEMAN;
+    g_enemies[3].health = ZOMBIE_HEALTH;
+
+    /* Guard 4: sergeant, officer quarters NW */
+    g_enemies[4].x = 5 * 256 + 128;
+    g_enemies[4].y = 3 * 256 + 128;
+    g_enemies[4].active = true;
+    g_enemies[4].enemyType = ETYPE_SERGEANT;
+    g_enemies[4].health = SGT_HEALTH;
+
+    /* Guard 5: sergeant, north corridor */
+    g_enemies[5].x = 15 * 256 + 128;
+    g_enemies[5].y = 8 * 256 + 128;
+    g_enemies[5].active = true;
+    g_enemies[5].enemyType = ETYPE_SERGEANT;
+    g_enemies[5].health = SGT_HEALTH;
+
+    /* Guard 6: IMP, exit room guard */
+    g_enemies[6].x = 26 * 256 + 128;
+    g_enemies[6].y = 4 * 256 + 128;
+    g_enemies[6].active = true;
+    g_enemies[6].enemyType = ETYPE_IMP;
+    g_enemies[6].health = IMP_HEALTH;
+
+    /* Guard 7: zombieman, west barracks */
+    g_enemies[7].x = 4 * 256 + 128;
+    g_enemies[7].y = 16 * 256 + 128;
+    g_enemies[7].active = true;
+    g_enemies[7].enemyType = ETYPE_ZOMBIEMAN;
+    g_enemies[7].health = ZOMBIE_HEALTH;
+
+    /* Guard 8: zombieman, east armory */
+    g_enemies[8].x = 28 * 256 + 128;
+    g_enemies[8].y = 16 * 256 + 128;
+    g_enemies[8].active = true;
+    g_enemies[8].enemyType = ETYPE_ZOMBIEMAN;
+    g_enemies[8].health = ZOMBIE_HEALTH;
+
+    /* Guard 9: Demon, central room south */
+    g_enemies[9].x = 15 * 256 + 128;
+    g_enemies[9].y = 14 * 256 + 128;
+    g_enemies[9].active = true;
+    g_enemies[9].enemyType = ETYPE_DEMON;
+    g_enemies[9].health = DEMON_HEALTH;
+
+    /* Guard 10: zombieman, long corridor center */
+    g_enemies[10].x = 15 * 256 + 128;
+    g_enemies[10].y = 24 * 256 + 128;
+    g_enemies[10].active = true;
+    g_enemies[10].enemyType = ETYPE_ZOMBIEMAN;
+    g_enemies[10].health = ZOMBIE_HEALTH;
+
+    /* Guard 11: IMP, north corridor east */
+    g_enemies[11].x = 20 * 256 + 128;
+    g_enemies[11].y = 9 * 256 + 128;
+    g_enemies[11].active = true;
+    g_enemies[11].enemyType = ETYPE_IMP;
+    g_enemies[11].health = IMP_HEALTH;
 }
 
 void alertAllEnemies(void) {
@@ -321,38 +495,57 @@ bool collidesWithAnyEnemy(u16 x, u16 y, u16 myRadius, u8 skipIdx) {
  * Helper: apply damage to an enemy, handle kill/pain/drops/sounds.
  * Returns true if the enemy was killed.
  */
-static bool applyDamageToEnemy(EnemyState *e, u8 damage, u16 playerX, u16 playerY) {
+bool applyDamageToEnemy(EnemyState *e, u8 damage, u16 playerX, u16 playerY) {
     if (e->health <= damage) {
         /* Kill enemy */
         e->health = 0;
         e->state = ES_DEAD;
         e->animFrame = 0;
         e->animTimer = 0;
+        g_enemiesKilled++;
 
-        /* Drop item based on enemy type */
+        /* Drop item based on enemy type (IMP drops nothing, like Doom) */
         if (e->enemyType == ETYPE_SERGEANT) {
             spawnPickup(PICKUP_WEAPON_SHOTGUN, e->x, e->y);
-        } else {
+        } else if (e->enemyType == ETYPE_ZOMBIEMAN) {
             spawnPickup(PICKUP_AMMO_CLIP, e->x, e->y);
         }
 
-        /* Death sound event */
+        /* Death sound event -- PCM, type-specific variant */
         {
             s16 ddx = (s16)e->x - (s16)playerX;
             s16 ddy = (s16)e->y - (s16)playerY;
             u16 d = approxDist(ddx, ddy);
-            g_enemySndDeath = (u8)(d > 4080 ? 255 : d >> 4);
-            if (g_enemySndDeath == 0) g_enemySndDeath = 1;
+            u8 sdist = (u8)(d > 4080 ? 255 : d >> 4);
+            if (sdist == 0) sdist = 1;
+            if (e->enemyType == ETYPE_IMP)
+                playEnemySFX(SFX_IMP_DEATH1 + (enemyRandom() & 1), sdist);
+            else if (e->enemyType == ETYPE_DEMON)
+                playEnemySFX(SFX_PINKY_DEATH, sdist);
+            else
+                playEnemySFX(SFX_POSSESSED_DEATH1 + (enemyRandom() % 3), sdist);
         }
         return true;
     } else {
         u8 painchance;
         e->health -= damage;
         /* Pain chance check (Doom-style) */
-        painchance = (e->enemyType == ETYPE_SERGEANT) ? SGT_PAINCHANCE : ZOMBIE_PAINCHANCE;
+        painchance = ZOMBIE_PAINCHANCE;
+        if (e->enemyType == ETYPE_SERGEANT) painchance = SGT_PAINCHANCE;
+        else if (e->enemyType == ETYPE_IMP) painchance = IMP_PAINCHANCE;
+        else if (e->enemyType == ETYPE_DEMON) painchance = DEMON_PAINCHANCE;
         if (enemyRandom() < painchance) {
             e->state = ES_PAIN;
             e->stateTimer = 0;
+            /* Pain sound -- PCM (IMP/Demon reuse possessed pain) */
+            {
+                s16 ddx = (s16)e->x - (s16)playerX;
+                s16 ddy = (s16)e->y - (s16)playerY;
+                u16 d = approxDist(ddx, ddy);
+                u8 sdist = (u8)(d > 4080 ? 255 : d >> 4);
+                if (sdist == 0) sdist = 1;
+                playEnemySFX(SFX_POSSESSED_PAIN, sdist);
+            }
         }
         return false;
     }
@@ -385,7 +578,7 @@ static u8 hitscanFindEnemy(u16 playerX, u16 playerY, s16 aimAngle, s16 halfCone)
         if (angleDiff > halfCone) continue;
 
         dist = ((s32)dx * dx + (s32)dy * dy) >> 8;
-        if (dist > 10000) continue;
+        if (dist > HITSCAN_RANGE_DIST) continue;
 
         if (!hasLineOfSight(playerX, playerY, e->x, e->y)) continue;
 
@@ -485,6 +678,7 @@ static void enemyFireAtPlayer(EnemyState *e, u16 playerX, u16 playerY, s16 playe
     /* Must have line of sight */
     if (!hasLineOfSight(e->x, e->y, playerX, playerY)) return;
 
+    /* IMPs use impAttack() instead of this function */
     pellets = (e->enemyType == ETYPE_SERGEANT) ? 3 : 1;
 
     for (p = 0; p < pellets; p++) {
@@ -507,7 +701,7 @@ static void enemyFireAtPlayer(EnemyState *e, u16 playerX, u16 playerY, s16 playe
             if (spread < 0) spread = -spread;
             if (spread < hitCone) {
                 /* Hit! Doom damage formula */
-                totalDamage += 3 + FAST_MOD13(enemyRandom());
+                totalDamage += 2 + FAST_MOD5(enemyRandom());
             }
         }
     }
@@ -527,13 +721,80 @@ static void enemyFireAtPlayer(EnemyState *e, u16 playerX, u16 playerY, s16 playe
         }
     }
 
-    /* Shoot sound event */
+    /* Shoot sound event -- PCM: use possessed_activity for enemy fire */
     {
         u8 sdist = (u8)(dist > 4080 ? 255 : dist >> 4);
         if (sdist == 0) sdist = 1;
-        g_enemySndShoot = sdist;
-        g_enemySndShootType = e->enemyType;
+        playEnemySFX(SFX_POSSESSED_ACTIVITY, sdist);
     }
+}
+
+/*
+ * IMP attacks: melee claw at close range, fireball projectile at distance.
+ * Claw: hitscan, 3-24 damage (like Doom: (P_Random()%8 + 1) * 3)
+ * Fireball: spawns a Projectile that travels toward the player.
+ */
+static void impAttack(EnemyState *e, u8 idx, u16 playerX, u16 playerY, s16 playerA) {
+    s16 dx = (s16)playerX - (s16)e->x;
+    s16 dy = (s16)playerY - (s16)e->y;
+    u16 dist = approxDist(dx, dy);
+    u8 sdist = (u8)(dist > 4080 ? 255 : dist >> 4);
+    if (sdist == 0) sdist = 1;
+
+    if (dist < IMP_MELEE_DIST * 2) {
+        /* Melee claw attack */
+        u8 damage = (FAST_MOD5(enemyRandom()) + 1) * 3 + 3;  /* 6-18 */
+        if (hasLineOfSight(e->x, e->y, playerX, playerY)) {
+            g_lastEnemyDamage = damage;
+            /* Compute damage direction */
+            {
+                s16 angleToEnemy = (256 - fixedAtan2(dy, dx)) & 1023;
+                s16 relAngle = angleToEnemy - playerA;
+                if (relAngle > 512)  relAngle -= 1024;
+                if (relAngle < -512) relAngle += 1024;
+                if (relAngle > 128)       g_lastEnemyDamageDir =  1;
+                else if (relAngle < -128) g_lastEnemyDamageDir = -1;
+                else                      g_lastEnemyDamageDir =  0;
+            }
+        }
+        playEnemySFX(SFX_CLAW_ATTACK, sdist);
+    } else {
+        /* Ranged fireball */
+        spawnFireball(e->x, e->y, playerX, playerY, idx);
+        playEnemySFX(SFX_IMP_ACTIVITY, sdist);
+    }
+}
+
+/*
+ * Demon (Pinky) attack: melee-only, claw/bite.
+ * Doom damage: (P_Random()%10 + 1) * 4 = 4-40
+ */
+static void demonAttack(EnemyState *e, u8 idx, u16 playerX, u16 playerY, s16 playerA) {
+    s16 dx = (s16)playerX - (s16)e->x;
+    s16 dy = (s16)playerY - (s16)e->y;
+    u16 dist = approxDist(dx, dy);
+    u8 sdist = (u8)(dist > 4080 ? 255 : dist >> 4);
+    if (sdist == 0) sdist = 1;
+
+    /* Only melee -- check close range */
+    if (dist < DEMON_MELEE_DIST * 2) {
+        u8 damage = (FAST_MOD10(enemyRandom()) + 1) * 4;  /* 4-40 */
+        if (hasLineOfSight(e->x, e->y, playerX, playerY)) {
+            g_lastEnemyDamage = damage;
+            /* Compute damage direction */
+            {
+                s16 angleToEnemy = (256 - fixedAtan2(dy, dx)) & 1023;
+                s16 relAngle = angleToEnemy - playerA;
+                if (relAngle > 512)  relAngle -= 1024;
+                if (relAngle < -512) relAngle += 1024;
+                if (relAngle > 128)       g_lastEnemyDamageDir =  1;
+                else if (relAngle < -128) g_lastEnemyDamageDir = -1;
+                else                      g_lastEnemyDamageDir =  0;
+            }
+        }
+        playEnemySFX(SFX_PINKY_ATTACK, sdist);
+    }
+    /* No ranged attack -- demon must get close */
 }
 
 void updateEnemies(u16 playerX, u16 playerY, s16 playerA) {
@@ -557,11 +818,17 @@ void updateEnemies(u16 playerX, u16 playerY, s16 playerA) {
                 e->movedir = DI_NODIR;
                 e->movecount = 0;
                 e->angle = fixedAtan2(dy, dx);
-                /* Aggro sound */
+                /* Aggro sound -- PCM, type-specific sight variant */
                 {
                     u16 d = approxDist(dx, dy);
-                    g_enemySndAggro = (u8)(d > 4080 ? 255 : d >> 4);
-                    if (g_enemySndAggro == 0) g_enemySndAggro = 1;
+                    u8 sdist = (u8)(d > 4080 ? 255 : d >> 4);
+                    if (sdist == 0) sdist = 1;
+                    if (e->enemyType == ETYPE_IMP)
+                        playEnemySFX(SFX_IMP_SIGHT1 + (enemyRandom() & 1), sdist);
+                    else if (e->enemyType == ETYPE_DEMON)
+                        playEnemySFX(SFX_PINKY_SIGHT, sdist);
+                    else
+                        playEnemySFX(SFX_POSSESSED_SIGHT1 + (enemyRandom() % 3), sdist);
                 }
             }
             break;
@@ -609,16 +876,28 @@ void updateEnemies(u16 playerX, u16 playerY, s16 playerA) {
             e->stateTimer++;
             if (e->stateTimer >= ENEMY_SHOOT_RATE) {
                 e->stateTimer = 0;
-                e->animFrame = e->animFrame ? 0 : 1;
+                if (e->enemyType == ETYPE_IMP || e->enemyType == ETYPE_DEMON) {
+                    u8 maxFrames = (e->enemyType == ETYPE_IMP) ?
+                        IMP_ATTACK_ANIM_FRAMES : DEMON_ATTACK_ANIM_FRAMES;
+                    e->animFrame++;
+                    if (e->animFrame >= maxFrames) e->animFrame = 0;
+                } else {
+                    e->animFrame = e->animFrame ? 0 : 1;
+                }
 
-                /* Fire at player with spread-based accuracy */
-                enemyFireAtPlayer(e, playerX, playerY, playerA);
+                /* Fire at player */
+                if (e->enemyType == ETYPE_IMP)
+                    impAttack(e, i, playerX, playerY, playerA);
+                else if (e->enemyType == ETYPE_DEMON)
+                    demonAttack(e, i, playerX, playerY, playerA);
+                else
+                    enemyFireAtPlayer(e, playerX, playerY, playerA);
 
                 /* After firing, return to walk (Doom pattern: shoot then chase) */
                 e->state = ES_WALK;
                 e->animTimer = 0;
                 e->animFrame = 0;
-                e->movecount = 8 + (enemyRandom() & 15); /* chase a bit before next shot */
+                e->movecount = 8 + (enemyRandom() & 15);
             }
             break;
         }
@@ -633,15 +912,19 @@ void updateEnemies(u16 playerX, u16 playerY, s16 playerA) {
             }
             break;
 
-        case ES_DEAD:
+        case ES_DEAD: {
+            u8 maxDeathFrames = DEATH_ANIM_FRAMES;
+            if (e->enemyType == ETYPE_IMP) maxDeathFrames = IMP_DEATH_ANIM_FRAMES;
+            else if (e->enemyType == ETYPE_DEMON) maxDeathFrames = DEMON_DEATH_ANIM_FRAMES;
             e->animTimer++;
             if (e->animTimer >= 6) {
                 e->animTimer = 0;
-                if (e->animFrame < DEATH_ANIM_FRAMES - 1) {
+                if (e->animFrame < maxDeathFrames - 1) {
                     e->animFrame++;
                 }
             }
             break;
+        }
         }
     }
 }
@@ -659,6 +942,12 @@ u8 getEnemyDirection(u8 enemyIdx, u16 playerX, u16 playerY, s16 playerA) {
 u8 getEnemySpriteFrame(u8 enemyIdx, u16 playerX, u16 playerY, s16 playerA) {
     EnemyState *e = &g_enemies[enemyIdx];
     u8 dir = getEnemyDirection(enemyIdx, playerX, playerY, playerA);
+
+    /* Dispatch to type-specific frame tables */
+    if (e->enemyType == ETYPE_IMP)
+        return getImpSpriteFrame(enemyIdx, playerX, playerY, playerA);
+    if (e->enemyType == ETYPE_DEMON)
+        return getDemonSpriteFrame(enemyIdx, playerX, playerY, playerA);
 
     switch (e->state) {
     case ES_IDLE:
@@ -681,6 +970,68 @@ u8 getEnemySpriteFrame(u8 enemyIdx, u16 playerX, u16 playerY, s16 playerA) {
             return DEATH_FRAMES[e->animFrame];
         }
         return DEATH_FRAMES[DEATH_ANIM_FRAMES - 1];
+
+    default:
+        return 0;
+    }
+}
+
+u8 getImpSpriteFrame(u8 enemyIdx, u16 playerX, u16 playerY, s16 playerA) {
+    EnemyState *e = &g_enemies[enemyIdx];
+    u8 dir = getEnemyDirection(enemyIdx, playerX, playerY, playerA);
+
+    switch (e->state) {
+    case ES_IDLE:
+        return IMP_WALK_FRAMES[dir][0];
+
+    case ES_WALK:
+        return IMP_WALK_FRAMES[dir][e->animFrame % IMP_WALK_ANIM_FRAMES];
+
+    case ES_ATTACK: {
+        u8 pose = e->animFrame;
+        if (pose >= IMP_ATTACK_ANIM_FRAMES) pose = 0;
+        return IMP_ATTACK_FRAMES[dir][pose];
+    }
+
+    case ES_PAIN:
+        return IMP_PAIN_FRAMES[dir];
+
+    case ES_DEAD:
+        if (e->animFrame < IMP_DEATH_ANIM_FRAMES) {
+            return IMP_DEATH_FRAMES[e->animFrame];
+        }
+        return IMP_DEATH_FRAMES[IMP_DEATH_ANIM_FRAMES - 1];
+
+    default:
+        return 0;
+    }
+}
+
+u8 getDemonSpriteFrame(u8 enemyIdx, u16 playerX, u16 playerY, s16 playerA) {
+    EnemyState *e = &g_enemies[enemyIdx];
+    u8 dir = getEnemyDirection(enemyIdx, playerX, playerY, playerA);
+
+    switch (e->state) {
+    case ES_IDLE:
+        return DEMON_WALK_FRAMES[dir][0];
+
+    case ES_WALK:
+        return DEMON_WALK_FRAMES[dir][e->animFrame % DEMON_WALK_ANIM_FRAMES];
+
+    case ES_ATTACK: {
+        u8 pose = e->animFrame;
+        if (pose >= DEMON_ATTACK_ANIM_FRAMES) pose = 0;
+        return DEMON_ATTACK_FRAMES[dir][pose];
+    }
+
+    case ES_PAIN:
+        return DEMON_PAIN_FRAMES[dir];
+
+    case ES_DEAD:
+        if (e->animFrame < DEMON_DEATH_ANIM_FRAMES) {
+            return DEMON_DEATH_FRAMES[e->animFrame];
+        }
+        return DEMON_DEATH_FRAMES[DEMON_DEATH_ANIM_FRAMES - 1];
 
     default:
         return 0;

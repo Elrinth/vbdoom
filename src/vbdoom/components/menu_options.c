@@ -10,6 +10,8 @@
 #include "rumble.h"
 #include "sfx.h"
 #include "dph9.h"
+#include "../functions/sndplay.h"
+#include "../assets/audio/doom_sfx.h"
 
 extern BYTE title_screen_optionsTiles[];
 extern unsigned short title_screen_optionsMap[];
@@ -391,7 +393,7 @@ u8 optionsScreen(Settings *settings)
 
 	WA[26].head = WRLD_END;
 
-	copymem((void*)0x00078000, (void*)title_screen_optionsTiles, 16192);
+	copymem((void*)0x00078000, (void*)title_screen_optionsTiles, 3296);  /* 206 tiles * 16 bytes */
 	vbDisplayOn(); // turns the display on
 
 
@@ -420,7 +422,7 @@ u8 optionsScreen(Settings *settings)
 	u8 pushedButton = 0;
 	u8 pushedButtonCounter = 0;
 	u8 allowPushAgain = 0;
-	initAudio();
+	/* initAudio() removed -- PCM waveforms already set by mp_init() in main.c */
 
 	u8 pushedUp = 0;
 	u8 shouldRumble = 0;
@@ -429,19 +431,20 @@ u8 optionsScreen(Settings *settings)
 
 	u16 keyInputs;
 
-	playMUSIC(&music, settings);
-	//playSFX(&sfx3, settings);
-	//playSFX(&(music.ch[music.channelCount-1]), settings);
+	/* Music is handled by the new musicplayer system (title music persists).
+	 * No need to start/stop old synth music here. */
+
 	while(1) {
 		keyInputs = vbReadPad();
 
 		if(keyInputs & (K_STA|K_A|K_B|K_SEL) && pos == 3  && allowPushAgain == 1) {
+			playPlayerSFX(SFX_PISTOL);
 			break;
 		} else if(keyInputs & (K_RU|K_LU)) {
 			if (allowPushAgain == 1) {
 				allowPushAgain = 0;
 				if (pos > 0) {
-					playSFX(&sfx2, &(*settings).sfx);
+					playPlayerSFX(SFX_ELEVATOR_STP);
 					pos--;
 				}
 			}
@@ -449,7 +452,7 @@ u8 optionsScreen(Settings *settings)
 			if (allowPushAgain == 1) {
 				allowPushAgain = 0;
 				if (pos < 3) {
-					playSFX(&sfx2, &(*settings).sfx);
+					playPlayerSFX(SFX_ELEVATOR_STP);
 					pos++;
 				}
 			}
@@ -458,24 +461,24 @@ u8 optionsScreen(Settings *settings)
 				if (pos == 0) {
 					if ((*settings).sfx > 0) {
 						(*settings).sfx--;
-						playSFX(&sfx, &(*settings).sfx);
+						playPlayerSFX(SFX_STONE_MOVE);
 					}
-				} else if (pos == 1) {
-					if ((*settings).music > 0) {
-						(*settings).music--;
-						playSFX(&sfx, &(*settings).sfx);
-					}
-				} else if (pos == 2) {
+			} else if (pos == 1) {
+				if ((*settings).music > 0) {
+					(*settings).music--;
+					g_musicVolume = (u8)((u16)(*settings).music * 15 / 9);
+					playPlayerSFX(SFX_STONE_MOVE);
+				}
+			} else if (pos == 2) {
 					if ((*settings).rumble > 0) {
 						(*settings).rumble--;
+						playPlayerSFX(SFX_STONE_MOVE);
 						shouldRumble = 1;
-						rumbleTimer = 0; // reset
+						rumbleTimer = 0;
 						if ((*settings).rumble > 0) {
 							rumble_setFrequency(RUMBLE_FREQ_160HZ);
-							// maybe must send effect first?
 							rumble_playEffect(RUMBLE_CHAIN_EFFECT_1);
 						}
-
 					}
 				}
 				allowPushAgain = 0;
@@ -485,30 +488,23 @@ u8 optionsScreen(Settings *settings)
 				if (pos == 0) {
 					if ((*settings).sfx < 9) {
 						(*settings).sfx++;
-						playSFX(&sfx, &(*settings).sfx);
+						playPlayerSFX(SFX_STONE_MOVE);
 					}
-				} else if (pos == 1) {
-					if ((*settings).music < 9) {
-						(*settings).music++;
-						playSFX(&sfx, &(*settings).sfx);
-					}
-				} else if (pos == 2) {
+			} else if (pos == 1) {
+				if ((*settings).music < 9) {
+					(*settings).music++;
+					g_musicVolume = (u8)((u16)(*settings).music * 15 / 9);
+					playPlayerSFX(SFX_STONE_MOVE);
+				}
+			} else if (pos == 2) {
 					if ((*settings).rumble < 9) {
 						(*settings).rumble++;
+						playPlayerSFX(SFX_STONE_MOVE);
 						if ((*settings).rumble > 0) {
-							//rumble_playEffect(RUMBLE_CMD_FREQ_240HZ);
-
-							/*
-							#define RUMBLE_FREQ_160HZ               0x00
-                            #define RUMBLE_FREQ_240HZ               0x01
-                            #define RUMBLE_FREQ_320HZ               0x02
-                            #define RUMBLE_FREQ_400HZ               0x03
-							*/
 							rumble_setFrequency(RUMBLE_FREQ_400HZ);
 							rumble_playEffect(RUMBLE_CHAIN_EFFECT_0);
-
 						}
-						rumbleTimer = 0; // reset
+						rumbleTimer = 0;
 						shouldRumble = 1;
 					}
 				}
@@ -573,10 +569,14 @@ u8 optionsScreen(Settings *settings)
 				pushedButtonCounter = 0;
 			}
 		}
-		audioLoop(settings);
+		/* Tick the music sequencer so title music keeps playing */
+		updateMusic(true);
+
 		count++;
-		vbWaitFrame(1);
+		vbWaitFrame(0);
 	}
+	/* Music channels (ch0/ch1/ch3) are kept alive by the sequencer */
+
 	if (pos == 0) {
 		vbFXFadeOut(0);
 	}

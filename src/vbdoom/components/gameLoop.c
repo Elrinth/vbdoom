@@ -5,6 +5,7 @@
 #include <input.h>
 #include "gameLoop.h"
 #include "sndplay.h"
+#include "../assets/audio/doom_sfx.h"
 #include "doomstage.h"
 #include "RayCasterRenderer.h"
 #include "RayCasterFixed.h"
@@ -14,11 +15,29 @@
 #include "timer.h"
 #include "../assets/images/sprites/zombie/zombie_sprites.h"
 #include "../assets/images/sprites/zombie_sgt/zombie_sgt_sprites.h"
+#include "../assets/images/sprites/imp/imp_sprites.h"
+#include "../assets/images/sprites/demon/demon_sprites.h"
 #include "../assets/images/sprites/pickups/pickup_sprites.h"
 #include "../assets/images/sprites/faces/face_sprites.h"
+#include "projectile.h"
+#include "door.h"
+#include "intermission.h"
 extern BYTE FontTiles[];
 #include <stdint.h>
 #include <stdbool.h>
+
+int rand(void);  /* forward declaration -- avoids pulling in full stdlib */
+
+/* Map data (defined in RayCasterData.h, compiled via RayCasterFixed.c) */
+extern u8 g_map[];
+extern const u8 e1m1_map[];
+extern const u8 e1m2_map[];
+
+/* Player spawn positions (must match RayCasterData.h / e1m2.h) */
+#define E1M1_SPAWN_X  (15 * 256 + 128)
+#define E1M1_SPAWN_Y  (28 * 256 + 128)
+#define E1M2_SPAWN_X  (15 * 256 + 128)
+#define E1M2_SPAWN_Y  (28 * 256 + 128)
 
 /* Precomputed constants -- no runtime float math needed.
  * fixedAngleRatioz = FTOFIX23_9(512.0f/360.0f) = 729
@@ -29,7 +48,7 @@ static const s32 fixedAngleRatioz = FTOFIX23_9(512.0f/360.0f);
 static const s32 fixed0point05 = FIX23_9_MULT(FTOFIX23_9(0.05f), FTOFIX23_9(512.0f/360.0f));
 static const s32 fixed2point13 = FIX23_9_MULT(FTOFIX23_9(2.13f), FTOFIX23_9(512.0f/360.0f));
 
-s16 fPlayerAng = 0;
+s16 fPlayerAng = 512;  /* face south (180 degrees) at start */
 u16 fPlayerX = 3968;   /* tile (15, 28) center - start room */
 u16 fPlayerY = 7296;
 s16 turnRate = 10;
@@ -39,8 +58,19 @@ s16 swayX = 0;
 u8 weaponChangeTimer = 0;
 u8 weaponChangeTime = 20;
 bool isChangingWeapon = false;
-bool comboChangeAndFire = false;
-bool isPlayMusicBool = false;
+bool pendingAutoSwitch = false;
+bool isPlayMusicBool = true;
+u16 g_levelFrames = 0;  /* frames elapsed this level (for stats screen time) */
+
+/* Secret tracking */
+u8 g_secretsFound = 0;
+u8 g_totalSecrets = 0;
+
+/* Secret sector definitions: each is a tile position (tx, ty).
+ * When the player enters a secret tile for the first time, it's counted. */
+#define MAX_SECRETS 4
+typedef struct { u8 tx; u8 ty; bool found; } SecretSector;
+SecretSector g_secrets[MAX_SECRETS];
 u8 currentWeapon = 2;
 u8 nextWeapon = 2;
 u8 updatePistolCount = 0;
@@ -49,6 +79,7 @@ u8 updatePistolCount = 0;
 #define W_FISTS 1
 #define W_PISTOL 2
 #define W_SHOTGUN 3
+#define W_ROCKET 4
 typedef struct {
 	bool hasWeapon;
 	u8 iWeapon;
@@ -61,8 +92,9 @@ typedef struct {
 Weapon weapons[] = {
 { false, W_CHAINSAW, false, 0,0,1},
 { true, W_FISTS, false, 0,0,4},
-{ true, W_PISTOL, true, 50,1,1},
+{ true, W_PISTOL, true, 50,1,4},   /* attackFrames=4: ~12 frame refire delay (Doom-like) */
 { false, W_SHOTGUN, true, 0,2,5},
+{ false, W_ROCKET, true, 0,3,5},   /* rocket launcher: ammo type 3 = RCKT */
 };
 
 // 0 = chainsaw, 1 = fists, 2 = pistol, 3 = shotgun, 4 =
@@ -81,38 +113,232 @@ const s16 swayYTBL[] =     {0, 0, 1, 2, 2, 2, 1, 0, 0, 0, 1, 2, 2, 2, 1, 0};
 u16 walkSwayIndex = 0;
 const s16 walkSwayYTBL[] = {0, 0, 1, 1, 1, 1, 1, 0, 0,-1,-1,-1,-1};
 
-u8 switchWeapon(u8 iFrom, u8 iTo)
-{
-	if (iTo > 1 || iTo < 8)
-		return iTo;
-	return iTo;
+/*
+ * Smart weapon switching: priority shotgun > pistol > fists.
+ * findBestWeapon: find best weapon with ammo (priority order: 3,2,1)
+ */
+static u8 findBestWeapon(void) {
+	/* Priority: rocket (4) > shotgun (3) > pistol (2) > fists (1) */
+	if (weapons[W_ROCKET].hasWeapon && weapons[W_ROCKET].ammo > 0) return W_ROCKET;
+	if (weapons[W_SHOTGUN].hasWeapon && weapons[W_SHOTGUN].ammo > 0) return W_SHOTGUN;
+	if (weapons[W_PISTOL].hasWeapon && weapons[W_PISTOL].ammo > 0) return W_PISTOL;
+	return W_FISTS; /* always available */
 }
+
+static void switchToWeapon(u8 newWeapon) {
+	if (newWeapon == currentWeapon) return;
+	currentWeapon = newWeapon;
+	drawUpdatedAmmo(weapons[currentWeapon].ammo, weapons[currentWeapon].ammoType);
+	drawWeaponSlotNumbers(weapons[W_PISTOL].hasWeapon,
+	                     weapons[W_SHOTGUN].hasWeapon,
+	                     weapons[W_ROCKET].hasWeapon,
+	                     currentWeapon);
+	highlightWeaponHUD(currentWeapon);
+	weaponAnimation = 0;
+	updatePistolCount = 0;
+	weaponChangeTimer = 0;
+	isShooting = false;
+	isChangingWeapon = true;
+}
+
 void cycleNextWeapon() {
-	currentWeapon++;
-	if (currentWeapon > 3)
-		currentWeapon = 0;
-	if (weapons[currentWeapon].hasWeapon == false || (weapons[currentWeapon].requiresAmmo && weapons[currentWeapon].ammo == 0)) {
-		cycleNextWeapon();
-	} else {
-		if (nextWeapon != currentWeapon) {
-			drawUpdatedAmmo(weapons[currentWeapon].ammo, weapons[currentWeapon].ammoType);
-			/* Tile loading is deferred until nextWeapon is actually updated
-			 * (weaponChangeTimer > 10) to avoid VRAM mismatch with drawWeapon */
-			weaponAnimation = 0;
-			updatePistolCount = 0;
-			weaponChangeTimer = 0;
-			isShooting = false;
-			isChangingWeapon = true;
+	u8 start = currentWeapon;
+	u8 next = currentWeapon;
+	do {
+		next++;
+		if (next > 4) next = 1; /* skip 0 (chainsaw) */
+		if (weapons[next].hasWeapon &&
+		    (!weapons[next].requiresAmmo || weapons[next].ammo > 0)) {
+			switchToWeapon(next);
+			return;
 		}
-	}
+	} while (next != start);
 }
+
 void cycleWeapons()
 {
-	if (isChangingWeapon) {
-		return;
+	if (isChangingWeapon) return;
+	cycleNextWeapon();
+}
+
+/* Auto-switch when current weapon runs out of ammo */
+static void autoSwitchOnEmpty(void) {
+	if (weapons[currentWeapon].requiresAmmo && weapons[currentWeapon].ammo == 0) {
+		u8 best = findBestWeapon();
+		switchToWeapon(best);
+	}
+}
+
+u8 currentLevel = 1;
+
+/* Restore all game worlds, palettes, BGMaps, and VRAM tile data.
+ * Called during initial gameLoop() setup and after the intermission screen
+ * (which overwrites VRAM with le_map tiles). */
+static void restoreGameDisplay(u8 doomface, u8 weapon) {
+	u16 EnemyScale = 4;
+	u16 EnemyScaleX = 6;
+
+	/* ---- World configuration ---- */
+	vbSetWorld(31, WRLD_ON|1, 0, 0, 0, 0, 0, 0, 384, 192);  /* stage background */
+
+	/* Enemy worlds (5 slots, affine) */
+	vbSetWorld(30, ENEMY_BGMAP_START|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 64*EnemyScaleX, 64*EnemyScale);
+	vbSetWorld(29, (ENEMY_BGMAP_START+1)|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 64*EnemyScaleX, 64*EnemyScale);
+	vbSetWorld(28, (ENEMY_BGMAP_START+2)|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 64*EnemyScaleX, 64*EnemyScale);
+	vbSetWorld(27, (ENEMY_BGMAP_START+3)|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 64*EnemyScaleX, 64*EnemyScale);
+	vbSetWorld(26, (ENEMY_BGMAP_START+4)|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 64*EnemyScaleX, 64*EnemyScale);
+	WORLD_PARAM(30, BGMap(ENEMY_BGMAP_START)   + 0x1000);
+	WORLD_PARAM(29, BGMap(ENEMY_BGMAP_START+1) + 0x1000);
+	WORLD_PARAM(28, BGMap(ENEMY_BGMAP_START+2) + 0x1000);
+	WORLD_PARAM(27, BGMap(ENEMY_BGMAP_START+3) + 0x1000);
+	WORLD_PARAM(26, BGMap(ENEMY_BGMAP_START+4) + 0x1000);
+
+	/* Pickup worlds (2 slots, affine) */
+	vbSetWorld(25, PICKUP_BGMAP_START|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 32*EnemyScaleX, 24*EnemyScale);
+	vbSetWorld(24, (PICKUP_BGMAP_START+1)|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 32*EnemyScaleX, 24*EnemyScale);
+	WORLD_PARAM(25, BGMap(PICKUP_BGMAP_START)   + 0x1000);
+	WORLD_PARAM(24, BGMap(PICKUP_BGMAP_START+1) + 0x1000);
+
+	/* Particle world (affine) */
+	vbSetWorld(PARTICLE_WORLD, PARTICLE_BGMAP|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 32*EnemyScaleX, 32*EnemyScale);
+	WORLD_PARAM(PARTICLE_WORLD, BGMap(ENEMY_BGMAP_START) + 0x1800);
+
+	/* Weapon + UI worlds */
+	vbSetWorld(22, WRLD_ON|LAYER_WEAPON_BLACK, 0, 0, 0, 0, 0, 0, 136, 128);
+	vbSetWorld(21, WRLD_ON|LAYER_WEAPON,       0, 0, 0, 0, 0, 0, 136, 128);
+	vbSetWorld(20, WRLD_ON|LAYER_UI_BLACK,     0, 0, 0, 0, 0, 0, 384, 32);
+	vbSetWorld(19, WRLD_ON|LAYER_UI,           0, 0, 0, 0, 0, 0, 384, 32);
+	vbSetWorld(18, WRLD_ON|(LAYER_UI+1),       0, 0, 0, 0, 0, 0, 384, 32);
+
+	WA[20].gy = 192;
+	WA[19].gy = 192;
+	WA[18].gy = 192;
+	WA[17].head = WRLD_END;
+
+	/* ---- Palettes ---- */
+	VIP_REGS[GPLT0] = 0xE4;
+	VIP_REGS[GPLT1] = 0x00;
+	VIP_REGS[GPLT2] = 0x84;
+	VIP_REGS[GPLT3] = 0xE4;
+	VIP_REGS[JPLT0] = 0xE4;
+	VIP_REGS[JPLT1] = 0xE4;
+	VIP_REGS[JPLT2] = 0xE4;
+	VIP_REGS[JPLT3] = 0xE4;
+
+	/* ---- Clear all BGMaps ---- */
+	{
+		u8 m;
+		for (m = 0; m < 14; m++) {
+			setmem((void*)BGMap(m), 0, 8192);
+		}
 	}
 
-	cycleNextWeapon();
+	/* ---- Reload VRAM tile data ---- */
+	loadDoomGfxToMem();
+	loadParticleTiles();
+	loadWallTextures();
+
+	/* Enemy BGMaps + default frames */
+	initEnemyBGMaps();
+	loadEnemyFrame(0, Zombie_000Tiles);
+	loadEnemyFrame(1, Zombie_000Tiles);
+	loadEnemyFrame(2, Zombie_Sergeant_000Tiles);
+
+	/* Pickup BGMaps + default frames */
+	initPickupBGMaps();
+	loadPickupFrame(0, PICKUP_TILES[PICKUP_AMMO_CLIP]);
+	loadPickupFrame(1, PICKUP_TILES[PICKUP_HEALTH_SMALL]);
+	loadPickupFrame(2, PICKUP_TILES[PICKUP_HEALTH_LARGE]);
+
+	/* Face + weapon sprites */
+	loadFaceFrame(doomface);
+	if (weapon == W_FISTS)
+		loadFistSprites();
+	else if (weapon == W_SHOTGUN)
+		loadShotgunSprites();
+	else if (weapon == W_ROCKET)
+		loadRocketLauncherSprites();
+	else
+		loadPistolSprites();
+}
+
+/* Load a level: copy map, place enemies/pickups, register doors/switches, set spawn.
+ * Call at game start and on each level transition. */
+void loadLevel(u8 levelNum) {
+	currentLevel = levelNum;
+	g_levelComplete = 0;
+
+	if (levelNum == 1) {
+		copymem((u8*)g_map, (u8*)e1m1_map, 1024);
+		fPlayerX = E1M1_SPAWN_X;
+		fPlayerY = E1M1_SPAWN_Y;
+		fPlayerAng = 512;  /* face south */
+		initEnemies();
+		initPickups();
+		initDoors();
+		registerDoor(15, 19);  /* center passage */
+		registerDoor(5, 11);   /* armor room entrance */
+		registerSwitch(27, 3, SW_EXIT, 0);   /* exit switch */
+		registerSwitch(18, 10, SW_DOOR, 1);  /* opens armor room door */
+	} else if (levelNum == 2) {
+		copymem((u8*)g_map, (u8*)e1m2_map, 1024);
+		fPlayerX = E1M2_SPAWN_X;
+		fPlayerY = E1M2_SPAWN_Y;
+		fPlayerAng = 512;  /* face south */
+		initEnemiesE1M2();
+		initPickupsE1M2();
+		initDoors();
+		registerDoor(15, 13);  /* center passage */
+		registerDoor(8, 16);   /* weapon closet (opened by switch) */
+		registerDoor(5, 19);   /* west barracks */
+		registerDoor(26, 19);  /* east armory */
+		registerSwitch(28, 3, SW_EXIT, 0);   /* exit switch */
+		registerSwitch(4, 4, SW_DOOR, 1);    /* opens weapon closet door */
+	}
+
+	/* Reset particles and projectiles for the new level */
+	initParticles();
+	initProjectiles();
+
+	/* Reset level timer and counters for stats screen */
+	g_levelFrames = 0;
+	g_enemiesKilled = 0;
+	g_totalEnemies = 0;
+	g_secretsFound = 0;
+	g_totalSecrets = 0;
+	{
+		u8 si;
+		for (si = 0; si < MAX_SECRETS; si++) {
+			g_secrets[si].tx = 0;
+			g_secrets[si].ty = 0;
+			g_secrets[si].found = false;
+		}
+	}
+
+	/* Define secrets per level */
+	if (levelNum == 1) {
+		/* E1M1: armor room (4,9) is a secret area */
+		g_secrets[0].tx = 4;  g_secrets[0].ty = 9;
+		g_totalSecrets = 1;
+	} else if (levelNum == 2) {
+		/* E1M2: weapon closet (3,16) is a secret */
+		g_secrets[0].tx = 3;  g_secrets[0].ty = 16;
+		g_totalSecrets = 1;
+	}
+	{
+		u8 ei;
+		for (ei = 0; ei < MAX_ENEMIES; ei++) {
+			if (g_enemies[ei].active) g_totalEnemies++;
+		}
+	}
+	g_itemsCollected = 0;
+	g_totalItems = 0;
+	{
+		u8 pi;
+		for (pi = 0; pi < MAX_PICKUPS; pi++) {
+			if (g_pickups[pi].active) g_totalItems++;
+		}
+	}
 }
 
 u8 gameLoop()
@@ -122,112 +348,52 @@ u8 gameLoop()
 	initializeDoomStage();
     clearScreen();
 
-	u8 worlds = 14;
-	u8 worldCount = 0;
-	//for (worldCount = 0; worldCount < worlds; worldCount++) {
-		//vbSetWorld(31 - worldCount, WRLD_ON|(worldCount+1), 0, 0, 0, 0, 0, 0, 384, 224);
-	//}
-	// enemy layers must be able to scale.
-	//vbSetWorld(2, WRLD_ON|0|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 384, 224);
-	//vbSetWorld(1, WRLD_ON|1, 0, 0, 0, 0, 0, 0, 384, 224);
-	//vbSetWorld(31, WRLD_ON|1, 0, 0, 0, 0, 0, 0, 384, 208); // stage background
 	vbSetWorld(31, WRLD_ON|1, 0, 0, 0, 0, 0, 0, 384, 192); // stage background
-
-	// monster bgmaps
 
 	u16 EnemyScale = 4; // max scale
 	u16 EnemyScaleX = 6; // max scale
 
-	// 1 world per enemy, start DISABLED (renderer enables when visible)
+	// 1 world per enemy (5 slots), start DISABLED (renderer enables when visible)
 	vbSetWorld(30, ENEMY_BGMAP_START|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 64*EnemyScaleX, 64*EnemyScale);
 	vbSetWorld(29, (ENEMY_BGMAP_START+1)|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 64*EnemyScaleX, 64*EnemyScale);
-	/* Affine param tables -- each needs up to 224*16=3584 bytes */
-	WORLD_PARAM(30, BGMap(0));              /* enemy 0: 0x20000 */
-	WORLD_PARAM(29, BGMap(0) + 0x1000);    /* enemy 1: 0x21000 */
-	WORLD_PARAM(28, BGMap(2));              /* enemy 2: 0x24000 */
-	/* Enemy 2 world: disabled until renderer enables it */
 	vbSetWorld(28, (ENEMY_BGMAP_START+2)|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 64*EnemyScaleX, 64*EnemyScale);
-	/* Pickup worlds: 3 slots, start DISABLED (renderer enables when visible) */
-	vbSetWorld(27, PICKUP_BGMAP_START|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 32*EnemyScaleX, 24*EnemyScale);
-	vbSetWorld(26, (PICKUP_BGMAP_START+1)|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 32*EnemyScaleX, 24*EnemyScale);
-	vbSetWorld(25, (PICKUP_BGMAP_START+2)|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 32*EnemyScaleX, 24*EnemyScale);
-	/* Affine param tables for pickups (in free space of BGMap 2 and BGMap 6) */
-	WORLD_PARAM(27, BGMap(2) + 0x1000);   /* pickup 0: 0x25000 */
-	WORLD_PARAM(26, BGMap(2) + 0x1800);   /* pickup 1: 0x25800 */
-	WORLD_PARAM(25, BGMap(6) + 0x1000);   /* pickup 2: 0x2D000 */
+	vbSetWorld(27, (ENEMY_BGMAP_START+3)|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 64*EnemyScaleX, 64*EnemyScale);
+	vbSetWorld(26, (ENEMY_BGMAP_START+4)|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 64*EnemyScaleX, 64*EnemyScale);
+	/* Affine param tables at 0x1000+ within each enemy's tile BGMap (safe: tiles < 912 bytes) */
+	WORLD_PARAM(30, BGMap(ENEMY_BGMAP_START)   + 0x1000);  /* enemy 0 */
+	WORLD_PARAM(29, BGMap(ENEMY_BGMAP_START+1) + 0x1000);  /* enemy 1 */
+	WORLD_PARAM(28, BGMap(ENEMY_BGMAP_START+2) + 0x1000);  /* enemy 2 */
+	WORLD_PARAM(27, BGMap(ENEMY_BGMAP_START+3) + 0x1000);  /* enemy 3 */
+	WORLD_PARAM(26, BGMap(ENEMY_BGMAP_START+4) + 0x1000);  /* enemy 4 */
+	/* Pickup worlds: 2 slots, start DISABLED (renderer enables when visible) */
+	vbSetWorld(25, PICKUP_BGMAP_START|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 32*EnemyScaleX, 24*EnemyScale);
+	vbSetWorld(24, (PICKUP_BGMAP_START+1)|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 32*EnemyScaleX, 24*EnemyScale);
+	/* Affine param tables for pickups (at 0x1000+ within pickup tile BGMaps) */
+	WORLD_PARAM(25, BGMap(PICKUP_BGMAP_START)   + 0x1000);  /* pickup 0 */
+	WORLD_PARAM(24, BGMap(PICKUP_BGMAP_START+1) + 0x1000);  /* pickup 1 */
 
 	/* Particle world: affine, starts DISABLED (renderer enables when visible) */
 	vbSetWorld(PARTICLE_WORLD, PARTICLE_BGMAP|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 32*EnemyScaleX, 32*EnemyScale);
-	WORLD_PARAM(PARTICLE_WORLD, BGMap(6) + 0x1800);  /* particle: 0x2D800 */
-
-	vbSetWorld(23, LAYER_BULLET, 0, 0, 0, 0, 0, 0, 0, 0); /* disabled (was bullets) */
+	WORLD_PARAM(PARTICLE_WORLD, BGMap(ENEMY_BGMAP_START) + 0x1800);  /* particle param in enemy 0 BGMap */
 	vbSetWorld(22, WRLD_ON|LAYER_WEAPON_BLACK, 				0, 0, 0, 0, 0, 0, 136, 128); // weapon black
 	vbSetWorld(21, WRLD_ON|LAYER_WEAPON, 					0, 0, 0, 0, 0, 0, 136, 128); // weapon
 	vbSetWorld(20, WRLD_ON|LAYER_UI_BLACK, 					0, 0, 0, 0, 0, 0, 384, 32); // ui black
 	vbSetWorld(19, WRLD_ON|LAYER_UI, 						0, 0, 0, 0, 0, 0, 384, 32); // ui
 
-	vbSetWorld(18, WRLD_ON|LAYER_UI+1, 						0, 0, 0, 0, 0, 0, 384, 32); // ui
-
+	vbSetWorld(18, WRLD_ON|(LAYER_UI+1), 					0, 0, 0, 0, 0, 0, 384, 32); // ui
 
 	// ui position starts at pixel y 192, we use 2 layers because we wanna use all 4 colors
 	WA[20].gy = 192;
 	WA[19].gy = 192;
 	WA[18].gy = 192;
 
-
-	//vbSetWorld(29, WRLD_ON|2|WRLD_AFFINE, 0, 0, 0, 0, 0, 0, 384, 224);
-	//affine_clr_param(29);
-
-
-
-	//affine_scale(u8 world, s32 centerX, s32 centerY, u16 imageW, u16 imageH, float scaleX, float scaleY)
 	WA[17].head = WRLD_END;
-	//WA[16].head = WRLD_END;
-	//WA[16].head = WRLD_END;
-	/*
-	WA[30].head = WRLD_ON;
-	WA[30].w = 384;
-	WA[30].h = 224;
-	WA[29].head = WRLD_ON;
-	WA[29].w = 384;
-	WA[29].h = 224;*/
-	/*
-	WA[28].head = WRLD_ON;
-	WA[28].w = 384;
-	WA[28].h = 224;
 
-	//WA[30].head = WRLD_END;
-	WA[27].head = WRLD_END;*/
-	/*
-	WA[29].head = WRLD_ON | WRLD_OVR;
-	WA[29].w = 384;
-	WA[29].h = 224;
-	WA[28].head = WRLD_END;*/
-
-	/*
-	SND_REGS[1].SxLRV = 0;
-	SND_REGS[2].SxLRV = 0;
-	SND_REGS[3].SxLRV = 0;
-	SND_REGS[4].SxLRV = 0;*/
-
-    //vbSetWorld(31, WRLD_ON | WRLD_OBJ, 0, 0, 0, 0, 0, 0, 382, 224);
-    //vbSetWorld(30, WRLD_END, 0, 0, 0, 0, 0, 0, 0, 0);
-/*
-	VIP_REGS[SPT3] = 1023;
-    VIP_REGS[SPT2] = 1012;// 1023 - 10 - 1
-    VIP_REGS[SPT1] = 991;// 1012 - 20 - 1
-*/
 	loadDoomGfxToMem();
-	initEnemies();
-	initParticles();
+	loadLevel(1);              /* copy E1M1 map, init enemies/pickups/doors/particles */
 	loadParticleTiles();
-	//drawDoomUI(0, 0, 24);
-	//drawDoomGuy(0, 44, 24, 0);
 
     vbDisplayShow();
-
-
-	//vbFXFadeIn(0);
 
 	u8 doomface = 1;  /* start with center-looking idle face */
 	u8 updateDoomfaceTime = 9;
@@ -235,51 +401,23 @@ u8 gameLoop()
 	u8 lookDir = 1;            /* 0=left, 1=center, 2=right */
 	u8 ouchTimer = 0;          /* >0 = show ouch face */
 	u8 killFaceTimer = 0;      /* >0 = show evil grin */
-	s8 lastDamageDir = 0;      /* -1=left, 0=front, 1=right */
-	u8 lastHealth = 100;       /* previous health for severe damage detection */
 
 	u16 ammo = 50;
 	u8 currentAmmoType = 1;
 	u8 currentHealth = 100;
-	u8 currentArmour = 0;
-
-
-
-
-
-	// we only need to draw doom ui once...
-	//drawUpdatedAmmo(ammo, currentAmmoType);
-	//drawHealth(currentHealth);
-	//drawArmour(currentArmour);
-
-	//affine_clr_param(30);
-	//affine_fast_scale(30, 1.0f);
+	u16 currentArmour = 0;
+	u8 armorType = 0;  /* 0=none, 1=green (1/3 absorb), 2=blue (1/2 absorb) */
 
 	VIP_REGS[GPLT0] = 0xE4;	/* Set 1st palettes to: 11100100 */
 	VIP_REGS[GPLT1] = 0x00;	/* (i.e. "Normal" dark to light progression.) */
-	VIP_REGS[GPLT2] = 0x84; // VIP_REGS[GPLT2] = 0xC2;
+	VIP_REGS[GPLT2] = 0x84;
 
 	VIP_REGS[GPLT3] = 0xE4;	/* Wall palette (PAL3): same as GPLT0 for now */
-	VIP_REGS[JPLT0] = 0xE4; // object palettes (we dont use objects...)
+	VIP_REGS[JPLT0] = 0xE4;
 	VIP_REGS[JPLT1] = 0xE4;
 	VIP_REGS[JPLT2] = 0xE4;
 	VIP_REGS[JPLT3] = 0xE4;
 
-	int x,y,i;
-	i = 32; // 8 och 9 och 12 påverkar...
-	// om i = 14, 31 så blir de svart...
-
-	//for (worldCount = 0; worldCount < 9; worldCount++) {
-/*
-		for (y = 0; y < 32; y++) {
-			for (x = 0; x < 32; x++) {
-				BGM_PALSET(1, x, y, GPLT1);
-			}
-		}*/
-		//BGM_PALSET(1,1,2,BGM_PAL3);
-		//SET_GPLT(worldCount, GPLT1);
-	//}
-	//SET_GPLT(GPLT0, 0xE4);
 	setmem((void*)BGMap(0), 0, 8192);
 	setmem((void*)BGMap(1), 0, 8192);
 	setmem((void*)BGMap(2), 0, 8192);
@@ -294,7 +432,6 @@ u8 gameLoop()
 	setmem((void*)BGMap(11), 0, 8192);
 	setmem((void*)BGMap(12), 0, 8192);
 	setmem((void*)BGMap(13), 0, 8192);
-	//setmem((void*)BGMap(14), 0, 384*327);
 
 	/* Enemy BGMap/char init MUST be after setmem clears BGMaps */
 	initEnemyBGMaps();                          /* set up BGMap(3), (4), (5) tile entries */
@@ -303,7 +440,6 @@ u8 gameLoop()
 	loadEnemyFrame(2, Zombie_Sergeant_000Tiles); /* load frame 0 into enemy 2 (sergeant) */
 
 	/* Pickup BGMap/char init */
-	initPickups();
 	initPickupBGMaps();
 	/* Pre-load one of each pickup type into char slots */
 	loadPickupFrame(0, PICKUP_TILES[PICKUP_AMMO_CLIP]);
@@ -319,17 +455,27 @@ u8 gameLoop()
 
 	drawDoomUI(LAYER_UI, 0, 0);
 	drawUpdatedAmmo(ammo, currentAmmoType);
-
+	/* Initialize right-side digits for all ammo types */
+	drawSmallAmmo(weapons[W_PISTOL].ammo, 1);  /* BULL */
+	drawSmallAmmo(weapons[W_SHOTGUN].ammo, 2); /* SHEL */
+	drawSmallAmmo(weapons[W_ROCKET].ammo, 3);  /* RCKT */
+	drawWeaponSlotNumbers(weapons[W_PISTOL].hasWeapon,
+	                     weapons[W_SHOTGUN].hasWeapon,
+	                     weapons[W_ROCKET].hasWeapon,
+	                     currentWeapon);
 	drawHealth(currentHealth);
-	drawArmour(currentArmour);
+	drawArmour((u8)currentArmour);
+	highlightWeaponHUD(currentWeapon);
 
 
 
 	drawDoomFace(&doomface);
 	drawWeapon(currentWeapon, swayXTBL[weaponSwayIndex], swayYTBL[weaponSwayIndex], weaponAnimation, 0);
 	u16 keyInputs;
+	u16 prevKeyInputs = 0;
+	u16 keyPressed; /* newly pressed this frame (edge detection) */
 
-	mp_init();
+	/* mp_init() already called in main.c before title screen */
 	while(1) {
 		//drawDoomFace(LAYER_UI, 44, 0, doomface);
 		isMoving = false;
@@ -354,6 +500,7 @@ u8 gameLoop()
 		//setmem((void*)BGMap(UI_LAYER), 0, 8192);
 
 		keyInputs = vbReadPad();
+		keyPressed = keyInputs & ~prevKeyInputs; /* newly pressed this frame */
 		// handle input last...
 		if (keyInputs & K_LU) {// Left Pad, Up
 			isMoving = true;
@@ -403,12 +550,22 @@ u8 gameLoop()
 		if (keyInputs & (K_B | K_RT) && updatePistolCount == 0 && weaponAnimation == 0 && isChangingWeapon == false) {
 			if (weapons[currentWeapon].requiresAmmo) {
 				if (weapons[currentWeapon].ammo > 0) {
-					weaponAnimation = 1; // shoot
-					weapons[currentWeapon].ammo--;
-					isShooting = true;
-					drawUpdatedAmmo(weapons[currentWeapon].ammo, weapons[currentWeapon].ammoType);
-					{
-						u8 hitIdx = playerShoot(fPlayerX, fPlayerY, fPlayerAng, currentWeapon);
+				weaponAnimation = 1; // shoot
+				weapons[currentWeapon].ammo--;
+				isShooting = true;
+				/* Trigger PCM weapon fire sound */
+				if (currentWeapon == W_ROCKET) {
+					playPlayerSFX(SFX_ROCKET_LAUNCH);
+				} else if (currentWeapon == W_SHOTGUN)
+					playPlayerSFX(SFX_SHOTGUN);
+				else
+					playPlayerSFX(SFX_PISTOL);
+				drawUpdatedAmmo(weapons[currentWeapon].ammo, weapons[currentWeapon].ammoType);
+				if (currentWeapon == W_ROCKET) {
+					/* Rocket launcher: spawn projectile, no hitscan */
+					spawnRocket(fPlayerX, fPlayerY, fPlayerAng);
+				} else {
+					u8 hitIdx = playerShoot(fPlayerX, fPlayerY, fPlayerAng, currentWeapon);
 						if (ENEMY_JUST_KILLED(hitIdx)) {
 							killFaceTimer = 30; /* show evil grin for ~1.5s */
 						}
@@ -416,15 +573,18 @@ u8 gameLoop()
 							/* Bullet hit wall -- cast ray to find exact wall hit position */
 							s16 wallHitX, wallHitY;
 							CastRayHitPos(fPlayerX, fPlayerY, (u16)fPlayerAng & 1023, &wallHitX, &wallHitY);
-							if (currentWeapon == 3) {
+							if (currentWeapon == W_SHOTGUN) {
 								spawnShotgunGroup(wallHitX, wallHitY);
 							} else {
 								spawnPuff(wallHitX, wallHitY);
 							}
 						}
 					}
+				/* Defer auto-switch until shoot animation finishes */
+				if (weapons[currentWeapon].ammo == 0) pendingAutoSwitch = true;
 				} else {
-					cycleWeapons();
+					/* No ammo left -- smart switch to best available */
+					autoSwitchOnEmpty();
 				}
 		} else {
 		 	weaponAnimation = 1; // punch!?
@@ -437,9 +597,10 @@ u8 gameLoop()
 				dx = wallHitX - (s16)fPlayerX;
 				dy = wallHitY - (s16)fPlayerY;
 				dist2 = (s32)dx * dx + (s32)dy * dy;
-				/* Only spawn puff if wall is within melee range (~80 units) */
+				/* Only spawn puff + punch sound if wall is within melee range (~80 units) */
 				if (dist2 < (s32)80 * 80) {
 					spawnPuff(wallHitX, wallHitY);
+					playPlayerSFX(SFX_PUNCH);
 				}
 			}
 		}
@@ -478,51 +639,189 @@ u8 gameLoop()
 		} else {
 			drawDoomStage(0);
 		}*/
+		/* Door/switch activation (Select button -- requires fresh press) */
+		if (keyPressed & K_SEL) {
+			u8 activateResult = playerActivate(fPlayerX, fPlayerY, fPlayerAng);
+			if (activateResult == 2) {
+				/* Hit a non-interactive wall -- play "umf" sound */
+				playPlayerSFX(SFX_PLAYER_UMF);
+			}
+			/* activateResult == 1: door/switch activated (sound in door.c) */
+			/* activateResult == 0: nothing in range, no sound */
+		}
+
+		/* Update door animations */
+		updateDoors();
+
 		// we actually only need to call this if x,y,ang changed...
 		updateEnemies(fPlayerX, fPlayerY, fPlayerAng);
 
 		/* Update particle animations */
 		updateParticles();
 
+		/* Animate pickups (ping-pong for helmet/armor) */
+		animatePickups();
+
+		/* Update projectiles (fireballs) */
+		updateProjectiles(fPlayerX, fPlayerY, fPlayerAng);
+
 		/* Check pickup collisions */
 		{
-			u8 pickupAmmo = weapons[currentWeapon].ammo;
-			if (updatePickups(fPlayerX, fPlayerY, &pickupAmmo, &currentHealth)) {
-				/* Something was picked up - update HUD */
-				weapons[currentWeapon].ammo = pickupAmmo;
-				drawUpdatedAmmo(weapons[currentWeapon].ammo, weapons[currentWeapon].ammoType);
-				drawHealth(currentHealth);
-			}
+			u8 pickupAmmo = weapons[2].ammo;  /* pistol bullets */
+			u8 shellAmmo = weapons[3].ammo;   /* shotgun shells */
+		if (updatePickups(fPlayerX, fPlayerY, &pickupAmmo, &currentHealth,
+		                  &currentArmour, &armorType, &shellAmmo)) {
+			/* Something was picked up - update ammo and HUD */
+			weapons[2].ammo = pickupAmmo;
+			weapons[3].ammo = shellAmmo;
+			/* Update big numbers (left side) for current weapon */
+			drawUpdatedAmmo(weapons[currentWeapon].ammo, weapons[currentWeapon].ammoType);
+			/* Update right-side digits for all ammo types (non-equipped too) */
+			drawSmallAmmo(weapons[2].ammo, 1);  /* BULL */
+			drawSmallAmmo(weapons[3].ammo, 2);  /* SHEL */
+			drawSmallAmmo(weapons[4].ammo, 3);  /* RCKT */
+			drawHealth(currentHealth);
+			drawArmour((u8)currentArmour);
+		}
 			/* Handle weapon pickups */
 			if (g_pickedUpWeapon > 0) {
 				weapons[g_pickedUpWeapon].hasWeapon = true;
-				weapons[g_pickedUpWeapon].ammo = 8;  /* start with 8 shells */
+				if (g_pickedUpWeapon == W_ROCKET)
+					weapons[g_pickedUpWeapon].ammo = 2;  /* start with 2 rockets */
+				else
+					weapons[g_pickedUpWeapon].ammo = 8;  /* start with 8 shells */
 				currentWeapon = g_pickedUpWeapon;
 				nextWeapon = g_pickedUpWeapon;
-				loadShotgunSprites();
+				if (g_pickedUpWeapon == W_ROCKET)
+					loadRocketLauncherSprites();
+				else
+					loadShotgunSprites();
 				drawUpdatedAmmo(weapons[currentWeapon].ammo, weapons[currentWeapon].ammoType);
+				drawWeaponSlotNumbers(weapons[W_PISTOL].hasWeapon,
+				                     weapons[W_SHOTGUN].hasWeapon,
+				                     weapons[W_ROCKET].hasWeapon,
+				                     currentWeapon);
+				highlightWeaponHUD(currentWeapon);
 				weaponAnimation = 0;
 				updatePistolCount = 0;
 				isShooting = false;
+				playPlayerSFX(SFX_SHOTGUN_COCK);
 				g_pickedUpWeapon = 0;
 			}
 		}
 
-		/* Update enemy sprite frames in VRAM (only if frame changed) */
+		/* Check secret sectors */
 		{
-			u8 ei;
+			u8 playerTX = (u8)(fPlayerX >> 8);
+			u8 playerTY = (u8)(fPlayerY >> 8);
+			u8 si;
+			for (si = 0; si < g_totalSecrets; si++) {
+				if (!g_secrets[si].found &&
+				    playerTX == g_secrets[si].tx &&
+				    playerTY == g_secrets[si].ty) {
+					g_secrets[si].found = true;
+					g_secretsFound++;
+				}
+			}
+		}
+
+		/* Update enemy sprite frames in VRAM -- distance-sorted rendering */
+		/* Compute 3 closest active enemies for rendering.
+		 * Alive enemies always have priority over dead ones. */
+		{
+			static u8 lastSlotEnemy[MAX_VISIBLE_ENEMIES] = {255,255,255};
+			u8 ei, vi;
+			u32 dists[MAX_ENEMIES];
+			u8 sorted[MAX_ENEMIES];
+			u8 activeCount = 0;
+
+			/* Forward vector from player angle (octant approximation).
+			 * Used to detect enemies behind the player so they don't
+			 * waste render slots over visible dead enemies. */
+			static const s8 fwdX[8] = { 0, 1, 1, 1, 0,-1,-1,-1};
+			static const s8 fwdY[8] = { 1, 1, 0,-1,-1,-1, 0, 1};
+			u8 fwdOct = ((u16)(fPlayerAng + 64) >> 7) & 7;
+
+			/* Compute squared distance for all active enemies.
+			 * Priority tiers (lower = higher priority):
+			 *   visible alive       -> raw distance
+			 *   visible dead        -> distance + 0x40000000
+			 *   not-visible alive   -> distance + 0x80000000
+			 *   not-visible dead    -> distance + 0xC0000000
+			 * "Not-visible" = behind player OR blocked by a wall. */
 			for (ei = 0; ei < MAX_ENEMIES; ei++) {
-				u8 frameIdx;
-				const unsigned int *frameData;
 				if (!g_enemies[ei].active) continue;
-				frameIdx = getEnemySpriteFrame(ei, fPlayerX, fPlayerY, fPlayerAng);
-				if (frameIdx != g_enemies[ei].lastRenderedFrame) {
-					if (g_enemies[ei].enemyType == ETYPE_SERGEANT)
-						frameData = ZOMBIE_SGT_FRAMES[frameIdx];
-					else
-						frameData = ZOMBIE_FRAMES[frameIdx];
-					loadEnemyFrame(ei, frameData);
-					g_enemies[ei].lastRenderedFrame = frameIdx;
+				{
+					s16 dx = (s16)g_enemies[ei].x - (s16)fPlayerX;
+					s16 dy = (s16)g_enemies[ei].y - (s16)fPlayerY;
+					u32 d = ((u32)((s32)dx * dx + (s32)dy * dy)) >> 8;
+					bool visible = true;
+					/* Cheap check first: behind player? */
+					s32 dot = (s32)dx * fwdX[fwdOct] + (s32)dy * fwdY[fwdOct];
+					if (dot <= 0) {
+						visible = false;
+					} else if (!hasLineOfSight(fPlayerX, fPlayerY,
+								g_enemies[ei].x, g_enemies[ei].y)) {
+						visible = false;
+					}
+					if (g_enemies[ei].state == ES_DEAD)
+						d += visible ? 0x40000000u : 0xC0000000u;
+					else if (!visible)
+						d += 0x80000000u;
+					dists[activeCount] = d;
+					sorted[activeCount] = ei;
+					activeCount++;
+				}
+			}
+
+			/* Simple selection sort for top 3 closest */
+			{
+				u8 j, minIdx;
+				u32 minDist;
+				for (vi = 0; vi < activeCount && vi < MAX_VISIBLE_ENEMIES; vi++) {
+					minIdx = vi;
+					minDist = dists[vi];
+					for (j = vi + 1; j < activeCount; j++) {
+						if (dists[j] < minDist) {
+							minDist = dists[j];
+							minIdx = j;
+						}
+					}
+					if (minIdx != vi) {
+						/* Swap */
+						u32 tmpD = dists[vi]; dists[vi] = dists[minIdx]; dists[minIdx] = tmpD;
+						u8 tmpI = sorted[vi]; sorted[vi] = sorted[minIdx]; sorted[minIdx] = tmpI;
+					}
+				}
+			}
+
+			/* Build visible list and load frames */
+			g_numVisibleEnemies = (activeCount < MAX_VISIBLE_ENEMIES) ? activeCount : MAX_VISIBLE_ENEMIES;
+			for (vi = 0; vi < MAX_VISIBLE_ENEMIES; vi++) {
+				if (vi < g_numVisibleEnemies) {
+					u8 realIdx = sorted[vi];
+					u8 frameIdx;
+					const unsigned int *frameData;
+					u8 slotChanged = (lastSlotEnemy[vi] != realIdx);
+					g_visibleEnemies[vi] = realIdx;
+
+					frameIdx = getEnemySpriteFrame(realIdx, fPlayerX, fPlayerY, fPlayerAng);
+					if (slotChanged || frameIdx != g_enemies[realIdx].lastRenderedFrame) {
+						if (g_enemies[realIdx].enemyType == ETYPE_DEMON)
+							frameData = DEMON_FRAMES[frameIdx];
+						else if (g_enemies[realIdx].enemyType == ETYPE_IMP)
+							frameData = IMP_FRAMES[frameIdx];
+						else if (g_enemies[realIdx].enemyType == ETYPE_SERGEANT)
+							frameData = ZOMBIE_SGT_FRAMES[frameIdx];
+						else
+							frameData = ZOMBIE_FRAMES[frameIdx];
+						loadEnemyFrame(vi, frameData);
+						g_enemies[realIdx].lastRenderedFrame = frameIdx;
+					}
+					lastSlotEnemy[vi] = realIdx;
+				} else {
+					g_visibleEnemies[vi] = 255;
+					lastSlotEnemy[vi] = 255;
 				}
 			}
 		}
@@ -550,23 +849,41 @@ u8 gameLoop()
 			if (g_lastEnemyDamage > 0) {
 				u8 dmg = g_lastEnemyDamage;
 				g_lastEnemyDamage = 0;
-				lastDamageDir = g_lastEnemyDamageDir;
+			/* Doom-style armor absorption */
+				if (currentArmour > 0 && armorType > 0) {
+					u8 armorAbsorb;
+					if (armorType >= 2)
+						armorAbsorb = dmg >> 1;     /* blue: absorb 1/2 */
+					else
+						armorAbsorb = dmg / 3;      /* green: absorb 1/3 */
+					if (armorAbsorb > (u8)currentArmour) armorAbsorb = (u8)currentArmour;
+					currentArmour -= armorAbsorb;
+					dmg -= armorAbsorb;
+					if (currentArmour == 0) armorType = 0;
+					drawArmour((u8)currentArmour);
+				}
 
-				/* Apply damage to player */
+				/* Apply damage to player health */
 				if (dmg >= currentHealth)
 					currentHealth = 0;
 				else
 					currentHealth -= dmg;
 				drawHealth(currentHealth);
 
+				/* Player pain/death sound */
+				if (currentHealth == 0)
+					playPlayerSFX(SFX_PLAYER_DEATH);
+				else
+					playPlayerSFX(SFX_PLAYER_PAIN);
+
 				/* Screen flash for damage */
 				g_flashTimer = 3;
 				g_flashType = 1;
 
 				/* Show ouch face: severe if >20 damage at once */
-				ouchTimer = 20;  /* show ouch for ~1 second */
+				ouchTimer = 20;
 				if (dmg > 20)
-					ouchTimer |= 0x80;  /* bit 7 = severe flag */
+					ouchTimer |= 0x80;
 			}
 
 			/* Decrement timers */
@@ -613,7 +930,6 @@ u8 gameLoop()
 				loadFaceFrame(doomface);  /* load new face tiles into VRAM */
 				drawDoomFace(&doomface);
 			}
-			lastHealth = currentHealth;
 		}
 		//VIP_REGS[GPLT0] = 0xD2;
 		//VIP_REGS[GPLT0] = 0xE4;
@@ -634,6 +950,11 @@ u8 gameLoop()
 				if (weaponAnimation >= weapons[currentWeapon].attackFrames) {
 					isShooting = false;
 					weaponAnimation = 0;
+					/* Switch weapon after full shoot animation if ammo ran out */
+					if (pendingAutoSwitch) {
+						pendingAutoSwitch = false;
+						autoSwitchOnEmpty();
+					}
 				}
 				updatePistolCount = 0;
 			}
@@ -665,12 +986,14 @@ u8 gameLoop()
 			if (weaponChangeTimer > 10 && nextWeapon != currentWeapon) {
 				nextWeapon = currentWeapon; // switch weapon after half time...
 				/* Now load tiles so they match the weapon drawWeapon() will use */
-				if (currentWeapon == 1)
+				if (currentWeapon == W_FISTS)
 					loadFistSprites();
-				else if (currentWeapon == 2)
+				else if (currentWeapon == W_PISTOL)
 					loadPistolSprites();
-				else if (currentWeapon == 3)
+				else if (currentWeapon == W_SHOTGUN)
 					loadShotgunSprites();
+				else if (currentWeapon == W_ROCKET)
+					loadRocketLauncherSprites();
 			}
 			if (weaponChangeTimer >= weaponChangeTime) {
 				weaponChangeTimer = 0;
@@ -678,8 +1001,8 @@ u8 gameLoop()
 			}
 			weaponChangeTimer++;
 		}
-		comboChangeAndFire= isShooting && isChangingWeapon == false;
-		playSnd(&comboChangeAndFire, &currentWeapon, &isPlayMusicBool);
+		/* Update background music sequencer */
+		updateMusic(isPlayMusicBool);
 
 		/* Debug: draws player X, Y, angle over the HUD.
 		 * Uncomment to re-enable: drawPlayerInfo(&fPlayerX, &fPlayerY, &fPlayerAng); */
@@ -710,10 +1033,76 @@ u8 gameLoop()
 
 		//vbWaitFrame(0); /* Sync to VBlank for tear-free display */
 
+		/* ---- Level transition ---- */
+		if (g_levelComplete && currentLevel < 2) {
+			/* Fade out current level */
+			vbFXFadeOut(0);
+			vbWaitFrame(10);
+
+			/* Show intermission screen (le_map with bleed-down effect) */
+			showIntermission();
+
+			/* Show level completion stats (kills, items, secrets, time) */
+			showLevelStats();
+
+			/* Switch music to next level's song */
+			{
+				u8 nextLevel = currentLevel + 1;
+				if (nextLevel == 2) musicLoadSong(SONG_E1M2);
+				else if (nextLevel == 3) musicLoadSong(SONG_E1M3);
+				musicStart();
+			}
+
+			/* Load next level (map, enemies, pickups, doors, particles) */
+			loadLevel(currentLevel + 1);
+
+			/* Restore all game VRAM, worlds, palettes, BGMaps
+			 * (intermission overwrote them with le_map data) */
+			restoreGameDisplay(doomface, currentWeapon);
+
+			/* Reset weapon animation state */
+			weaponAnimation = 0;
+			updatePistolCount = 0;
+			isShooting = false;
+			weaponSwayIndex = 0;
+			walkSwayIndex = 0;
+
+			/* Re-draw HUD (weapons, ammo, health carry over) */
+			drawDoomUI(LAYER_UI, 0, 0);
+			drawUpdatedAmmo(weapons[currentWeapon].ammo, weapons[currentWeapon].ammoType);
+			drawSmallAmmo(weapons[W_PISTOL].ammo, 1);
+			drawSmallAmmo(weapons[W_SHOTGUN].ammo, 2);
+			drawSmallAmmo(weapons[W_ROCKET].ammo, 3);
+			drawWeaponSlotNumbers(weapons[W_PISTOL].hasWeapon,
+			                     weapons[W_SHOTGUN].hasWeapon,
+			                     weapons[W_ROCKET].hasWeapon,
+			                     currentWeapon);
+			drawHealth(currentHealth);
+			drawArmour((u8)currentArmour);
+			highlightWeaponHUD(currentWeapon);
+			drawDoomFace(&doomface);
+			drawWeapon(currentWeapon, swayXTBL[weaponSwayIndex], swayYTBL[weaponSwayIndex], weaponAnimation, 0);
+
+			/* Fade in to new level */
+			vbFXFadeIn(0);
+
+			/* Re-apply palettes after fade-in (vbFXFadeIn may set generic values) */
+			VIP_REGS[GPLT0] = 0xE4;
+			VIP_REGS[GPLT1] = 0x00;
+			VIP_REGS[GPLT2] = 0x84;
+			VIP_REGS[GPLT3] = 0xE4;
+			VIP_REGS[JPLT0] = 0xE4;
+			VIP_REGS[JPLT1] = 0xE4;
+			VIP_REGS[JPLT2] = 0xE4;
+			VIP_REGS[JPLT3] = 0xE4;
+		}
+
 		/* Timer-based FPS cap: ensures consistent game speed.
 		 * Uses 100us hardware timer. Default: 50ms = 20fps.
 		 * If frame was faster than target, this blocks until target time.
 		 * If frame was slower, this returns immediately (timer already expired). */
+		g_levelFrames++;
+		prevKeyInputs = keyInputs;
 		waitForFrameTimer();
 	}
 	return 0;

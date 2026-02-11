@@ -31,8 +31,15 @@ void     LookupHeight(u16 distance, u8* height, u16* step);
 bool     IsWall(u8 tileX, u8 tileY);
 u8       GetWallType(u8 tileX, u8 tileY);
 
-/* Wall type of the last ray hit (set by CalculateDistance, read by TraceFrame) */
+/* Wall type and tile coords of the last ray hit (set by CalculateDistance, read by TraceFrame) */
 extern u8 g_lastWallType;
+extern u8 g_lastWallTileX;
+extern u8 g_lastWallTileY;
+
+/* Center screen column wall data (saved during TraceFrame for USE activation) */
+extern u8 g_centerWallType;
+extern u8 g_centerWallTileX;
+extern u8 g_centerWallTileY;
 s16  MulTan(u8 value, bool inverse, u8 quarter, u8 angle, const u16* lookupTable);
 s16  AbsTan(u8 quarter, u8 angle, const u16* lookupTable);
 //u8 Arctan(s16 *y, s16 *x);
@@ -49,5 +56,8 @@ void fPlayerStrafe(u16 *ifPlayerX, u16 *ifPlayerY, s16 ifPlayerAng, s16 iSpeed);
 
 /* Cast a ray from (rayX,rayY) along angle rayA and return exact wall hit position */
 void CastRayHitPos(u16 rayX, u16 rayY, u16 rayA, s16* outHitX, s16* outHitY);
+
+/* Bresenham tile-walk LOS: returns true if no wall between two 8.8 positions */
+bool hasLineOfSight(u16 fromX, u16 fromY, u16 toX, u16 toY);
 
 #endif

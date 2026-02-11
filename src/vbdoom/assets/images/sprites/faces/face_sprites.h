@@ -13,7 +13,7 @@
  *   copymem((void*)addr, (void*)FACE_TILE_DATA[faceIndex], 192);
  */
 
-#define FACE_CHAR_START   108
+#define FACE_CHAR_START   129
 #define FACE_TILE_COUNT   12
 #define FACE_TILE_BYTES   192
 #define FACE_COUNT        32
@@ -96,9 +96,9 @@ static const unsigned int* const FACE_TILE_DATA[32] = {
     face_31Tiles
 };
 
-/* Fixed face BGMap: always references chars 108-119 */
+/* Fixed face BGMap: always references chars 129-140 */
 static const unsigned short faceMap[12] __attribute__((aligned(4))) = {
-	0x006C,0x006D,0x006E,0x006F,0x0070,0x0071,0x0072,0x0073,0x0074,0x0075,0x0076,0x0077
+	0x0081,0x0082,0x0083,0x0084,0x0085,0x0086,0x0087,0x0088,0x0089,0x008A,0x008B,0x008C
 };
 
 #endif /* __FACE_SPRITES_H__ */

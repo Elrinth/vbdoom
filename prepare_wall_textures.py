@@ -1,11 +1,10 @@
 """
 Generate VB-optimized wall texture tiles for the raycaster.
 
-Instead of converting photo-realistic Doom textures (which look noisy at 3 colours),
-this generates clean high-contrast geometric patterns designed specifically for
-the VB's 3-colour red palette.
+3 algorithmic patterns (brick, stone, tech) + 2 image-based (door, switch).
+5 wall types, 8 columns x 8 rows x 2 lighting = 640 wall tiles + 70 transition.
 
-4 wall types, 8 columns x 8 rows x 2 lighting = 512 wall tiles + 56 transition.
+Switch "on" state tiles stored separately for runtime VRAM swap.
 
 Output: wall_textures.c and wall_textures.h
 """
@@ -18,7 +17,6 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 OUTPUT_DIR = os.path.join(SCRIPT_DIR, "src", "vbdoom", "assets", "images")
 PREVIEW_DIR = os.path.join(SCRIPT_DIR, "wall_texture_previews")
 
-# Will be set to final value during VRAM layout step
 WALL_TEX_CHAR_START = 1211  # after pickups: 1175 + 36 = 1211
 
 TILE_SIZE = 8
@@ -31,10 +29,15 @@ TEXTURES = [
     "wall_startan",   # Brick
     "wall_stone",     # Stone blocks
     "wall_tech",      # Tech panels
-    "wall_rough",     # Rough organic
+    "wall_door",      # Door (from door_texture.png)
+    "wall_switch",    # Switch off state (from gaint-switch1-doom-palette.png)
 ]
 
 VB_PAL = {0: (0, 0, 0), 1: (80, 0, 0), 2: (170, 0, 0), 3: (255, 0, 0)}
+
+
+def luminance(r, g, b):
+    return int(0.299 * r + 0.587 * g + 0.114 * b)
 
 
 # ---------------------------------------------------------------------------
@@ -48,33 +51,26 @@ def gen_brick():
 
     for y in range(H):
         for x in range(W):
-            # Horizontal mortar lines at rows 0 and 4 of each tile group
             row_in_brick = y % 16
             is_h_mortar = row_in_brick == 0 or row_in_brick == 8
 
-            # Vertical mortar: stagger by 16px every other row-group
             stagger = 0 if (y // 16) % 2 == 0 else 16
             is_v_mortar = ((x + stagger) % 32) == 0
 
             if is_h_mortar or is_v_mortar:
-                c[y][x] = 1   # dark mortar
+                c[y][x] = 1
             else:
-                # Brick body: slight variation based on position
                 if row_in_brick == 1 or row_in_brick == 9:
-                    # Row just below mortar: bright edge (top highlight)
                     c[y][x] = 3
                 elif row_in_brick == 7 or row_in_brick == 15:
-                    # Row just above mortar: slightly dark (shadow)
                     c[y][x] = 1
                 else:
-                    # Vertical edge highlights
                     col_in_brick = (x + stagger) % 32
                     if col_in_brick == 1:
-                        c[y][x] = 3   # left edge highlight
+                        c[y][x] = 3
                     elif col_in_brick == 31:
-                        c[y][x] = 1   # right edge shadow
+                        c[y][x] = 1
                     else:
-                        # Subtle pattern within brick
                         if (x + y * 3) % 7 == 0:
                             c[y][x] = 3
                         elif (x * 5 + y * 2) % 11 == 0:
@@ -88,9 +84,8 @@ def gen_stone():
     """Stone blocks: irregular block outlines with varied fill."""
     W, H = 64, 64
     c = [[2] * W for _ in range(H)]
-    random.seed(42)  # deterministic
+    random.seed(42)
 
-    # Define stone block layout (irregular rectangles)
     blocks = [
         (0,  0, 20, 12), (20, 0, 44, 10), (44, 0, 64, 14),
         (0, 12, 18, 28), (18, 10, 46, 26), (46, 14, 64, 30),
@@ -100,24 +95,20 @@ def gen_stone():
     ]
 
     for bx1, by1, bx2, by2 in blocks:
-        fill = random.choice([2, 2, 2, 3])  # mostly medium
+        fill = random.choice([2, 2, 2, 3])
         for y in range(by1, min(by2, H)):
             for x in range(bx1, min(bx2, W)):
-                # Outline = dark
                 if y == by1 or y == by2 - 1 or x == bx1 or x == bx2 - 1:
                     c[y][x] = 1
-                # Inner highlight near top-left
                 elif y == by1 + 1 and x > bx1 and x < bx2 - 1:
                     c[y][x] = 3
                 elif x == bx1 + 1 and y > by1 and y < by2 - 1:
                     c[y][x] = 3
-                # Inner shadow near bottom-right
                 elif y == by2 - 2 and x > bx1 and x < bx2 - 1:
                     c[y][x] = 1
                 elif x == bx2 - 2 and y > by1 and y < by2 - 1:
                     c[y][x] = 1
                 else:
-                    # Stone fill with minor grain
                     if (x * 3 + y * 7) % 13 == 0:
                         c[y][x] = 1 if fill == 2 else 2
                     else:
@@ -132,29 +123,25 @@ def gen_tech():
 
     for y in range(H):
         for x in range(W):
-            # Main panel grid: 16x16 panels
             px = x % 16
             py = y % 16
 
             if px == 0 or py == 0:
-                c[y][x] = 1   # dark grid lines
+                c[y][x] = 1
             elif px == 1 or py == 1:
-                c[y][x] = 3   # bright inner edge
+                c[y][x] = 3
             elif px == 15 or py == 15:
-                c[y][x] = 1   # dark shadow edge
+                c[y][x] = 1
             elif px == 14 or py == 14:
-                c[y][x] = 2   # medium near shadow
+                c[y][x] = 2
             else:
-                # Panel interior: add small tech detail
                 panel_id = (x // 16) + (y // 16) * 4
                 if panel_id % 3 == 0:
-                    # Horizontal stripe pattern
                     if py >= 6 and py <= 9:
                         c[y][x] = 3 if (px + py) % 2 == 0 else 1
                     else:
                         c[y][x] = 2
                 elif panel_id % 3 == 1:
-                    # Center dot/light
                     cx, cy = 8, 8
                     dist = abs(px - cx) + abs(py - cy)
                     if dist <= 2:
@@ -164,7 +151,6 @@ def gen_tech():
                     else:
                         c[y][x] = 2
                 else:
-                    # Cross pattern
                     if px == 8 or py == 8:
                         c[y][x] = 1
                     else:
@@ -172,47 +158,44 @@ def gen_tech():
     return c
 
 
-def gen_rough():
-    """Rough organic texture: cave-like with dark pitting."""
-    W, H = 64, 64
-    c = [[2] * W for _ in range(H)]
-    random.seed(137)  # deterministic
-
-    # Generate noise field
-    noise = [[random.random() for _ in range(W)] for _ in range(H)]
-
-    # Simple box-blur the noise for smoother patterns
-    blurred = [[0.0] * W for _ in range(H)]
-    for y in range(H):
-        for x in range(W):
-            total = 0.0
-            count = 0
-            for dy in range(-2, 3):
-                for dx in range(-2, 3):
-                    ny = (y + dy) % H
-                    nx = (x + dx) % W
-                    total += noise[ny][nx]
-                    count += 1
-            blurred[y][x] = total / count
-
-    # Add some structured crack lines
-    for y in range(H):
-        for x in range(W):
-            # Diagonal cracks
-            crack1 = abs((x * 3 + y * 2) % 24 - 12)
-            crack2 = abs((x * 2 - y * 3 + 48) % 20 - 10)
-            is_crack = crack1 < 1 or crack2 < 1
-
-            b = blurred[y][x]
-            if is_crack:
-                c[y][x] = 1   # dark crack
-            elif b < 0.30:
-                c[y][x] = 1   # dark pits
-            elif b > 0.68:
-                c[y][x] = 3   # bright spots
+def gen_from_image(image_path):
+    """Load PNG, scale to 64x64, convert to VB palette (1-3 for walls)."""
+    img = Image.open(image_path).convert('RGBA')
+    resized = img.resize((64, 64), Image.LANCZOS)
+    canvas = [[2] * 64 for _ in range(64)]
+    pix = resized.load()
+    for y in range(64):
+        for x in range(64):
+            r, g, b, a = pix[x, y]
+            if a < 128:
+                canvas[y][x] = 1  # transparent -> dark for walls
             else:
-                c[y][x] = 2   # medium base
-    return c
+                gray = luminance(r, g, b)
+                if gray < 85:
+                    canvas[y][x] = 1
+                elif gray < 170:
+                    canvas[y][x] = 2
+                else:
+                    canvas[y][x] = 3
+    return canvas
+
+
+def gen_door():
+    """Door texture from door_texture.png."""
+    path = os.path.join(SCRIPT_DIR, "door_texture.png")
+    return gen_from_image(path)
+
+
+def gen_switch_off():
+    """Switch off state from gaint-switch1-doom-palette.png."""
+    path = os.path.join(SCRIPT_DIR, "gaint-switch1-doom-palette.png")
+    return gen_from_image(path)
+
+
+def gen_switch_on():
+    """Switch on state from gaint-switch2-doom-palette.png."""
+    path = os.path.join(SCRIPT_DIR, "gaint-switch2-doom-palette.png")
+    return gen_from_image(path)
 
 
 # ---------------------------------------------------------------------------
@@ -220,7 +203,6 @@ def gen_rough():
 # ---------------------------------------------------------------------------
 
 def slice_canvas_to_tiles(canvas):
-    """Slice 64x64 canvas into 8x8 grid of 8x8 tiles. Returns [row][col] = tile."""
     tiles = [[None] * COLUMNS_PER_TEX for _ in range(ROWS_PER_TEX)]
     for tr in range(ROWS_PER_TEX):
         for tc in range(COLUMNS_PER_TEX):
@@ -235,15 +217,10 @@ def slice_canvas_to_tiles(canvas):
 
 
 def darken_tile(tile):
-    """Create dark variant: shift each index down by 1 (min 1)."""
     return [[max(1, v - 1) for v in row] for row in tile]
 
 
 def tile_to_vb_2bpp(tile):
-    """Convert 8x8 tile to VB 2bpp sequential format (16 bytes).
-
-    VB stores each row as a u16 (LE) with pixel 0 at bits[1:0] (LSB).
-    """
     data = []
     for y in range(TILE_SIZE):
         u16_val = 0
@@ -267,9 +244,6 @@ def bytes_to_u32(data):
 # ---------------------------------------------------------------------------
 
 def generate_transitions(rep_tiles):
-    """Generate partially-masked transition tiles.
-    rep_tiles: dict of (type_idx, lighting) -> 8x8 tile
-    """
     tiles = []
     for ti in range(len(TEXTURES)):
         for tv in range(2):
@@ -291,7 +265,6 @@ def generate_transitions(rep_tiles):
 # ---------------------------------------------------------------------------
 
 def save_preview(canvas, name, scale=4):
-    """Save a 64x64 canvas as a scaled preview PNG."""
     os.makedirs(PREVIEW_DIR, exist_ok=True)
     pw, ph = 64 * scale, 64 * scale
     img = Image.new('RGB', (pw, ph))
@@ -305,7 +278,6 @@ def save_preview(canvas, name, scale=4):
 
 
 def save_combined_preview(canvases, names, scale=3):
-    """Save all textures side-by-side: lit on top, dark on bottom."""
     os.makedirs(PREVIEW_DIR, exist_ok=True)
     gap = 4
     n = len(canvases)
@@ -315,14 +287,12 @@ def save_combined_preview(canvases, names, scale=3):
 
     for i, (canvas, name) in enumerate(zip(canvases, names)):
         ox = gap + i * (64 * scale + gap)
-        # Lit
         for y in range(64):
             for x in range(64):
                 color = VB_PAL[canvas[y][x]]
                 for sy in range(scale):
                     for sx in range(scale):
                         img.putpixel((ox + x*scale+sx, gap + y*scale+sy), color)
-        # Dark variant
         oy = gap + 64 * scale + gap
         for y in range(64):
             for x in range(64):
@@ -336,13 +306,33 @@ def save_combined_preview(canvases, names, scale=3):
 
 
 # ---------------------------------------------------------------------------
+# Switch ON tiles (separate ROM array for runtime swap)
+# ---------------------------------------------------------------------------
+
+def generate_switch_on_tiles():
+    """Generate tile data for switch 'on' state, stored separately."""
+    canvas = gen_switch_on()
+    tiles = slice_canvas_to_tiles(canvas)
+    all_u32 = []
+    # Lit tiles
+    for r in range(ROWS_PER_TEX):
+        for c in range(COLUMNS_PER_TEX):
+            all_u32.extend(bytes_to_u32(tile_to_vb_2bpp(tiles[r][c])))
+    # Dark tiles
+    for r in range(ROWS_PER_TEX):
+        for c in range(COLUMNS_PER_TEX):
+            all_u32.extend(bytes_to_u32(tile_to_vb_2bpp(darken_tile(tiles[r][c]))))
+    return all_u32
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
 def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    generators = [gen_brick, gen_stone, gen_tech, gen_rough]
+    generators = [gen_brick, gen_stone, gen_tech, gen_door, gen_switch_off]
     all_canvases = []
     all_tiles = []
     rep_tiles = {}
@@ -378,6 +368,10 @@ def main():
     trans = generate_transitions(rep_tiles)
     print(f"Generated {len(trans)} transition tiles")
 
+    # Switch ON tiles (separate)
+    switch_on_u32 = generate_switch_on_tiles()
+    print(f"Generated switch ON tiles: {len(switch_on_u32)} u32 words")
+
     combined = all_tiles + trans
     total_words = len(combined) * 4
 
@@ -388,20 +382,36 @@ def main():
         f.write(" * Wall texture tiles for VB Doom raycaster.\n")
         f.write(" * Auto-generated by prepare_wall_textures.py\n")
         f.write(f" * {len(all_tiles)} wall tiles + {len(trans)} transition = {len(combined)} total\n")
-        f.write(" * VB-optimized geometric patterns (brick, stone, tech, rough)\n")
+        f.write(" * Patterns: brick, stone, tech, door, switch\n")
         f.write(" */\n\n")
+        f.write('#include "wall_textures.h"\n\n')
         f.write(f"const unsigned int wallTextureTiles[{total_words}]"
                 f" __attribute__((aligned(4))) =\n{{\n")
         for i, words in enumerate(combined):
             s = ", ".join(f"0x{w:08X}" for w in words)
             comma = "," if i < len(combined) - 1 else ""
             f.write(f"\t{s}{comma}\n")
+        f.write("};\n\n")
+
+        # Switch ON data (ROM, for runtime swap into VRAM)
+        f.write("/* Switch ON state tiles -- copymem over switch VRAM chars on activation */\n")
+        f.write(f"const unsigned int switchOnTiles[{len(switch_on_u32)}]"
+                f" __attribute__((aligned(4))) =\n{{\n")
+        for i in range(0, len(switch_on_u32), 8):
+            chunk = switch_on_u32[i:i+8]
+            s = ", ".join(f"0x{w:08X}" for w in chunk)
+            comma = "," if i + 8 < len(switch_on_u32) else ""
+            f.write(f"\t{s}{comma}\n")
         f.write("};\n")
     print(f"\nWrote {c_path}")
 
     # --- Write H ---
     trans_start = WALL_TEX_CHAR_START + len(all_tiles)
-    tc_shift = 5   # tc >> 5 for 8 columns
+    tc_shift = 5
+    # Switch type is the last one (index 4, wall type 5)
+    switch_type_idx = len(TEXTURES) - 1
+    switch_vram_offset = switch_type_idx * TILES_PER_TYPE
+
     h_path = os.path.join(OUTPUT_DIR, "wall_textures.h")
     with open(h_path, 'w') as f:
         f.write("#ifndef __WALL_TEXTURES_H__\n#define __WALL_TEXTURES_H__\n\n")
@@ -426,8 +436,16 @@ def main():
         f.write(f"#define TRANS_TEX_CHAR_START  {trans_start}\n")
         f.write(f"#define TRANS_TEX_COUNT       {len(trans)}\n\n")
         f.write(f"extern const unsigned int wallTextureTiles[{total_words}];\n\n")
+
+        # Switch ON data extern
+        f.write(f"/* Switch ON tiles: {TILES_PER_TYPE} tiles in ROM for runtime swap */\n")
+        f.write(f"extern const unsigned int switchOnTiles[{len(switch_on_u32)}];\n")
+        f.write(f"#define SWITCH_ON_TILES_BYTES  {len(switch_on_u32) * 4}\n")
+        f.write(f"#define SWITCH_VRAM_OFFSET     {switch_vram_offset}\n\n")
+
         for i, name in enumerate(TEXTURES):
-            f.write(f"#define WALL_TYPE_{name.upper().replace('WALL_', '')}  {i + 1}\n")
+            short = name.upper().replace('WALL_', '')
+            f.write(f"#define WALL_TYPE_{short}  {i + 1}\n")
         f.write("\n#endif\n")
     print(f"Wrote {h_path}")
 

@@ -3,9 +3,9 @@
 
 #include "titleScreen.h"
 #include "menu_options.h"
-#include "adjustmentScreen.h"
 #include "precautionScreen.h"
 #include "languageSelectionScreen.h"
+#include "creditsScreen.h"
 #include "gameLoop.h"
 
 

@@ -1,5 +1,5 @@
-#ifndef _FUNCTIONS_DOOMGFX_H
-#define _FUNCTIONS_DOOMGFX_H
+#ifndef _FUNCTIONS_DOOMSTAGE_H
+#define _FUNCTIONS_DOOMSTAGE_H
 
 
 #include <types.h>

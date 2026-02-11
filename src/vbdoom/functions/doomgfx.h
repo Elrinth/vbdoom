@@ -36,6 +36,7 @@ void loadFaceFrame(u8 faceIdx);
 void loadFistSprites(void);
 void loadPistolSprites(void);
 void loadShotgunSprites(void);
+void loadRocketLauncherSprites(void);
 
 void drawDoomFace(u8 *face);
 void drawDoomPistol(u8 bgmap, u16 x, u16 y, u8 pistolAnimation);
@@ -44,9 +45,16 @@ void drawDoomUI(u8 bgmap, u16 x, u16 y);
 void drawBigUINumbers(u8 iType, u8 iOnes, u8 iTens, u8 iHundreds, u8 iAmmoType);
 void drawWeapon(u8 iWeapon, s16 swayX, s16 swayY, u8 iFrame, u8 iWeaponChangeTimer);
 void drawUpdatedAmmo(u16 iAmmo, u8 iAmmoType);
+void drawSmallAmmo(u16 iAmmo, u8 iAmmoType);
 void drawHealth(u16 iHealth);
 void drawArmour(u16 iArmour);
 
 void drawPlayerInfo(u16 *fPlayerX, u16 *fPlayerY, s16 *fPlayerAng);
+
+/* Draw Doom slot numbers (2,3,4 top; 5,6,7 bottom) for owned weapons, left of face */
+void drawWeaponSlotNumbers(u8 hasPistol, u8 hasShotgun, u8 hasRocket, u8 currentWeapon);
+
+/* Update weapon HUD highlight: brighten active weapon's ammo type text + rect */
+void highlightWeaponHUD(u8 weaponIdx);
 
 #endif

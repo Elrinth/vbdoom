@@ -32,10 +32,7 @@ def is_bg(r, g, b, a):
 
 
 def tile_to_vb_2bpp(tile):
-    """Convert 8x8 tile to VB 2bpp sequential format (16 bytes).
-
-    VB stores each row as a u16 (LE) with pixel 0 at bits[1:0] (LSB).
-    """
+    """VB 2bpp sequential: each row u16 (LE), pixel 0 at bits[1:0]. Matches wall/fireball/particle pipeline."""
     data = []
     for y in range(TILE_SIZE):
         u16_val = 0
@@ -95,10 +92,9 @@ def main():
                 if is_bg(r, g, b, a):
                     canvas[dy][dx] = 0
                 else:
-                    gray = luminance(r, g, b)
-                    if gray < 85:
+                    if r < 43:
                         canvas[dy][dx] = 1
-                    elif gray < 170:
+                    elif r < 127:
                         canvas[dy][dx] = 2
                     else:
                         canvas[dy][dx] = 3

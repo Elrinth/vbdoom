@@ -81,6 +81,8 @@ int ybottom[H];
 
 //secx1x2 now;
 
+int roundDown(int num, int factor);  /* forward declaration */
+
 void initializeDoomStage() {
 
 	now.sx1 = 0;
@@ -163,10 +165,7 @@ void fixedDrawDoomStage(u8 bgmap) {
 	s32 fyfloor = 0;
 	int x = 0;
 	int wallsNotDrawn = 0;
-	int index = 0;
 
-	u16 segNotDrawn1 = 0;
-	u16 segNotDrawn2 = 0;
 	u16 vertexIndex1 = 0;
 	u16 vertexIndex2 = 0;
 
@@ -266,47 +265,6 @@ void fixedDrawDoomStage(u8 bgmap) {
 		for(x = beginx; x < endx; x+=8)
 		{
 		copymem((void*)BGMap(1)+24, (void*)(vb_doomMap+2464), 8);
-        		continue;
-			/* Calculate the Z coordinate for this point. (Only used for lighting.) */
-            //int z = ((x - x1) * (tz2-tz1) / (x2-x1) + tz1) * 8;
-            /* Acquire the Y coordinates for our ceiling & floor for this X coordinate. Clamp them. */
-			int ya = 0;
-			int cya = 0; // top
-			int yb = 0;
-			int cyb = 0; // bottom
-
-			s32 fx_x1 = ITOFIX23_9(x) - fx1;
-			s32 fx2_x1 = fx2 - fx1;
-			s32 fy2a_y1a = fy2a - fy1a;
-			s32 fy2b_y1b = fy2b - fy1b;
-
- 			// top
-			ya = FIX23_9TOI( FIX23_9_DIV(FIX23_9_MULT(fx_x1, fy2a_y1a), fx2_x1) + fy1a );
-			cya = clamp(ya, 0,H-1);
-			// bottom
-			yb = FIX23_9TOI( FIX23_9_DIV(FIX23_9_MULT(fx_x1, fy2b_y1b), fx2_x1) + fy1b );
-			cyb = clamp(yb, 0,H-1);
-
-
-			// round down to nearest 8 as we draw 8x8 tiles.
-			int xPos = roundDown(x, 8);
-			int cyaRoof = roundDown(cya-1, 8);
-			if (cyaRoof < 0) {
-				cyaRoof = 0;
-			}
-			int cybFloor = roundDown(cyb+1, 8);
-			if (cybFloor > H) {
-				cybFloor = H;
-			}
-
-
-			// draw roof
-			//drawDoomStageTile(xPos, 0, cyaRoof, 2480);
-			// draw floor
-			//drawDoomStageTile(xPos, cybFloor, H-1, 2480);
-			// draw wall
-			//drawDoomStageTile(xPos, cyaRoof, cybFloor, 2484); //2472);
-
 		}
 	}
 /*
@@ -378,10 +336,7 @@ void drawDoomStage(u8 bgmap) {
 	int yfloor = 0;
 	int x = 0;
 	int wallsNotDrawn = 0;
-	int index = 0;
 
-	u16 segNotDrawn1 = 0;
-	u16 segNotDrawn2 = 0;
 	u16 vertexIndex1 = 0;
 	u16 vertexIndex2 = 0;
 
@@ -406,8 +361,6 @@ void drawDoomStage(u8 bgmap) {
 		tz2 = vx2 * playerAngleCos + vy2 * playerAngleSin;
 
 		if (tz1 <= 0 && tz2 <= 0) {
-			segNotDrawn1 = vertexIndex1;
-			segNotDrawn2 = vertexIndex2;
 			wallsNotDrawn++;
 			continue;
 		}
@@ -541,9 +494,7 @@ void drawDoomStage(u8 bgmap) {
 			u16 blackStartPos = startPos + (96*34); // startpos in image where the enemy is with different palette
 			u16 curCol = 0;
 			u16 yPos = 0;
-			u16 tilePosition = 0;
 
-			u8 bgmap = 3;
 			for (curCol = 0; curCol < 6; curCol++) {
 				yPos = curCol<<7;
 				copymem((void*)BGMap(3)+yPos, (void*)(vb_doomMap+startPos+(curCol*96)), 10);

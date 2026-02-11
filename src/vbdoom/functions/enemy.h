@@ -9,13 +9,19 @@
  * Max 3 enemies on screen (1 world per enemy).
  */
 
-#define MAX_ENEMIES     3
+#define MAX_ENEMIES     13
+#define MAX_VISIBLE_ENEMIES 5  /* only 5 can render at once (VRAM/BGMap slots) */
 #define ENEMY_SPEED     8     /* fixed-point movement speed per frame */
 #define ENEMY_ATTACK_DIST  2500  /* squared-distance/256 for ranged attack checks */
 #define ENEMY_MIN_DIST     150   /* minimum distance to player (don't walk closer) */
 #define ENEMY_WALK_RATE 6     /* frames between walk animation advances */
-#define ENEMY_SHOOT_RATE 20   /* frames between attack animation poses */
+#define ENEMY_SHOOT_RATE 35   /* frames between attack animation poses (~1.75s at 20fps) */
 #define ENEMY_SIGHT_DIST 3000 /* squared-distance/256 at which enemies notice player (~7 tiles) */
+
+/* Doom hitscan range: 2048 map units. In our 8.8 fixed-point (256=1 tile):
+ * 2048 units ≈ 8 tiles in Doom scale; our 32 tiles ≈ 8192.
+ * dist = (dx^2+dy^2)>>8; for 32 tiles: 8192^2>>8 = 262144 */
+#define HITSCAN_RANGE_DIST  262144
 
 /* Collision radii */
 #define ENEMY_RADIUS    80
@@ -24,12 +30,20 @@
 /* Enemy types (Doom) */
 #define ETYPE_ZOMBIEMAN  0
 #define ETYPE_SERGEANT   1
+#define ETYPE_IMP        2
+#define ETYPE_DEMON      3
 
 /* Per-type stats */
 #define ZOMBIE_HEALTH       20
 #define ZOMBIE_PAINCHANCE   200   /* out of 256 */
 #define SGT_HEALTH          30
 #define SGT_PAINCHANCE      170   /* out of 256 */
+#define IMP_HEALTH          60
+#define IMP_PAINCHANCE      200   /* out of 256 */
+#define IMP_MELEE_DIST      150   /* squared-dist/256 for claw attack range */
+#define DEMON_HEALTH        150
+#define DEMON_PAINCHANCE    180   /* out of 256 */
+#define DEMON_MELEE_DIST    200   /* squared-dist/256 for bite range */
 
 /* Enemy states */
 #define ES_IDLE   0  /* standing still, unaware of player */
@@ -66,6 +80,10 @@ typedef struct {
 } EnemyState;
 
 extern EnemyState g_enemies[MAX_ENEMIES];
+
+/* Indices of the MAX_VISIBLE_ENEMIES closest active enemies (set each frame) */
+extern u8 g_visibleEnemies[MAX_VISIBLE_ENEMIES];
+extern u8 g_numVisibleEnemies;
 
 /*
  * Frame lookup tables.
@@ -120,10 +138,103 @@ static const u8 PAIN_FRAMES[8] = {30, 31, 32, 33, 34, 33, 32, 31};
 /* Death frames: sequential, no direction */
 static const u8 DEATH_FRAMES[DEATH_ANIM_FRAMES] = {35, 36, 37, 38, 39};
 
+/*
+ * IMP frame lookup tables.
+ * 56-frame sprite sheet. Layout (7 frames per direction):
+ *
+ *   Dir0 (front):    walk 2,4,0,3    attack 1,5,6       (frames 0-6)
+ *   Dir1 (fwd-left): walk 10,8,11,7  attack 9,12,13     (frames 7-13)
+ *   Dir2 (left):     walk 17,15,20,14 attack 18,19,16   (frames 14-20)
+ *   Dir3 (back-left):walk 22,23,21,27 attack 24,25,26   (frames 21-27)
+ *   Dir4 (back):     walk 28,32,29,33 attack 31,34,30   (frames 28-34)
+ *
+ *   Pain (35-39): left, back, front-left, back-left, front
+ *   Death (40-44): 5 frames
+ *   Gib (45-47, 51-55): 8 frames
+ */
+#define IMP_WALK_ANIM_FRAMES   4
+#define IMP_ATTACK_ANIM_FRAMES 3
+#define IMP_DEATH_ANIM_FRAMES  5
+
+static const u8 IMP_WALK_FRAMES[8][IMP_WALK_ANIM_FRAMES] = {
+    { 2,  4,  0,  3},   /* dir 0: front */
+    {10,  8, 11,  7},   /* dir 1: front-left */
+    {17, 15, 20, 14},   /* dir 2: left */
+    {22, 23, 21, 27},   /* dir 3: back-left */
+    {28, 32, 29, 33},   /* dir 4: back */
+    {22, 23, 21, 27},   /* dir 5: back-right  (mirror of 3) */
+    {17, 15, 20, 14},   /* dir 6: right        (mirror of 2) */
+    {10,  8, 11,  7},   /* dir 7: front-right  (mirror of 1) */
+};
+
+static const u8 IMP_ATTACK_FRAMES[8][IMP_ATTACK_ANIM_FRAMES] = {
+    { 1,  5,  6},   /* dir 0: front */
+    { 9, 12, 13},   /* dir 1: front-left */
+    {18, 19, 16},   /* dir 2: left */
+    {24, 25, 26},   /* dir 3: back-left */
+    {31, 34, 30},   /* dir 4: back */
+    {24, 25, 26},   /* dir 5: back-right  (mirror of 3) */
+    {18, 19, 16},   /* dir 6: right        (mirror of 2) */
+    { 9, 12, 13},   /* dir 7: front-right  (mirror of 1) */
+};
+
+/* Pain: 35=left, 36=back, 37=front-left, 38=back-left, 39=front */
+static const u8 IMP_PAIN_FRAMES[8] = {39, 37, 35, 38, 36, 38, 35, 37};
+
+static const u8 IMP_DEATH_FRAMES[IMP_DEATH_ANIM_FRAMES] = {40, 41, 42, 43, 44};
+
+/*
+ * DEMON (Pinky) frame lookup tables.
+ * 70-frame sprite sheet. Sequential layout per sprite sheet rows:
+ *
+ *   Dir0 (front):       walk 0,1,2,3     attack 4,5,6       (frames 0-6)
+ *   Dir1 (front-left):  walk 7,8,9,10    attack 11,12,13    (frames 7-13)
+ *   Dir2 (left):        walk 14,15,16,17 attack 18,19,20    (frames 14-20)
+ *   Dir3 (back-left):   walk 21,22,23,24 attack 25,26,27    (frames 21-27)
+ *   Dir4 (back):        walk 28,29,30,31 attack 32,33,34    (frames 28-34)
+ *   Dir5 (back-right):  walk 35,36,37,38 attack 39,40,41    (frames 35-41)
+ *   Dir6 (right):       walk 42,43,44,45 attack 46,47,48    (frames 42-48)
+ *   Dir7 (front-right): walk 49,50,51,52 attack 53,54,55    (frames 49-55)
+ *
+ *   Pain (56-63): one per direction (front..front-right)
+ *   Death (64-69): 6 frames
+ */
+#define DEMON_WALK_ANIM_FRAMES   4
+#define DEMON_ATTACK_ANIM_FRAMES 3
+#define DEMON_DEATH_ANIM_FRAMES  6
+
+static const u8 DEMON_WALK_FRAMES[8][DEMON_WALK_ANIM_FRAMES] = {
+    { 2,  0,  3,  1},   /* dir 0: front */
+    {10,  7, 13,  9},   /* dir 1: front-left */
+    {16, 14, 17, 15},   /* dir 2: left */
+    {22, 23, 24, 21},   /* dir 3: back-left */
+    {28, 31, 29, 32},   /* dir 4: back */
+    {35, 36, 37, 38},   /* dir 5: back-right */
+    {42, 44, 43, 45},   /* dir 6: right */
+    {50, 55, 49, 52},   /* dir 7: front-right */
+};
+
+static const u8 DEMON_ATTACK_FRAMES[8][DEMON_ATTACK_ANIM_FRAMES] = {
+    { 4,  5,  6},   /* dir 0: front */
+    {11, 12,  8},   /* dir 1: front-left */
+    {19, 20, 18},   /* dir 2: left */
+    {27, 26, 25},   /* dir 3: back-left */
+    {34, 33, 30},   /* dir 4: back */
+    {39, 40, 41},   /* dir 5: back-right */
+    {48, 47, 46},   /* dir 6: right */
+    {53, 54, 51},   /* dir 7: front-right */
+};
+
+/* Pain: one per direction */
+static const u8 DEMON_PAIN_FRAMES[8] = {56, 57, 59, 61, 62, 63, 60, 58};
+
+static const u8 DEMON_DEATH_FRAMES[DEMON_DEATH_ANIM_FRAMES] = {64, 65, 66, 67, 68, 69};
+
 /* ---- API ---- */
 
-/* Initialize all enemies (positions, state). Call once at game start. */
+/* Initialize all enemies (positions, state). Call once at level start. */
 void initEnemies(void);
+void initEnemiesE1M2(void);
 
 /* Update AI and animation for all enemies. Call once per frame. */
 void updateEnemies(u16 playerX, u16 playerY, s16 playerA);
@@ -154,6 +265,10 @@ u8 playerShoot(u16 playerX, u16 playerY, s16 playerA, u8 weaponType);
 extern u8 g_lastEnemyDamage;     /* damage dealt to player this frame (0=none) */
 extern s8 g_lastEnemyDamageDir;  /* -1=left, 0=front, 1=right */
 
+/* --- Kill tracking (for level stats screen) --- */
+extern u8 g_enemiesKilled;
+extern u8 g_totalEnemies;
+
 /* --- Sound event flags (set by enemy.c, read+cleared by sndplay.c) --- */
 extern u8 g_enemySndAggro;       /* >0: enemy just became aggro, value = distance/16 */
 extern u8 g_enemySndShoot;       /* >0: enemy just fired, value = distance/16 */
@@ -162,5 +277,17 @@ extern u8 g_enemySndDeath;       /* >0: enemy just died, value = distance/16 */
 
 /* Returns true if the enemy at bestIdx just died (state == ES_DEAD) after a shot */
 #define ENEMY_JUST_KILLED(idx) ((idx) < MAX_ENEMIES && g_enemies[idx].state == ES_DEAD)
+
+/* Get IMP-specific sprite frame index (56-frame sheet) */
+u8 getImpSpriteFrame(u8 enemyIdx, u16 playerX, u16 playerY, s16 playerA);
+
+/* Get Demon-specific sprite frame index (70-frame sheet) */
+u8 getDemonSpriteFrame(u8 enemyIdx, u16 playerX, u16 playerY, s16 playerA);
+
+/* Apply damage to an enemy, handle kill/pain/drops/sounds. Returns true if killed. */
+bool applyDamageToEnemy(EnemyState *e, u8 damage, u16 playerX, u16 playerY);
+
+/* Approximate distance (Manhattan-ish) */
+u16 approxDist(s16 dx, s16 dy);
 
 #endif

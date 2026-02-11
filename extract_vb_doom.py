@@ -13,7 +13,8 @@ Also computes the new VRAM layout and prints updated CHAR_START values.
 import re, os, sys
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-VB_DOOM_C = os.path.join(SCRIPT_DIR, "src", "vbdoom", "assets", "images", "vb_doom.c")
+VB_DOOM_SOURCE = os.path.join(SCRIPT_DIR, "grit_conversions", "vb_doom.c")
+VB_DOOM_FALLBACK = os.path.join(SCRIPT_DIR, "src", "vbdoom", "assets", "images", "vb_doom.c")
 OUTPUT_DIR = os.path.join(SCRIPT_DIR, "src", "vbdoom", "assets", "images")
 
 MAP_COLS = 48
@@ -121,8 +122,10 @@ def fmt_map(name, data_u16, comment=""):
 # ---------------------------------------------------------------------------
 
 def main():
-    tiles_u32 = parse_hex_array(VB_DOOM_C, "vb_doomTiles")
-    map_u16 = parse_hex_array(VB_DOOM_C, "vb_doomMap")
+    vb_doom_c = VB_DOOM_SOURCE if os.path.isfile(VB_DOOM_SOURCE) else VB_DOOM_FALLBACK
+    print(f"Using source: {vb_doom_c}")
+    tiles_u32 = parse_hex_array(vb_doom_c, "vb_doomTiles")
+    map_u16 = parse_hex_array(vb_doom_c, "vb_doomMap")
     num_tiles = len(tiles_u32) // 4
     print(f"Parsed {num_tiles} tiles, {len(map_u16)} map entries")
 
@@ -135,9 +138,11 @@ def main():
     for r in range(4):                               # UI bar rows 0-3
         hud_regions.append((r * 96, 96))
     hud_regions.append((4 * 96, 2))                  # black tile (row 4 col 0)
-    hud_regions.append((16 * 96, 46))                # large nums row 16
-    hud_regions.append((17 * 96, 46))                # large nums row 17
-    hud_regions.append((18 * 96, 22))                # small nums row 18
+    hud_regions.append((16 * 96, 46))                # large nums row 16 (cols 0-22, incl ":")
+    hud_regions.append((17 * 96, 46))                # large nums row 17 (cols 0-22, incl ":")
+    hud_regions.append((18 * 96, 22))                # small nums row 18 (normal digits 0-9)
+    hud_regions.append((19 * 96, 20))                # bright digits 0-9 (row 19)
+    hud_regions.append((20 * 96, 20))                # rectangled digits 0-9 (row 20)
     for r in range(20, 28):                          # transition tiles rows 20-27
         hud_regions.append((r * 96 + 31 * 2, 8))    #   cols 31-34
     hud_regions.append((25 * 96 + 39 * 2, 4))       # wall tiles row 25 cols 39-40
@@ -204,11 +209,14 @@ def main():
     F = len(face_chars)
     W = weapon_max
 
-    FACE_CS = H
-    WEAP_CS = H + F
-    ZOMBIE_CS = WEAP_CS + W
-    PICKUP_CS = ZOMBIE_CS + 3 * 64        # 192
-    WALL_CS   = PICKUP_CS + 3 * 12        # 36
+    # Use the ACTUAL game VRAM layout char starts.
+    # Faces use 12 dynamic chars (from sprites/faces/face_sprites.h).
+    # The large gap between faces and weapons is intentional.
+    FACE_CS = H                   # face chars immediately after HUD
+    WEAP_CS = 544                 # game's WEAPON_CHAR_START (doomgfx.h)
+    ZOMBIE_CS = 983               # game's ZOMBIE_CHAR_START (doomgfx.h)
+    PICKUP_CS = ZOMBIE_CS + 5 * 64  # 1303 (5 enemy slots x 64 chars each)
+    WALL_CS   = 1327              # game's WALL_TEX_CHAR_START (wall_textures.h)
 
     print(f"\nChars per group:  HUD={H}  Face={F}  Weapon={W}"
           f"  (fists={len(fist_chars)}, pistol={len(pistol_all)})")
@@ -259,6 +267,18 @@ def main():
                 c = char_of(e)
                 if c in hud_rm:
                     hud_map_out[idx] = remap(e, hud_rm[c])
+
+    # Zero weapon slot positions (cols 17-19, rows 1-2) - drawn dynamically by drawWeaponSlotNumbers
+    for row in (1, 2):
+        for col in (17, 18, 19):
+            idx = row * MAP_COLS + col
+            hud_map_out[idx] = 0
+
+    # Zero dynamic ammo positions (cols 40-42, rows 0-3) so static placeholders
+    # don't show before drawUpdatedAmmo writes the real digits there
+    for row in range(4):
+        for col in (40, 41, 42):
+            hud_map_out[row * MAP_COLS + col] = 0
 
     hud_c_path = os.path.join(OUTPUT_DIR, "vb_doom.c")
     with open(hud_c_path, 'w') as f:

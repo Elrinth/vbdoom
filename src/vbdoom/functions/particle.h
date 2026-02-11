@@ -5,8 +5,8 @@
 
 #define MAX_PARTICLES     4    /* total tracked particles */
 #define MAX_VIS_PARTICLES 1    /* rendered at once (1 world slot) */
-#define PARTICLE_WORLD    24   /* VB world for particle rendering */
-#define PARTICLE_BGMAP    9    /* BGMap slot for particle (was LAYER_BULLET) */
+#define PARTICLE_WORLD    23   /* VB world for particle rendering */
+#define PARTICLE_BGMAP    0    /* BGMap slot for particle (repurposed BGMap 0) */
 
 #define PARTICLE_LIFETIME 12   /* total frames for full animation */
 #define PARTICLE_FRAME_TICKS 3 /* frames per animation step (4 steps x 3 = 12) */

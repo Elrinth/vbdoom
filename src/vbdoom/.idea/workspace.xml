@@ -1,20 +1,70 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="BookmarkManager">
-    <bookmark url="file://$PROJECT_DIR$/functions/doomgfx.c" line="171" />
-    <bookmark url="file://$PROJECT_DIR$/functions/RayCasterRenderer.c" line="213" mnemonic="9" />
-    <bookmark url="file://$PROJECT_DIR$/functions/doomgfx.c" line="168" />
-    <bookmark url="file://$PROJECT_DIR$/functions/doomgfx.c" line="518" />
+    <bookmark url="file://$PROJECT_DIR$/functions/doomgfx.c" line="178" />
+    <bookmark url="file://$PROJECT_DIR$/functions/RayCasterRenderer.c" line="281" mnemonic="9" />
+    <bookmark url="file://$PROJECT_DIR$/functions/doomgfx.c" line="175" />
+    <bookmark url="file://$PROJECT_DIR$/functions/doomgfx.c" line="657" />
   </component>
   <component name="ChangeListManager">
     <list default="true" id="01989b41-c5d7-416e-b48f-ef72adc98476" name="Default Changelist" comment="">
+      <change beforePath="$PROJECT_DIR$/../../.cursor/rules/vbdoom-project.mdc" beforeDir="false" afterPath="$PROJECT_DIR$/../../.cursor/rules/vbdoom-project.mdc" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../extract_vb_doom.py" beforeDir="false" afterPath="$PROJECT_DIR$/../../extract_vb_doom.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../grit_conversions/vb_doom.c" beforeDir="false" afterPath="$PROJECT_DIR$/../../grit_conversions/vb_doom.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../grit_conversions/vb_doom.png" beforeDir="false" afterPath="$PROJECT_DIR$/../../grit_conversions/vb_doom.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../pickup_previews/pickup_shotgun.png" beforeDir="false" afterPath="$PROJECT_DIR$/../../pickup_previews/pickup_shotgun.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../prepare_shotgun_pickup.py" beforeDir="false" afterPath="$PROJECT_DIR$/../../prepare_shotgun_pickup.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../prepare_wall_textures.py" beforeDir="false" afterPath="$PROJECT_DIR$/../../prepare_wall_textures.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/assets/images/AdjustmentScreen.c" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/assets/images/AdjustmentScreen.grit" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/assets/images/CREDIT_idsoftware.c" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/assets/images/CREDIT_virtualboy.c" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/assets/images/sprites/faces/face_sprites.h" beforeDir="false" afterPath="$PROJECT_DIR$/assets/images/sprites/faces/face_sprites.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/assets/images/sprites/pickups/pickup_shotgun.c" beforeDir="false" afterPath="$PROJECT_DIR$/assets/images/sprites/pickups/pickup_shotgun.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/assets/images/sprites/pickups/pickup_sprites.h" beforeDir="false" afterPath="$PROJECT_DIR$/assets/images/sprites/pickups/pickup_sprites.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/assets/images/title_screen.c" beforeDir="false" afterPath="$PROJECT_DIR$/assets/images/title_screen.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/assets/images/title_screen_384x224.c" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/assets/images/title_screen_multiplayer.c" beforeDir="false" afterPath="$PROJECT_DIR$/assets/images/title_screen_multiplayer.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/assets/images/title_screen_options.c" beforeDir="false" afterPath="$PROJECT_DIR$/assets/images/title_screen_options.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/assets/images/vb_doom.c" beforeDir="false" afterPath="$PROJECT_DIR$/assets/images/vb_doom.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/assets/images/wall_textures.c" beforeDir="false" afterPath="$PROJECT_DIR$/assets/images/wall_textures.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/assets/images/wall_textures.h" beforeDir="false" afterPath="$PROJECT_DIR$/assets/images/wall_textures.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/build/output.vb" beforeDir="false" afterPath="$PROJECT_DIR$/build/output.vb" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/release/components/creditsScreen.d" beforeDir="false" afterPath="$PROJECT_DIR$/build/release/components/creditsScreen.d" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/release/components/gameLoop.d" beforeDir="false" afterPath="$PROJECT_DIR$/build/release/components/gameLoop.d" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/release/components/titleScreen.d" beforeDir="false" afterPath="$PROJECT_DIR$/build/release/components/titleScreen.d" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/release/functions/doomgfx.d" beforeDir="false" afterPath="$PROJECT_DIR$/build/release/functions/doomgfx.d" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/release/functions/timer.d" beforeDir="false" afterPath="$PROJECT_DIR$/build/release/functions/timer.d" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/release/main.d" beforeDir="false" afterPath="$PROJECT_DIR$/build/release/main.d" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/adjustmentScreen.c" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/adjustmentScreen.h" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/components.h" beforeDir="false" afterPath="$PROJECT_DIR$/components/components.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/creditsScreen.c" beforeDir="false" afterPath="$PROJECT_DIR$/components/creditsScreen.c" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/components/gameLoop.c" beforeDir="false" afterPath="$PROJECT_DIR$/components/gameLoop.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/menu_options.c" beforeDir="false" afterPath="$PROJECT_DIR$/components/menu_options.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/titleScreen.c" beforeDir="false" afterPath="$PROJECT_DIR$/components/titleScreen.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/functions/RayCasterData.h" beforeDir="false" afterPath="$PROJECT_DIR$/functions/RayCasterData.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/functions/RayCasterFixed.c" beforeDir="false" afterPath="$PROJECT_DIR$/functions/RayCasterFixed.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/functions/RayCasterFixed.h" beforeDir="false" afterPath="$PROJECT_DIR$/functions/RayCasterFixed.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/functions/RayCasterRenderer.c" beforeDir="false" afterPath="$PROJECT_DIR$/functions/RayCasterRenderer.c" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/functions/doomgfx.c" beforeDir="false" afterPath="$PROJECT_DIR$/functions/doomgfx.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/functions/doomgfx.h" beforeDir="false" afterPath="$PROJECT_DIR$/functions/doomgfx.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/functions/doomstage.c" beforeDir="false" afterPath="$PROJECT_DIR$/functions/doomstage.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/functions/doomstage.h" beforeDir="false" afterPath="$PROJECT_DIR$/functions/doomstage.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/functions/enemy.c" beforeDir="false" afterPath="$PROJECT_DIR$/functions/enemy.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/functions/enemy.h" beforeDir="false" afterPath="$PROJECT_DIR$/functions/enemy.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/functions/particle.h" beforeDir="false" afterPath="$PROJECT_DIR$/functions/particle.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/functions/pickup.c" beforeDir="false" afterPath="$PROJECT_DIR$/functions/pickup.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/functions/pickup.h" beforeDir="false" afterPath="$PROJECT_DIR$/functions/pickup.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/functions/sndplay.c" beforeDir="false" afterPath="$PROJECT_DIR$/functions/sndplay.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/functions/sndplay.c___jb_tmp___" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/functions/sndplay.h" beforeDir="false" afterPath="$PROJECT_DIR$/functions/sndplay.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/functions/timer.c" beforeDir="false" afterPath="$PROJECT_DIR$/functions/timer.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/functions/timer.h" beforeDir="false" afterPath="$PROJECT_DIR$/functions/timer.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/main.c" beforeDir="false" afterPath="$PROJECT_DIR$/main.c" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.elf" beforeDir="false" afterPath="$PROJECT_DIR$/main.elf" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../wall_texture_previews/all_wall_textures.png" beforeDir="false" afterPath="$PROJECT_DIR$/../../wall_texture_previews/all_wall_textures.png" afterDir="false" />
     </list>
     <ignored path="$PROJECT_DIR$/../../../libs/libgccvb/.idea/" />
     <ignored path="$PROJECT_DIR$/.idea/" />
@@ -116,28 +166,28 @@
       </usages-collector>
       <usages-collector id="statistics.file.extensions.edit">
         <counts>
-          <entry key="c" value="26227" />
+          <entry key="c" value="26346" />
           <entry key="h" value="2844" />
         </counts>
       </usages-collector>
       <usages-collector id="statistics.file.types.edit">
         <counts>
-          <entry key="C++" value="29071" />
+          <entry key="C++" value="29190" />
         </counts>
       </usages-collector>
       <usages-collector id="statistics.file.extensions.open">
         <counts>
-          <entry key="c" value="136" />
+          <entry key="c" value="141" />
           <entry key="c___jb_tmp___" value="6" />
           <entry key="elf" value="2" />
-          <entry key="h" value="199" />
+          <entry key="h" value="202" />
           <entry key="h___jb_tmp___" value="1" />
           <entry key="header" value="1" />
         </counts>
       </usages-collector>
       <usages-collector id="statistics.file.types.open">
         <counts>
-          <entry key="C++" value="335" />
+          <entry key="C++" value="343" />
           <entry key="PLAIN_TEXT" value="10" />
         </counts>
       </usages-collector>
@@ -146,83 +196,75 @@
   <component name="FileEditorManager">
     <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
       <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/functions/RayCasterFixed.c">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="59">
-              <caret line="396" column="34" selection-start-line="396" selection-start-column="34" selection-end-line="396" selection-end-column="34" />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/main.c">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="528">
-              <caret line="22" column="24" selection-start-line="22" selection-start-column="24" selection-end-line="22" selection-end-column="24" />
+            <state relative-caret-position="96">
+              <caret line="10" column="25" lean-forward="true" selection-start-line="10" selection-start-column="25" selection-end-line="10" selection-end-column="25" />
             </state>
           </provider>
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/functions/sndplay.c">
+        <entry file="file://$PROJECT_DIR$/components/components.h">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="2184">
-              <caret line="91" column="20" selection-start-line="91" selection-start-column="20" selection-end-line="91" selection-end-column="20" />
+            <state relative-caret-position="96">
+              <caret line="4" column="25" selection-start-line="4" selection-start-column="25" selection-end-line="4" selection-end-column="25" />
             </state>
           </provider>
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/functions/virtualboy_pixeldraw.c">
+        <entry file="file://$PROJECT_DIR$/components/gameLoop.c">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="-5245" />
+            <state relative-caret-position="1444">
+              <caret line="1104" column="34" selection-start-line="1104" selection-start-column="34" selection-end-line="1104" selection-end-column="34" />
+            </state>
           </provider>
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/functions/voices.h">
+        <entry file="file://$PROJECT_DIR$/components/intermission.c">
+          <provider selected="true" editor-type-id="text-editor" />
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/components/creditsScreen.c">
+          <provider selected="true" editor-type-id="text-editor" />
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/components/titleScreen.c">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="1032">
-              <caret line="43" column="2" selection-start-line="43" selection-start-column="2" selection-end-line="43" selection-end-column="2" />
+            <state relative-caret-position="443">
+              <caret line="185" column="16" lean-forward="true" selection-start-line="185" selection-start-column="16" selection-end-line="186" selection-end-column="23" />
             </state>
           </provider>
         </entry>
       </file>
       <file pinned="false" current-in-tab="true">
-        <entry file="file://$PROJECT_DIR$/components/gameLoop.c">
+        <entry file="file://$PROJECT_DIR$/components/menu_options.c">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="563">
-              <caret line="716" column="28" selection-start-line="716" selection-start-column="28" selection-end-line="716" selection-end-column="28" />
+            <state relative-caret-position="405">
+              <caret line="575" column="23" selection-start-line="575" selection-start-column="23" selection-end-line="575" selection-end-column="23" />
             </state>
           </provider>
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/functions/enemy.c">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="-4885" />
-          </provider>
+        <entry file="file://$PROJECT_DIR$/components/menu_multiplayer.c">
+          <provider selected="true" editor-type-id="text-editor" />
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/functions/enemy.h">
+        <entry file="file://$PROJECT_DIR$/components/menu_multiplayer.h">
           <provider selected="true" editor-type-id="text-editor" />
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/functions/doomgfx.c">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="-2424">
-              <caret line="517" selection-start-line="517" selection-end-line="517" />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/functions/doomstage.c">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="-349">
-              <caret line="319" column="72" selection-start-line="319" selection-start-column="72" selection-end-line="319" selection-end-column="72" />
+            <state relative-caret-position="220">
+              <caret line="271" column="7" selection-start-line="271" selection-start-column="7" selection-end-line="271" selection-end-column="7" />
             </state>
           </provider>
         </entry>
@@ -240,7 +282,6 @@
   </component>
   <component name="FindInProjectRecents">
     <findStrings>
-      <find>initializeDoomStage</find>
       <find>WA[31].gy</find>
       <find>drawDoomStageTile</find>
       <find>isFixed</find>
@@ -269,6 +310,7 @@
       <find>CalculateObjectScreenPosition</find>
       <find>enemyScreenY</find>
       <find>enemyX</find>
+      <find>BULL</find>
       <find>waitForFrameTimer</find>
     </findStrings>
   </component>
@@ -312,15 +354,11 @@
         <option value="$PROJECT_DIR$/functions/functions.h" />
         <option value="$PROJECT_DIR$/components/menu_options.h" />
         <option value="$PROJECT_DIR$/functions/settings.h" />
-        <option value="$PROJECT_DIR$/components/titleScreen.c" />
         <option value="$PROJECT_DIR$/functions/dph9.h" />
         <option value="$PROJECT_DIR$/functions/sfx.h" />
-        <option value="$PROJECT_DIR$/components/menu_options.c" />
-        <option value="$PROJECT_DIR$/main.c" />
         <option value="$PROJECT_DIR$/functions/doominterface.c" />
         <option value="$PROJECT_DIR$/functions/doomgfx.h" />
         <option value="$PROJECT_DIR$/functions/doominterface.h" />
-        <option value="$PROJECT_DIR$/functions/doomgfx.c" />
         <option value="$PROJECT_DIR$/functions/RayCasterRenderer.h" />
         <option value="$PROJECT_DIR$/functions/RayCaster.h" />
         <option value="$PROJECT_DIR$/functions/sndplay.c" />
@@ -329,12 +367,16 @@
         <option value="$PROJECT_DIR$/functions/RayCasterFixed.c" />
         <option value="$PROJECT_DIR$/functions/RayCasterRenderer.c" />
         <option value="$PROJECT_DIR$/components/gameLoop.c" />
+        <option value="$PROJECT_DIR$/functions/doomgfx.c" />
+        <option value="$PROJECT_DIR$/main.c" />
+        <option value="$PROJECT_DIR$/components/titleScreen.c" />
+        <option value="$PROJECT_DIR$/components/menu_options.c" />
       </list>
     </option>
   </component>
   <component name="ProjectFrameBounds" extendedState="6">
-    <option name="x" value="-8" />
-    <option name="y" value="-8" />
+    <option name="x" value="61" />
+    <option name="y" value="201" />
     <option name="width" value="2558" />
     <option name="height" value="1100" />
   </component>
@@ -403,14 +445,15 @@
   </component>
   <component name="ToolWindowManager">
     <frame x="-8" y="-8" width="2576" height="1408" extended-state="6" />
+    <editor active="true" />
     <layout>
-      <window_info content_ui="combo" id="Project" order="0" visible="true" weight="0.18597321" />
+      <window_info active="true" content_ui="combo" id="Project" order="0" visible="true" weight="0.18597321" />
       <window_info id="Structure" order="1" side_tool="true" weight="0.25" />
       <window_info id="Designer" order="2" />
       <window_info id="Favorites" order="3" side_tool="true" />
       <window_info anchor="bottom" id="Message" order="0" />
       <window_info anchor="bottom" id="Find" order="1" />
-      <window_info active="true" anchor="bottom" id="Run" order="2" sideWeight="0.49947312" visible="true" weight="0.3124019" />
+      <window_info anchor="bottom" id="Run" order="2" sideWeight="0.49947312" visible="true" weight="0.3124019" />
       <window_info anchor="bottom" id="Debug" order="3" weight="0.4" />
       <window_info anchor="bottom" id="Cvs" order="4" weight="0.25" />
       <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
@@ -428,32 +471,6 @@
     <option name="myLimit" value="2678400000" />
   </component>
   <component name="editorHistoryManager">
-    <entry file="file://$PROJECT_DIR$/functions/input.c">
-      <provider selected="true" editor-type-id="text-editor" />
-    </entry>
-    <entry file="file://$PROJECT_DIR$/components/creditsScreen.c">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="634">
-          <caret line="84" column="19" lean-forward="true" selection-start-line="84" selection-start-column="19" selection-end-line="84" selection-end-column="19" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/components/titleScreen.h">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="168">
-          <caret line="7" column="6" lean-forward="true" selection-end-line="7" selection-end-column="6" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/main.elf">
-      <provider selected="true" editor-type-id="text-editor" />
-    </entry>
-    <entry file="file://$PROJECT_DIR$/functions/input.h">
-      <provider selected="true" editor-type-id="text-editor" />
-    </entry>
-    <entry file="file://$PROJECT_DIR$/functions/system.h">
-      <provider selected="true" editor-type-id="text-editor" />
-    </entry>
     <entry file="file://$PROJECT_DIR$/functions/system.c">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="432">
@@ -499,19 +516,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/components/menu_multiplayer.h">
-      <provider selected="true" editor-type-id="text-editor" />
-    </entry>
-    <entry file="file://$PROJECT_DIR$/components/menu_multiplayer.c">
-      <provider selected="true" editor-type-id="text-editor" />
-    </entry>
-    <entry file="file://$PROJECT_DIR$/components/titleScreen.c">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="106">
-          <caret line="236" column="15" lean-forward="true" selection-start-line="236" selection-start-column="15" selection-end-line="236" selection-end-column="15" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/functions/doomstage.h">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="24">
@@ -540,20 +544,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/components/menu_options.c">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="2064">
-          <caret line="86" column="36" lean-forward="true" selection-start-line="86" selection-start-column="36" selection-end-line="86" selection-end-column="36" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/main.c">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="528">
-          <caret line="22" column="24" selection-start-line="22" selection-start-column="24" selection-end-line="22" selection-end-column="24" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/functions/dph9.h">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="2976">
@@ -569,13 +559,6 @@
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/functions/RayCasterFixed.c___jb_tmp___" />
-    <entry file="file://$PROJECT_DIR$/components/components.h">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="96">
-          <caret line="4" column="25" lean-forward="true" selection-start-line="4" selection-start-column="25" selection-end-line="4" selection-end-column="25" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/functions/doomgfx.h">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="432">
@@ -606,13 +589,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/functions/doomgfx.c">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="-2424">
-          <caret line="517" selection-start-line="517" selection-end-line="517" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/../../libs/libgccvb/affine.c">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="192">
@@ -632,8 +608,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/functions/doomstage.c">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="-349">
-          <caret line="319" column="72" selection-start-line="319" selection-start-column="72" selection-end-line="319" selection-end-column="72" />
+        <state relative-caret-position="-781">
+          <caret line="277" column="72" selection-start-line="277" selection-start-column="72" selection-end-line="277" selection-end-column="72" />
         </state>
       </provider>
     </entry>
@@ -672,7 +648,7 @@
     <entry file="file://$PROJECT_DIR$/functions/RayCasterFixed.c">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="59">
-          <caret line="396" column="34" selection-start-line="396" selection-start-column="34" selection-end-line="396" selection-end-column="34" />
+          <caret line="435" column="34" selection-start-line="435" selection-start-column="34" selection-end-line="435" selection-end-column="34" />
         </state>
       </provider>
     </entry>
@@ -697,17 +673,10 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/components/gameLoop.c">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="563">
-          <caret line="716" column="28" selection-start-line="716" selection-start-column="28" selection-end-line="716" selection-end-column="28" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/functions/sndplay.c">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="2184">
-          <caret line="91" column="20" selection-start-line="91" selection-start-column="20" selection-end-line="91" selection-end-column="20" />
+        <state relative-caret-position="3192">
+          <caret line="151" column="20" selection-start-line="151" selection-start-column="20" selection-end-line="151" selection-end-column="20" />
         </state>
       </provider>
     </entry>
@@ -722,6 +691,80 @@
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="384">
           <caret line="16" column="21" selection-start-line="16" selection-start-column="8" selection-end-line="16" selection-end-column="21" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/functions/virtualboy_pixeldraw.c">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="-5245" />
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/functions/enemy.c">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="-4885" />
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/components/titleScreen.h">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="168">
+          <caret line="7" column="6" selection-start-line="7" selection-start-column="6" selection-end-line="7" selection-end-column="6" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/functions/doomgfx.c">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="220">
+          <caret line="271" column="7" selection-start-line="271" selection-start-column="7" selection-end-line="271" selection-end-column="7" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/functions/enemy.h">
+      <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/components/components.h">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="96">
+          <caret line="4" column="25" selection-start-line="4" selection-start-column="25" selection-end-line="4" selection-end-column="25" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/components/menu_multiplayer.c">
+      <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/components/menu_multiplayer.h">
+      <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/components/gameLoop.c">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="1444">
+          <caret line="1104" column="34" selection-start-line="1104" selection-start-column="34" selection-end-line="1104" selection-end-column="34" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/components/intermission.c">
+      <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/components/creditsScreen.c">
+      <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/main.c">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="96">
+          <caret line="10" column="25" lean-forward="true" selection-start-line="10" selection-start-column="25" selection-end-line="10" selection-end-column="25" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/components/titleScreen.c">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="443">
+          <caret line="185" column="16" lean-forward="true" selection-start-line="185" selection-start-column="16" selection-end-line="186" selection-end-column="23" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/components/menu_options.c">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="405">
+          <caret line="575" column="23" selection-start-line="575" selection-start-column="23" selection-end-line="575" selection-end-column="23" />
         </state>
       </provider>
     </entry>

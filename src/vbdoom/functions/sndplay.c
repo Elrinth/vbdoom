@@ -1,363 +1,318 @@
 #include <audio.h>
+#include <mem.h>
 #include "sndplay.h"
 #include "voices.h"
 #include "dph9.h"
-#include "enemy.h"
+#include "timer.h"
+#include "../assets/audio/doom_sfx.h"
 
-//int batman_channel1[] = {E_3, PAU, E_3, PAU, E_4, E_3, E_3, D_4, E_3, E_3, C_4, CS5, D_5, E_5, FS5, A_5, G_5, FS5, E_5, C_5, G_4, C_5, D_5, E_5, FS5, G_5, A_5, G_5, FS5, E_5, E_5, PAU, G_5, FS5, E_5, FS5, E_5, D_5, CS5, PAU, B_4, FS5, D_5, G_5, FS5, D_5, B_4, AS4, B_4, CS5, D_5, E_5, FS5, A_5, G_5, FS5, E_5, C_5, G_4, C_5, D_5, E_5, FS5, G_5, A_5, G_5, FS5, E_5, E_5, PAU, FS5, E_5, FS5, D_5, E_5, CS5, D_5, PAU, B_4, PAU, FS5, B_5, CS6, D_6, B_5, D_6, CS6, D_6, E_6, A_5, A_5, B_5, CS6, D_6, B_5, G_5, B_5, G_5, D_5, G_5, D_5, B_4, D_5, B_4, G_4, G_5, G_4, A_4, G_4, FS4, CS5, FS5, CS6, FS6, E_6, D_6, E_6, D_6, CS6, B_5, CS6, B_5, AS5, GS5, AS5, B_5, B_5, FS5, CS6, CS6, FS5, D_6, D_6, FS5, E_6, D_6, E_6, FS6, B_5, B_5, G_5, CS6, CS6, G_5, D_6, D_6, G_5, E_6, D_6, E_6, FS6, CS6, CS6, A_5, D_6, D_6, A_5, E_6, E_6, A_5, FS6, E_6, FS6, G_6, FS6, E_6, CS6, D_6, CS6, PAU, D_6, E_6, FS6, E_6, D_6, CS6, B_5, B_5, FS5, CS6, CS6, FS5, D_6, D_6, FS5, E_6, D_6, E_6, FS6, B_5, B_5, G_5, CS6, CS6, G_5, D_6, D_6, G_5, E_6, D_6, E_6, FS6, E_6, E_6, A_5, FS6, FS6, A_5, G_6, G_6, A_5, A_6, G_6, A_6, FS6, G_6, E_6, A_5, AS5, B_5, };
+/* Song data headers (static arrays, only included here) */
+#include "../assets/audio/music_title.h"
+#include "../assets/audio/music_e1m1.h"
+#include "../assets/audio/music_e1m2.h"
+#include "../assets/audio/music_e1m3.h"
 
-//u8 batman_timing[] = {7, 7, 7, 7, 7, 7, 126, 21, 14, 14, 14, 7, 154, 21, 14, 14, 21, 21, 133, 7, 7, 7, 7, 7, 7, 7, 119, 28, 21, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 126, 21, 14, 14, 14, 7, 154, 21, 14, 14, 21, 21, 133, 7, 7, 7, 7, 7, 7, 7, 119, 28, 21, 7, 7, 7, 7, 7, 7, 7, 7, 1, 18, 1, 21, 14, 14, 7, 21, 14, 21, 21, 14, 7, 14, 21, 14, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 28, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 28, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 21, 21, 21, 14, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 28, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 28, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 56, 56, 225, };
-
-//u8 batman_timing[] =   {3, 1, 3, 1, 4, 2,  21,  5,  2,  2,  2, 2,  31,  5,  2,  2,  5,  5,  24, 2, 2, 2, 2, 2, 2, 2,  17,  8,  5, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,   8,  5,  2,  2,  2, 2,   8,  8,  2,  2,  5,  2,  18, 2, 2, 2, 2, 2, 2, 2,  18,  8,  5, 2, 2, 2, 2, 2, 2, 2, 2, 2, 5,  2,  5,  2,  2, 2,  5,  2,  5,  5,  2, 2,  2,  5,  2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,  8, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,  8, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,  5,  5,  5,  2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,  8, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,  8, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 8,   8, 14, };
-//u16 batman_noteCount = 218;
-
-u16 batman_channel1[] = {E_3, PAU, E_3, PAU, E_4, E_3, PAU, E_3, PAU, D_4, E_3, PAU, E_3, PAU, C_4, E_3, PAU, E_3, PAU, AS3, E_3, PAU, E_3, PAU, B_3, C_4, E_3, PAU, E_3, PAU, E_4, E_3, PAU, E_3, PAU, D_4, E_3, PAU, E_3, PAU, C_4, E_3, PAU, E_3, PAU,  AS3 };
-u8 batman_timing[] =   {   3,   1,   3,   1,   4,   3,   1,   3,   1,   4,   3,   1,   3,   1,   4,  3,    1,   3,   1,   4,   3,   1,   3,   1,   4,   4,   3,   1,   3,   1,   4,   3,   1,   3,   1,   4,   3,   1,   3,   1,   4,  3,    1,   3,   1,   20 };
-//int batman_channel6[] = {E_3, PAU, E_3, PAU, E_4, E_3, PAU, E_3, PAU, D_4, E_3, PAU, E_3, PAU, C_4, E_3, PAU, E_3, PAU, AS3, E_3, PAU, E_3, PAU, B_3, C_4, E_3, PAU, E_3, PAU, E_4, E_3, PAU, E_3, PAU, D_4, E_3, PAU, E_3, PAU, C_4, E_3, PAU, E_3, PAU,  AS3 };
-u16 batman_channel6[] = {E_4, PAU, DS7, PAU, };
-u8 batman_timing6[] =   {   2, 6,  1,   7,   };
-u8 batman_noteCount = 26+26-6;
-u8 channel6_noteCount = 4;
-
-bool isPlaying = false;
-u8 playMusic = 1;
-u8 currentTick = 0;
-
-u8 musicTick = 0;
-u8 channel6Tick = 0;
-u8 channel6Note = 0;
-u8 channel6PrevNote = 99;
-u8 musicCurrentNote = 0;
-u8 musicPrevNote = 99;
-u8 vol = 8;
-
-/* Forward declarations */
-static void updatePickupSound(void);
-static void updateEnemySounds(void);
-
-void playSnd(bool *isFiring, u8 *iWeaponType, bool *isPlayMusic) {
-	/*
-	**** Sound Register Mnemonics *****/
-	/*
-	#define	WAVE1	0x00	// Voluntary wave channel #1
-	#define	WAVE2	0x01	// Voluntary wave channel #2
-	#define	WAVE3	0x02	// Voluntary wave channel #3
-	#define	WAVE4	0x03	// Voluntary wave channel #4
-	#define	SWEEP	0x04	// Sweep/modulation channel
-	#define	NOISE	0x05	// Pseudorandom noise channel
-	*/
-	//enable sound
-	if (*isFiring) {
-		if (currentTick < 6) {
-			SND_REGS[0x04].SxINT = 0x9F;
-			//copy set values
-			vol = 8 - (currentTick>>1);
-			u16 freq = 0x72A-(currentTick<<7);
-			if (*iWeaponType == 1) {
-				freq = 0x42A-(currentTick<<7);
-			}
-			SND_REGS[0x04].SxLRV = (vol << 4) | vol;
-			SND_REGS[0x04].SxFQL = freq & 0xFF;
-			SND_REGS[0x04].SxFQH = freq >> 8;
-/*
-			if (iWeaponType == 1) {
-				SND_REGS[0x04].SxEV0 = 0xaa-(currentTick<<8); // if fade: 0xf7
-			} else {
-				SND_REGS[0x04].SxEV0 = 0xfa-(currentTick<<8); // if fade: 0xf7
-			}*/
-			SND_REGS[0x04].SxEV0 = 0xaa;
-			SND_REGS[0x04].SxEV1 = 0x00; // if fade: 0x01
-			//SND_REGS[0x04].SxEV1 = 0x42;
-			//SND_REGS[0x04].SxRAM = 0x04;
-			//SND_REGS[0x04].S5SWP = 0xff-(currentTick<<8);
-			//SND_REGS[0x04].SxRAM = (void*)CRAP;
-		}
-
-		if (currentTick > 6) {
-			// make all channels silent:
-			//for (count = 0; count < 6; count++)
-				//
-			SND_REGS[0x04].SxINT = 0x00;
-		}
-		currentTick++;
-		if (currentTick > 24) {
-			currentTick = 0;
-		}
-	} else {
-		currentTick = 0;
-		//for (count = 0; count < 6; count++)
-			SND_REGS[0x04].SxINT = 0x00;
-	}
-
-	if (*isPlayMusic == 1) {
-		u16 freq;
-		if (musicCurrentNote != musicPrevNote) {
-			freq = batman_channel1[musicCurrentNote];
-			if (freq == PAU || freq == NONE) {
-				SND_REGS[0x00].SxINT = 0x00;
-			} else {
-				SND_REGS[0x00].SxINT = 0x9F;
-				//copy set values
-				vol = 8;
-
-				SND_REGS[0x00].SxLRV = (vol << 4) | vol;
-				SND_REGS[0x00].SxFQL = freq & 0xFF;
-				SND_REGS[0x00].SxFQH = freq >> 8;
-				SND_REGS[0x00].SxEV0 = 0x99; // if fade: 0xf7
-				SND_REGS[0x00].SxEV1 = 0x01;
-			}
-/*
-			if (freq == PAU || freq == NONE) {
-				SND_REGS[0x01].SxINT = 0x00;
-			} else {
-				SND_REGS[0x01].SxINT = 0x9F;
-				//copy set values
-				u8 vol = 3;
-
-				SND_REGS[0x01].SxLRV = (vol << 4) | vol;
-				SND_REGS[0x01].SxFQL = freq & 0xFF;
-				SND_REGS[0x01].SxFQH = freq >> 8;
-				SND_REGS[0x01].SxEV0 = 0x99; // if fade: 0xf7
-				SND_REGS[0x01].SxEV1 = 0x01;
-				SND_REGS[0x01].SxRAM = 0x01;
-			}*/
-
-			musicPrevNote = musicCurrentNote;
-		}
-		if (channel6Note != channel6PrevNote) {
-			freq = batman_channel6[channel6Note];
-			if (freq == PAU || freq == NONE) {
-				SND_REGS[0x05].SxINT = 0x00;
-			} else {
-				SND_REGS[0x05].SxINT = 0xFF;
-				//copy set values
-				vol = 8;
-
-				SND_REGS[0x05].SxLRV = (vol << 4) | vol;
-				SND_REGS[0x05].SxFQL = freq & 0xFF;
-				SND_REGS[0x05].SxFQH = freq >> 8;
-				SND_REGS[0x05].SxEV0 = 0xff; // if fade: 0xf7
-				SND_REGS[0x05].SxEV1 = 0x08;
-			}
-			channel6PrevNote = channel6Note;
-		}
-	}
-
-	musicTick++;
-	channel6Tick++;
-
-	if (channel6Tick >= batman_timing6[channel6Note]) {
-		channel6Note++;
-		channel6Tick = 0;
-	}
-	if (channel6Note >= channel6_noteCount) {
-		channel6Note = 0;
-	}
-
-
-	if (musicTick >= batman_timing[musicCurrentNote])
-	{
-		musicCurrentNote++;
-		musicTick = 0;
-	}
-	if (musicCurrentNote >= batman_noteCount) {
-		musicCurrentNote = 0;
-	}
-
-	/* Update pickup sound each frame */
-	updatePickupSound();
-
-	/* Update enemy sounds each frame */
-	updateEnemySounds();
-}
-
-/* Pickup sound state */
-static u8 pickupSndTick = 0;
-static bool pickupSndPlaying = false;
-
-void playPickupSound(void) {
-	pickupSndTick = 0;
-	pickupSndPlaying = true;
-}
-
-void mp_init()
-{
-	copymem((void*)WAVEDATA1, (void*)SAWTOOTH, 128);
-	/* Load SQUARE waveform for pickup sound on channel 1 (WAVE2) */
-	copymem((void*)WAVEDATA2, (void*)SQUARE, 128);
-	/* Load waveforms for enemy sounds on channels 2 (WAVE3) and 3 (WAVE4) */
-	copymem((void*)WAVEDATA3, (void*)SAWTOOTH, 128);
-	copymem((void*)WAVEDATA4, (void*)TRIANGLE, 128);
-}
-
-/* Called from playSnd() each frame to handle pickup sound */
-static void updatePickupSound(void) {
-	if (!pickupSndPlaying) return;
-
-	if (pickupSndTick < 4) {
-		/* Rising blip: C6 -> E6 (high, cheerful, like Doom pickup) */
-		u16 freq;
-		u8 vol;
-		if (pickupSndTick < 2) {
-			freq = C_6;  /* first 2 frames: C6 */
-			vol = 8;
-		} else {
-			freq = E_6;  /* next 2 frames: E6 (major third up) */
-			vol = 6;
-		}
-		SND_REGS[0x01].SxINT = 0x9F;       /* enable channel 1 */
-		SND_REGS[0x01].SxLRV = (vol << 4) | vol;
-		SND_REGS[0x01].SxFQL = freq & 0xFF;
-		SND_REGS[0x01].SxFQH = freq >> 8;
-		SND_REGS[0x01].SxEV0 = 0x88;       /* mid envelope */
-		SND_REGS[0x01].SxEV1 = 0x01;       /* sustain */
-		SND_REGS[0x01].SxRAM = 0x01;       /* WAVEDATA2 */
-	} else {
-		/* Done */
-		SND_REGS[0x01].SxINT = 0x00;       /* silence channel */
-		pickupSndPlaying = false;
-	}
-	pickupSndTick++;
-}
 /* ================================================================
- * Enemy sound effects (channels 2 = WAVE3, 3 = WAVE4)
+ * Background Music -- 3-channel sequencer
+ *
+ * Ch 0 (WAVEDATA1, SAWTOOTH)  = melody
+ * Ch 1 (WAVEDATA2, SQUARE)    = bass
+ * Ch 3 (WAVEDATA4, TRIANGLE)  = chords
+ *
+ * All 3 channels share one timing array (lock-step advance).
+ * Timing values are in milliseconds; actual timing measured via
+ * g_musicTick (5 kHz ISR counter) for rate-independent playback.
  * ================================================================ */
 
-/* Per-channel tick state */
-static u8 enemyAggroTick = 0;
-static bool enemyAggroPlaying = false;
-static u8 enemyAggroVol = 0;
+#define MUS_CH_MELODY  0   /* VB sound channel index */
+#define MUS_CH_BASS    1
+#define MUS_CH_CHORDS  3
 
-static u8 enemyShootTick = 0;
-static bool enemyShootPlaying = false;
-static u8 enemyShootVol = 0;
-static u8 enemyShootType = 0;  /* 0=pistol, 1=shotgun */
+/* Master music volume (0-15).  Derived from settings.music (0-9). */
+volatile u8 g_musicVolume = 8;
 
-static u8 enemyDeathTick = 0;
-static bool enemyDeathPlaying = false;
-static u8 enemyDeathVol = 0;
+/* Sequencer state */
+static const int   *mus_ch[3] = {0, 0, 0};  /* frequency arrays [melody, bass, chords] */
+static const u16   *mus_timing   = 0;        /* shared timing (ms per step) */
+static u16          mus_noteCount = 0;
+static u16          mus_currNote  = 0;
+static u8           mus_playing   = 0;
+static u16          mus_prevFreq[3] = {0xFFFF, 0xFFFF, 0xFFFF}; /* per-channel */
+static u32          mus_noteStart = 0;       /* g_musicTick when step started */
 
-/* Convert distance byte (0-255) to volume (0-8). Closer = louder. */
+/* VB sound channel indices for our 3 music channels */
+static const u8 mus_hw_ch[3] = { 0x00, 0x01, 0x03 };
+
+/* ================================================================
+ * PCM Sound Effects via SxLRV Volume Modulation
+ *
+ * Player sounds use channel 4 (SWEEP), modulated by timer ISR.
+ * Enemy sounds use channel 2 (WAVE3), modulated by timer ISR.
+ *
+ * Technique (from DogP's wavonvb):
+ *   - Waveform RAM filled with DC constant (0x3F = max 6-bit)
+ *   - Channel plays the flat DC waveform at freq=0
+ *   - PCM achieved by writing 4-bit samples to SxLRV per ISR tick
+ *   - SxLRV acts as a 4-bit DAC (same value in L and R nibbles)
+ * ================================================================ */
+
+/* Convert distance byte (0-255) to volume (0-15). Closer = louder. */
 static u8 distToVol(u8 distByte) {
-	if (distByte < 8)   return 8;
-	if (distByte < 16)  return 7;
-	if (distByte < 32)  return 6;
-	if (distByte < 64)  return 5;
-	if (distByte < 100) return 4;
-	if (distByte < 140) return 3;
-	if (distByte < 200) return 2;
+	if (distByte < 8)   return 15;
+	if (distByte < 16)  return 13;
+	if (distByte < 32)  return 11;
+	if (distByte < 64)  return 9;
+	if (distByte < 100) return 7;
+	if (distByte < 140) return 5;
+	if (distByte < 200) return 3;
 	return 1;
 }
 
-static void updateEnemySounds(void) {
-	/* Check for new sound events from enemy.c */
-	if (g_enemySndAggro > 0) {
-		enemyAggroVol = distToVol(g_enemySndAggro);
-		enemyAggroTick = 0;
-		enemyAggroPlaying = true;
-		g_enemySndAggro = 0;
-	}
-	if (g_enemySndShoot > 0) {
-		enemyShootVol = distToVol(g_enemySndShoot);
-		enemyShootType = g_enemySndShootType;
-		enemyShootTick = 0;
-		enemyShootPlaying = true;
-		g_enemySndShoot = 0;
-	}
-	if (g_enemySndDeath > 0) {
-		enemyDeathVol = distToVol(g_enemySndDeath);
-		enemyDeathTick = 0;
-		enemyDeathPlaying = true;
-		g_enemySndDeath = 0;
-	}
+/* ----------------------------------------------------------------
+ * Initialize sound system.
+ *
+ * Following the proven init_speech() pattern from wavonvb.c:
+ *   1. SSTOP=1 to halt all sound
+ *   2. Load DC waveform (0x3F) into waveform banks for PCM channels
+ *   3. Load SAWTOOTH into WAVEDATA1 for music channel 0
+ *   4. Turn off all channels
+ *   5. SSTOP=0 to allow sound
+ *   6. Configure PCM channels with DC waveform, freq=0, max envelope
+ * ---------------------------------------------------------------- */
+void mp_init(void) {
+	int i;
 
-	/* ---- Channel 2 (WAVE3): aggro bark or enemy gunshot ---- */
-	/* Gunshot takes priority over aggro */
-	if (enemyShootPlaying) {
-		if (enemyShootTick < 5) {
-			u16 freq;
-			u8 v = enemyShootVol;
-			if (enemyShootTick > 2) v = (v > 2) ? v - 2 : 1;
+	/* Stop all sound output */
+	SSTOP = 1;
 
-			if (enemyShootType == 1) {
-				/* Sergeant shotgun: lower pitch, noisier */
-				freq = 0x52A - ((u16)enemyShootTick << 7);
-			} else {
-				/* Zombieman pistol: higher pitch */
-				freq = 0x62A - ((u16)enemyShootTick << 7);
-			}
-			SND_REGS[0x02].SxINT = 0x9F;
-			SND_REGS[0x02].SxLRV = (v << 4) | v;
-			SND_REGS[0x02].SxFQL = freq & 0xFF;
-			SND_REGS[0x02].SxFQH = freq >> 8;
-			SND_REGS[0x02].SxEV0 = 0x88;
-			SND_REGS[0x02].SxEV1 = 0x00;
-			SND_REGS[0x02].SxRAM = 0x02;  /* WAVEDATA3 */
-		} else {
-			SND_REGS[0x02].SxINT = 0x00;
-			enemyShootPlaying = false;
-		}
-		enemyShootTick++;
-	} else if (enemyAggroPlaying) {
-		if (enemyAggroTick < 4) {
-			u16 freq;
-			u8 v = enemyAggroVol;
-			if (enemyAggroTick > 1) v = (v > 1) ? v - 1 : 1;
-
-			/* Aggro bark: short, mid-frequency alert sound */
-			freq = (enemyAggroTick < 2) ? 0x300 : 0x280;
-			SND_REGS[0x02].SxINT = 0x9F;
-			SND_REGS[0x02].SxLRV = (v << 4) | v;
-			SND_REGS[0x02].SxFQL = freq & 0xFF;
-			SND_REGS[0x02].SxFQH = freq >> 8;
-			SND_REGS[0x02].SxEV0 = 0x66;
-			SND_REGS[0x02].SxEV1 = 0x00;
-			SND_REGS[0x02].SxRAM = 0x02;
-		} else {
-			SND_REGS[0x02].SxINT = 0x00;
-			enemyAggroPlaying = false;
-		}
-		enemyAggroTick++;
+	/* Fill waveform RAM banks for PCM channels with DC constant.
+	 * WAVEDATA entries are at 4-byte stride (byte writes). */
+	for (i = 0; i < 32; i++) {
+		WAVEDATA3[i << 2] = 0x3F;  /* for enemy ch2 */
+		WAVEDATA5[i << 2] = 0x3F;  /* for player ch4 */
 	}
 
-	/* ---- Channel 3 (WAVE4): death grunt ---- */
-	if (enemyDeathPlaying) {
-		if (enemyDeathTick < 8) {
-			u16 freq;
-			u8 v = enemyDeathVol;
-			if (enemyDeathTick > 3) v = (v > 1) ? v - 1 : 1;
+	/* Load waveforms for music channels */
+	copymem((void*)WAVEDATA1, (void*)SAWTOOTH, 128);  /* ch0 = melody */
+	copymem((void*)WAVEDATA2, (void*)SQUARE,   128);  /* ch1 = bass */
+	copymem((void*)WAVEDATA4, (void*)TRIANGLE, 128);  /* ch3 = chords */
 
-			/* Death grunt: descending low-frequency moan */
-			freq = 0x200 - ((u16)enemyDeathTick << 5);
-			if (freq < 0x100) freq = 0x100;
+	/* Turn off all channels */
+	for (i = 0; i < 6; i++)
+		SND_REGS[i].SxINT = 0x00;
 
-			SND_REGS[0x03].SxINT = 0x9F;
-			SND_REGS[0x03].SxLRV = (v << 4) | v;
-			SND_REGS[0x03].SxFQL = freq & 0xFF;
-			SND_REGS[0x03].SxFQH = freq >> 8;
-			SND_REGS[0x03].SxEV0 = 0x55;
-			SND_REGS[0x03].SxEV1 = 0x00;
-			SND_REGS[0x03].SxRAM = 0x03;  /* WAVEDATA4 */
-		} else {
-			SND_REGS[0x03].SxINT = 0x00;
-			enemyDeathPlaying = false;
-		}
-		enemyDeathTick++;
+	/* Allow sound output */
+	SSTOP = 0;
+
+	/* --- Configure music channels --- */
+	SND_REGS[0x00].SxRAM = 0x00;  /* ch0: WAVEDATA1 (SAWTOOTH) */
+	SND_REGS[0x01].SxRAM = 0x01;  /* ch1: WAVEDATA2 (SQUARE) */
+	SND_REGS[0x03].SxRAM = 0x03;  /* ch3: WAVEDATA4 (TRIANGLE) */
+
+	/* --- Configure PCM player channel (ch4 SWEEP) --- */
+	SND_REGS[0x04].SxRAM = 0x04;  /* use WAVEDATA5 */
+	SND_REGS[0x04].SxLRV = 0x00;  /* muted until playback */
+	SND_REGS[0x04].SxEV0 = 0xF0;  /* max initial envelope, no step */
+	SND_REGS[0x04].SxEV1 = 0x00;  /* no envelope modification */
+	SND_REGS[0x04].SxFQL = 0x00;  /* freq=0 (irrelevant, DC waveform) */
+	SND_REGS[0x04].SxFQH = 0x00;
+	SND_REGS[0x04].S5SWP = 0x00;  /* disable sweep */
+	SND_REGS[0x04].SxINT = 0x80;  /* enable channel */
+
+	/* --- Configure PCM enemy channel (ch2 WAVE3) --- */
+	SND_REGS[0x02].SxRAM = 0x02;  /* use WAVEDATA3 */
+	SND_REGS[0x02].SxLRV = 0x00;  /* muted until playback */
+	SND_REGS[0x02].SxEV0 = 0xF0;  /* max initial envelope, no step */
+	SND_REGS[0x02].SxEV1 = 0x00;  /* no envelope modification */
+	SND_REGS[0x02].SxFQL = 0x00;  /* freq=0 (irrelevant, DC waveform) */
+	SND_REGS[0x02].SxFQH = 0x00;
+	SND_REGS[0x02].SxINT = 0x80;  /* enable channel */
+}
+
+/* ----------------------------------------------------------------
+ * Start PCM on the player channel (ch4 SWEEP).
+ * Just sets up the stream state; the ISR handles SxLRV writes.
+ * ---------------------------------------------------------------- */
+void playPlayerSFX(u8 soundId) {
+	if (soundId >= SFX_COUNT) return;
+
+	/* Stop current playback to avoid ISR reading inconsistent state */
+	g_pcmPlayer.playing = 0;
+	SND_REGS[0x04].SxLRV = 0x00;
+
+	/* Set up PCM stream state */
+	g_pcmPlayer.data = sfx_table[soundId].data;
+	g_pcmPlayer.length = sfx_table[soundId].length;
+	g_pcmPlayer.cursor = 0;
+	g_pcmPlayer.volume = 15;
+
+	/* Start -- ISR will begin writing samples on next tick */
+	g_pcmPlayer.playing = 1;
+}
+
+/* ----------------------------------------------------------------
+ * Start PCM on the enemy channel (ch2 WAVE3).
+ * ---------------------------------------------------------------- */
+void playEnemySFX(u8 soundId, u8 distance) {
+	u8 vol;
+	if (soundId >= SFX_COUNT) return;
+
+	vol = distToVol(distance);
+
+	/* Stop current playback to avoid ISR reading inconsistent state */
+	g_pcmEnemy.playing = 0;
+	SND_REGS[0x02].SxLRV = 0x00;
+
+	/* Set up PCM stream state */
+	g_pcmEnemy.data = sfx_table[soundId].data;
+	g_pcmEnemy.length = sfx_table[soundId].length;
+	g_pcmEnemy.cursor = 0;
+	g_pcmEnemy.volume = vol;
+
+	/* Start -- ISR will begin writing samples on next tick */
+	g_pcmEnemy.playing = 1;
+}
+
+/* ----------------------------------------------------------------
+ * Music: load / start / stop / update
+ * ---------------------------------------------------------------- */
+
+/* Load a song by ID (SONG_TITLE, SONG_E1M1, etc.).
+ * Does NOT start playback -- call musicStart() afterwards. */
+void musicLoadSong(u8 songId) {
+	/* Stop current playback first */
+	musicStop();
+
+	switch (songId) {
+		case SONG_TITLE:
+			mus_ch[0]     = music_title_melody;
+			mus_ch[1]     = music_title_bass;
+			mus_ch[2]     = music_title_chords;
+			mus_timing    = music_title_timing;
+			mus_noteCount = MUSIC_TITLE_NOTE_COUNT;
+			break;
+		case SONG_E1M1:
+			mus_ch[0]     = music_e1m1_melody;
+			mus_ch[1]     = music_e1m1_bass;
+			mus_ch[2]     = music_e1m1_chords;
+			mus_timing    = music_e1m1_timing;
+			mus_noteCount = MUSIC_E1M1_NOTE_COUNT;
+			break;
+		case SONG_E1M2:
+			mus_ch[0]     = music_e1m2_melody;
+			mus_ch[1]     = music_e1m2_bass;
+			mus_ch[2]     = music_e1m2_chords;
+			mus_timing    = music_e1m2_timing;
+			mus_noteCount = MUSIC_E1M2_NOTE_COUNT;
+			break;
+		case SONG_E1M3:
+			mus_ch[0]     = music_e1m3_melody;
+			mus_ch[1]     = music_e1m3_bass;
+			mus_ch[2]     = music_e1m3_chords;
+			mus_timing    = music_e1m3_timing;
+			mus_noteCount = MUSIC_E1M3_NOTE_COUNT;
+			break;
+		default:
+			mus_ch[0]     = 0;
+			mus_ch[1]     = 0;
+			mus_ch[2]     = 0;
+			mus_noteCount = 0;
+			break;
 	}
 }
 
-/*
-const signed long SINE
+/* Start (or restart) the currently loaded song. */
+void musicStart(void) {
+	if (!mus_ch[0] || mus_noteCount == 0) return;
+	if (g_musicVolume == 0) return;  /* volume 0 = no music */
 
- const signed long SAWTOOTH
- const signed long TRIANGLE
- const signed long SQUARE
+	mus_currNote    = 0;
+	mus_prevFreq[0] = 0xFFFF;
+	mus_prevFreq[1] = 0xFFFF;
+	mus_prevFreq[2] = 0xFFFF;
+	mus_noteStart   = g_musicTick;
+	mus_playing     = 1;
+}
 
- const signed long PIANO[
+/* Silence the 3 music hardware channels without touching sequencer state. */
+static void musSilenceAll(void) {
+	SND_REGS[0x00].SxINT = 0x00;  /* ch0 melody */
+	SND_REGS[0x01].SxINT = 0x00;  /* ch1 bass */
+	SND_REGS[0x03].SxINT = 0x00;  /* ch3 chords */
+}
 
- const signed long TRUMPET[
+/* Stop playback, reset position, and silence all music channels. */
+void musicStop(void) {
+	mus_playing  = 0;
+	mus_currNote = 0;
+	musSilenceAll();
+}
 
- const signed long VIOLIN
+/* Helper: play or silence one VB sound channel. */
+static void musPlayChannel(u8 hw_ch, u16 freq, u8 vol) {
+	if (freq == 0) {
+		SND_REGS[hw_ch].SxINT = 0x00;
+	} else {
+		SND_REGS[hw_ch].SxINT = 0x00;  /* reset first */
+		SND_REGS[hw_ch].SxFQL = freq & 0xFF;
+		SND_REGS[hw_ch].SxFQH = freq >> 8;
+		SND_REGS[hw_ch].SxLRV = (vol << 4) | vol;
+		SND_REGS[hw_ch].SxEV0 = 0xF0;  /* max envelope, no decay */
+		SND_REGS[hw_ch].SxEV1 = 0x00;
+		SND_REGS[hw_ch].SxINT = 0x9F;  /* enable, no interval */
+	}
+}
 
- const signed long CRAP[]
- */
+/* Update background music sequencer.  Call from any loop at any rate.
+ * Drives 3 VB sound channels in lock-step.  Loops automatically.
+ * Timing is rate-independent via g_musicTick (5 kHz ISR counter). */
+void updateMusic(bool isPlayMusic) {
+	u8 vol;
+	u8 i;
+	u32 elapsed;
+	u32 dur_ticks;
+
+	if (!isPlayMusic || !mus_playing || !mus_ch[0])
+		return;
+
+	vol = g_musicVolume;
+
+	/* Volume 0: keep sequencer advancing but silence the channels */
+	if (vol == 0) {
+		/* Silence once (when transitioning from audible to muted) */
+		if (mus_prevFreq[0] != 0xFFFE) {
+			musSilenceAll();
+			mus_prevFreq[0] = 0xFFFE; /* sentinel: muted */
+			mus_prevFreq[1] = 0xFFFE;
+			mus_prevFreq[2] = 0xFFFE;
+		}
+	} else {
+		/* Update each channel if its frequency changed */
+		for (i = 0; i < 3; i++) {
+			u16 freq = mus_ch[i] ? (u16)mus_ch[i][mus_currNote] : 0;
+			if (freq != mus_prevFreq[i]) {
+				musPlayChannel(mus_hw_ch[i], freq, vol);
+				mus_prevFreq[i] = freq;
+			}
+		}
+	}
+
+	/* Check if current step duration has elapsed (ms * 5 ticks/ms) */
+	elapsed = g_musicTick - mus_noteStart;
+	dur_ticks = (u32)mus_timing[mus_currNote] * 5;
+
+	if (elapsed >= dur_ticks) {
+		mus_currNote++;
+		mus_noteStart = g_musicTick;
+
+		/* Force re-trigger on next updateMusic call */
+		mus_prevFreq[0] = 0xFFFF;
+		mus_prevFreq[1] = 0xFFFF;
+		mus_prevFreq[2] = 0xFFFF;
+
+		/* Loop: restart when reaching end */
+		if (mus_currNote >= mus_noteCount) {
+			mus_currNote = 0;
+		}
+	}
+}

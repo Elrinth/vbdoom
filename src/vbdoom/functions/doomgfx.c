@@ -12,13 +12,14 @@
 #include "../assets/images/fist_sprites.h"
 #include "../assets/images/pistol_sprites.h"
 #include "../assets/images/shotgun_sprites.h"
+#include "../assets/images/rocket_launcher_sprites.h"
 
 extern BYTE vb_doomTiles[];
 extern BYTE vb_doomMap[];
 
 void loadDoomGfxToMem() {
-	/* Load HUD-only tileset (108 tiles, 1728 bytes) */
-	copymem((void*)0x00078000, (void*)vb_doomTiles, 1728);
+	/* Load HUD-only tileset (129 tiles, 2064 bytes) */
+	copymem((void*)0x00078000, (void*)vb_doomTiles, 2064);
 }
 
 void loadFaceFrame(u8 faceIdx) {
@@ -44,6 +45,12 @@ void loadShotgunSprites(void) {
 	copymem((void*)addr, (void*)shotgunTiles, SHOTGUN_TILE_BYTES);
 }
 
+void loadRocketLauncherSprites(void) {
+	/* Rocket launcher shares the same char region as shotgun (120+) */
+	u32 addr = 0x00078000 + (u32)ROCKET_LAUNCHER_CHAR_START * 16;
+	copymem((void*)addr, (void*)rocketLauncherTiles, ROCKET_LAUNCHER_TILE_BYTES);
+}
+
 void loadEnemyFrame(u8 enemyIdx, const unsigned int* tileData) {
 	/* Copy one frame's tile data into the char memory reserved for this enemy.
 	 * Enemy 0 -> chars starting at ZOMBIE_CHAR_START (691)
@@ -54,8 +61,8 @@ void loadEnemyFrame(u8 enemyIdx, const unsigned int* tileData) {
 }
 
 void initEnemyBGMaps() {
-	/* Set up BGMap(3) and BGMap(4) with tile entries for enemy 0 and 1.
-	 * Each enemy gets its own BGMap + char range.
+	/* Set up BGMap(3), (4), (5) with tile entries for 3 visible enemy slots.
+	 * Each enemy rendering slot gets its own BGMap + char range.
 	 * This only needs to be called once at init - animation is done by
 	 * swapping tile data via loadEnemyFrame().
 	 *
@@ -64,7 +71,7 @@ void initEnemyBGMaps() {
 	 * We use palette 0 (GPLT0 = normal shading).
 	 */
 	u8 e, row, col;
-	for (e = 0; e < MAX_ENEMIES; e++) {
+	for (e = 0; e < MAX_VISIBLE_ENEMIES; e++) {
 		u16 *bgmap = (u16*)BGMap(ENEMY_BGMAP_START + e);
 		u16 charBase = ZOMBIE_CHAR_START + e * ENEMY_CHAR_STRIDE;
 		for (row = 0; row < ZOMBIE_TILE_H; row++) {
@@ -87,7 +94,7 @@ void loadPickupFrame(u8 pickupSlot, const unsigned int* tileData) {
 }
 
 void initPickupBGMaps(void) {
-	/* Set up BGMap(6), (7), (8) with tile entries for pickup slots 0, 1, 2.
+	/* Set up BGMap(8), (9) with tile entries for pickup slots 0, 1.
 	 * Each pickup slot gets its own BGMap + char range.
 	 * 4x3 tile grid (32x24 px).
 	 */
@@ -176,41 +183,115 @@ void drawArmour(u16 iArmour) {
 	drawBigUINumbers(2, ones, tens, hundreds, 1);
 }
 
+/* Draw right-side small digits for a specific ammo type (1=BULL, 2=SHEL, 3=RCKT, 4=CELL) */
+void drawSmallAmmo(u16 iAmmo, u8 iAmmoType) {
+	if (iAmmoType == 0) return;
+	ones = iAmmo % 10;
+	tens = (iAmmo / 10) % 10;
+	hundreds = (iAmmo / 100) % 10;
+	drawPos = 3280-3072;
+	switch (iAmmoType) {
+		case 1: drawPos = 3280-128-3072; break;
+		case 2: drawPos = 3280-3072; break;
+		case 3: drawPos = 3280+128-3072; break;
+		case 4: drawPos = 3280+256-3072; break;
+	}
+	startPos = 96*18;
+	if (hundreds > 0) {
+		*((u16*)(BGMap(LAYER_UI)+drawPos)) = *((u16*)(vb_doomMap+startPos+(hundreds*2)));
+	} else {
+		*((u16*)(BGMap(LAYER_UI)+drawPos)) = *((u16*)(vb_doomMap+startPos+20));
+	}
+	if (hundreds > 0 || tens > 0) {
+		*((u16*)(BGMap(LAYER_UI)+drawPos+2)) = *((u16*)(vb_doomMap+startPos+(tens*2)));
+	} else {
+		*((u16*)(BGMap(LAYER_UI)+drawPos+2)) = *((u16*)(vb_doomMap+startPos+20));
+	}
+	*((u16*)(BGMap(LAYER_UI)+drawPos+4)) = *((u16*)(vb_doomMap+startPos+(ones*2)));
+}
+
 void drawUpdatedAmmo(u16 iAmmo, u8 iAmmoType) {
 	ones = iAmmo % 10;
 	tens = (iAmmo / 10) % 10;
 	hundreds = (iAmmo / 100) % 10;
-	drawBigUINumbers(0, ones, tens, hundreds,iAmmoType);
+	drawBigUINumbers(0, ones, tens, hundreds, iAmmoType);
+	drawSmallAmmo(iAmmo, iAmmoType);
+}
 
-	if (iAmmoType > 0) {
-		drawPos = 3280-3072;
-		switch (iAmmoType) {
-    		case 1: // bull
-    			drawPos = 3280-128-3072;
-    		break;
-    		case 2: // shel
-				drawPos = 3280-3072;
-    		break;
-    		case 3: // rckt
-				drawPos = 3280+128-3072;
-    		break;
-    		case 4: // cell
-				drawPos = 3280+256-3072;
-    		break;
-    	}
-		startPos = 96*18;
-		if (hundreds > 0) {
-			*((u16*)(BGMap(LAYER_UI)+drawPos)) = *((u16*)(vb_doomMap+startPos+(hundreds*2)));
-		} else {
-			*((u16*)(BGMap(LAYER_UI)+drawPos)) = *((u16*)(vb_doomMap+startPos+20));
-		}
-		if (hundreds > 0 || tens > 0) {
-			*((u16*)(BGMap(LAYER_UI)+drawPos+2)) = *((u16*)(vb_doomMap+startPos+(tens*2)));
-		} else {
-			*((u16*)(BGMap(LAYER_UI)+drawPos+2)) = *((u16*)(vb_doomMap+startPos+20));
-		}
-		*((u16*)(BGMap(LAYER_UI)+drawPos+4)) = *((u16*)(vb_doomMap+startPos+(ones*2)));
+/*
+ * Draw Doom weapon slot numbers (2,3,4 top row; 5,6,7 bottom row) to the left of the face.
+ * Position: cols 17-19, rows 1-2 (2 tiles left, 1 down from face). Styles: 0=normal, 1=bright, 2=rectangled.
+ * vb_doomMap: row 18=normal digits, 19=bright, 20=rectangled. Byte offset = ((18+style)*48 + digit) * 2.
+ */
+void drawWeaponSlotNumbers(u8 hasPistol, u8 hasShotgun, u8 hasRocket, u8 currentWeapon) {
+	/* BGMap: 64 cols, 128 bytes/row. Top row (2,3,4) at row 1: 162,164,166. Bottom row (5,6,7) at row 2: 290,292,294 */
+	/* vb_doomMap byte offset for digit N, style S: ((18+S)*48 + N) * 2 */
+	u16 mapByteOff;
+	u8 style;
+
+#define DRAW_SLOT(bgOff, digit) do { \
+	mapByteOff = ((18 + (style)) * 48 + (digit)) * 2; \
+	*((u16*)(BGMap(LAYER_UI) + (bgOff))) = *((u16*)(vb_doomMap + mapByteOff)); \
+} while(0)
+
+	/* Slot 2 (pistol): rectangled if equipped, else bright */
+	style = (currentWeapon == 2) ? 2 : 1;  /* 2=W_PISTOL */
+	DRAW_SLOT(162, 2);
+
+	/* Slot 3 (shotgun): rectangled if equipped, bright if owned, else normal */
+	style = !hasShotgun ? 0 : (currentWeapon == 3) ? 2 : 1;
+	DRAW_SLOT(164, 3);
+
+	/* Slot 4 (chaingun): normal - not implemented */
+	style = 0;
+	DRAW_SLOT(166, 4);
+
+	/* Slot 5 (rocket): rectangled if equipped, bright if owned, else normal */
+	style = !hasRocket ? 0 : (currentWeapon == 4) ? 2 : 1;
+	DRAW_SLOT(290, 5);
+
+	/* Slot 6 (plasma): normal - not implemented */
+	style = 0;
+	DRAW_SLOT(292, 6);
+
+	/* Slot 7 (BFG): normal - not implemented */
+	style = 0;
+	DRAW_SLOT(294, 7);
+
+#undef DRAW_SLOT
+}
+
+/*
+ * Weapon HUD highlighting:
+ * Brighten the active weapon's ammo line (text + digits + slash + max ammo).
+ * Covers cols 34-46 (rows 0=BULL, 1=SHEL, 2=RCKT, 3=CELL).
+ */
+static u8 lastHighlightedWeapon = 0;
+
+void highlightWeaponHUD(u8 weaponIdx) {
+return;
+	u8 x;
+	u8 row;
+
+	/* Reset all 4 ammo rows to default palette (PAL0) */
+	for (x = 0; x < 13; x++) {
+		BGM_PALSET(LAYER_UI, 34 + x, 0, BGM_PAL0);
+		BGM_PALSET(LAYER_UI, 34 + x, 1, BGM_PAL0);
+		BGM_PALSET(LAYER_UI, 34 + x, 2, BGM_PAL0);
+		BGM_PALSET(LAYER_UI, 34 + x, 3, BGM_PAL0);
 	}
+
+	/* Brighten the active weapon's ammo row */
+	if (weaponIdx == 2) row = 0;       /* pistol -> BULL */
+	else if (weaponIdx == 3) row = 1;  /* shotgun -> SHEL */
+	else if (weaponIdx == 4) row = 2;  /* rocket -> RCKT */
+	else { lastHighlightedWeapon = weaponIdx; return; }  /* fists: no highlight */
+
+	for (x = 0; x < 13; x++) {
+		BGM_PALSET(LAYER_UI, 34 + x, row, BGM_PAL1);
+	}
+
+	lastHighlightedWeapon = weaponIdx;
 }
 
 u8 prevWeapon = 99;
@@ -328,7 +409,7 @@ void drawWeapon(u8 iWeapon, s16 swayX, s16 swayY, u8 iFrame, u8 iWeaponChangeTim
 			}
 		break;
 		case 3: // shotgun (6 frames: idle, fire1, fire2, pump1, pump2, pump3)
-			posX = 152;
+			posX = 160;
 			if (iFrame == 0) {
 				xTiles = SHOTGUN_F0_XTILES;
 				rowCount = SHOTGUN_F0_ROWS;
@@ -386,6 +467,66 @@ void drawWeapon(u8 iWeapon, s16 swayX, s16 swayY, u8 iFrame, u8 iWeaponChangeTim
 			}
 			/* Black layer offset: 1px down+right creates visible dark border.
 			 * GPLT2 makes idx2 transparent so it doesn't look double-drawn. */
+			blackY = lockedY + 1;
+			blackXOff = 1;
+		break;
+		case 4: // rocket launcher (6 frames: idle, shoot1-5)
+			posX = 168;
+			if (iFrame == 0) {
+				xTiles = ROCKET_F0_XTILES;
+				rowCount = ROCKET_F0_ROWS;
+				lockedY = 192 - ROCKET_F0_ROWS * 8;
+				weapMapPtr = rocketLauncherFrame0Map;
+				weapMapStride = ROCKET_F0_XTILES;
+				weapBlkMapPtr = rocketLauncherBlkFrame0Map;
+				weapBlkStride = ROCKET_BLK_F0_XTILES;
+				blkRowCount = ROCKET_BLK_F0_ROWS;
+			} else if (iFrame == 1) {
+				xTiles = ROCKET_F1_XTILES;
+				rowCount = ROCKET_F1_ROWS;
+				lockedY = 192 - ROCKET_F1_ROWS * 8;
+				weapMapPtr = rocketLauncherFrame1Map;
+				weapMapStride = ROCKET_F1_XTILES;
+				weapBlkMapPtr = rocketLauncherBlkFrame1Map;
+				weapBlkStride = ROCKET_BLK_F1_XTILES;
+				blkRowCount = ROCKET_BLK_F1_ROWS;
+			} else if (iFrame == 2) {
+				xTiles = ROCKET_F2_XTILES;
+				rowCount = ROCKET_F2_ROWS;
+				lockedY = 192 - ROCKET_F2_ROWS * 8;
+				weapMapPtr = rocketLauncherFrame2Map;
+				weapMapStride = ROCKET_F2_XTILES;
+				weapBlkMapPtr = rocketLauncherBlkFrame2Map;
+				weapBlkStride = ROCKET_BLK_F2_XTILES;
+				blkRowCount = ROCKET_BLK_F2_ROWS;
+			} else if (iFrame == 3) {
+				xTiles = ROCKET_F3_XTILES;
+				rowCount = ROCKET_F3_ROWS;
+				lockedY = 192 - ROCKET_F3_ROWS * 8;
+				weapMapPtr = rocketLauncherFrame3Map;
+				weapMapStride = ROCKET_F3_XTILES;
+				weapBlkMapPtr = rocketLauncherBlkFrame3Map;
+				weapBlkStride = ROCKET_BLK_F3_XTILES;
+				blkRowCount = ROCKET_BLK_F3_ROWS;
+			} else if (iFrame == 4) {
+				xTiles = ROCKET_F4_XTILES;
+				rowCount = ROCKET_F4_ROWS;
+				lockedY = 192 - ROCKET_F4_ROWS * 8;
+				weapMapPtr = rocketLauncherFrame4Map;
+				weapMapStride = ROCKET_F4_XTILES;
+				weapBlkMapPtr = rocketLauncherBlkFrame4Map;
+				weapBlkStride = ROCKET_BLK_F4_XTILES;
+				blkRowCount = ROCKET_BLK_F4_ROWS;
+			} else if (iFrame == 5) {
+				xTiles = ROCKET_F5_XTILES;
+				rowCount = ROCKET_F5_ROWS;
+				lockedY = 192 - ROCKET_F5_ROWS * 8;
+				weapMapPtr = rocketLauncherFrame5Map;
+				weapMapStride = ROCKET_F5_XTILES;
+				weapBlkMapPtr = rocketLauncherBlkFrame5Map;
+				weapBlkStride = ROCKET_BLK_F5_XTILES;
+				blkRowCount = ROCKET_BLK_F5_ROWS;
+			}
 			blackY = lockedY + 1;
 			blackXOff = 1;
 		break;

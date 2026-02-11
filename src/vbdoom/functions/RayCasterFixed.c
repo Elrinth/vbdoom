@@ -109,8 +109,15 @@ u8 Arctan(s16 *dy, s16 *dx) {
   return arctan;
 }*/
 
-/* Wall type of the last ray hit (set by CalculateDistance, read by TraceFrame) */
+/* Wall type and tile coords of the last ray hit (set by CalculateDistance, read by TraceFrame) */
 u8 g_lastWallType = 1;
+u8 g_lastWallTileX = 0;
+u8 g_lastWallTileY = 0;
+
+/* Center screen column wall data (saved during TraceFrame for USE activation) */
+u8 g_centerWallType = 0;
+u8 g_centerWallTileX = 0;
+u8 g_centerWallTileY = 0;
 
 bool IsWall(u8 tileX, u8 tileY)
 {
@@ -271,6 +278,8 @@ HorizontalHit:
     *textureNo = 0;
     *textureX  = interceptX & 0xFF;
     g_lastWallType = GetWallType(tileX, tileY);
+    g_lastWallTileX = tileX;
+    g_lastWallTileY = tileY;
     goto WallHit;
 
 VerticalHit:
@@ -279,6 +288,8 @@ VerticalHit:
     *textureNo = 1;
     *textureX  = interceptY & 0xFF;
     g_lastWallType = GetWallType(tileX, tileY);
+    g_lastWallTileX = tileX;
+    g_lastWallTileY = tileY;
     goto WallHit;
 
 WallHit:
@@ -294,6 +305,34 @@ void CastRayHitPos(u16 rayX, u16 rayY, u16 rayA, s16* outHitX, s16* outHitY)
     CalculateDistance(rayX, rayY, rayA & 1023, &deltaX, &deltaY, &texNo, &texX);
     *outHitX = (s16)rayX + deltaX;
     *outHitY = (s16)rayY + deltaY;
+}
+
+/* Bresenham tile-walk line-of-sight check.
+ * Coordinates are 8.8 fixed-point; only intermediate tiles are tested. */
+bool hasLineOfSight(u16 fromX, u16 fromY, u16 toX, u16 toY)
+{
+    s8 x0 = (s8)(fromX >> 8);
+    s8 y0 = (s8)(fromY >> 8);
+    s8 x1 = (s8)(toX >> 8);
+    s8 y1 = (s8)(toY >> 8);
+    s8 dx = x1 - x0;
+    s8 dy = y1 - y0;
+    s8 sx = (dx > 0) ? 1 : -1;
+    s8 sy = (dy > 0) ? 1 : -1;
+    if (dx < 0) dx = -dx;
+    if (dy < 0) dy = -dy;
+    {
+        s16 err = (s16)dx - (s16)dy;
+        while (x0 != x1 || y0 != y1) {
+            s16 e2 = err * 2;
+            if (e2 > -(s16)dy) { err -= dy; x0 += sx; }
+            if (e2 <  (s16)dx) { err += dx; y0 += sy; }
+            /* Reached destination -- don't test the enemy's own tile */
+            if (x0 == x1 && y0 == y1) break;
+            if (IsWall((u8)x0, (u8)y0)) return false;
+        }
+    }
+    return true;
 }
 
 // (playerX, playerY) is 8 box coordinate bits, 8 inside coordinate bits
