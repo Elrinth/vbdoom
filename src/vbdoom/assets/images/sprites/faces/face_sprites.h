@@ -13,7 +13,7 @@
  *   copymem((void*)addr, (void*)FACE_TILE_DATA[faceIndex], 192);
  */
 
-#define FACE_CHAR_START   129
+#define FACE_CHAR_START   462  /* moved to free gap 462-473 to avoid shotgun overlap */
 #define FACE_TILE_COUNT   12
 #define FACE_TILE_BYTES   192
 #define FACE_COUNT        32
@@ -96,9 +96,9 @@ static const unsigned int* const FACE_TILE_DATA[32] = {
     face_31Tiles
 };
 
-/* Fixed face BGMap: always references chars 129-140 */
+/* Fixed face BGMap: always references chars 462-473 (0x1CE-0x1D9) */
 static const unsigned short faceMap[12] __attribute__((aligned(4))) = {
-	0x0081,0x0082,0x0083,0x0084,0x0085,0x0086,0x0087,0x0088,0x0089,0x008A,0x008B,0x008C
+	0x01CE,0x01CF,0x01D0,0x01D1,0x01D2,0x01D3,0x01D4,0x01D5,0x01D6,0x01D7,0x01D8,0x01D9
 };
 
 #endif /* __FACE_SPRITES_H__ */

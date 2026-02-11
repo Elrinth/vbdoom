@@ -28,17 +28,30 @@ C project targeting the NEC V810 CPU via `v810-gcc` and the `libgccvb` library.
 |---|---|---|---|
 | HUD | 0-107 | 108 | `doomgfx.c` (hardcoded) |
 | Face (shared) | 108-119 | 12 | `face_sprites.h` FACE_CHAR_START |
-| Shotgun (shared) | 120-461 | 342 | `shotgun_sprites.h` SHOTGUN_CHAR_START |
+| Weapon red+blk (shared) | 120-461 | 342 | shotgun/rocket `_sprites.h` |
 | *Free* | 462-543 | 82 | |
 | Weapons fist/pistol | 544-763 | 220 | `doomgfx.h` WEAPON_CHAR_START |
-| Particles | 764-941 | 178 | `particle_sprites.h` |
-| Enemies (3x64) | 983-1174 | 192 | `doomgfx.h` ZOMBIE_CHAR_START |
-| Pickups (3x12) | 1175-1210 | 36 | `pickup.h` PICKUP_CHAR_START |
-| Wall textures | 1211-1722 | 512 | `wall_textures.h` WALL_TEX_CHAR_START |
-| Transitions | 1723-1778 | 56 | `wall_textures.h` TRANS_TEX_CHAR_START |
-| **Free** | 1779-2047 | **269** | |
+| Particles | 764-982 | 219 | `particle_sprites.h` |
+| Enemies (5x64) | 983-1302 | 320 | `doomgfx.h` ZOMBIE_CHAR_START |
+| Pickups (2x12) | 1303-1326 | 24 | `pickup.h` PICKUP_CHAR_START |
+| Wall textures | 1327-1966 | 640 | `wall_textures.h` WALL_TEX_CHAR_START |
+| Transitions | 1967-2036 | 70 | `wall_textures.h` TRANS_TEX_CHAR_START |
+| **Free** | 2037-2047 | **11** | |
 
-Weapon tiles are shared: only one weapon is active at a time. Fist (213) and pistol (119) share chars 544+. Shotgun (342, red+black) uses its own region at chars 120+. Verify total stays under 2048.
+Weapon tiles are shared: only one weapon is active at a time. Fist (213) and pistol (119) share chars 544+. Shotgun (342) / Rocket launcher (197) use the red+black region at chars 120+. Verify total stays under 2048.
+
+## World Allocation (31 down to 17)
+
+| World | Purpose | BGMap |
+|---|---|---|
+| 31 | Stage | 1 |
+| 30-26 | Enemies 0-4 | 3-7 |
+| 25-24 | Pickups 0-1 | 8-9 |
+| 23 | Particles/Projectiles | 0 |
+| 22 | Weapon black | LAYER_WEAPON_BLACK |
+| 21 | Weapon | LAYER_WEAPON |
+| 20-18 | UI layers | LAYER_UI_BLACK, LAYER_UI, LAYER_UI+1 |
+| 17 | WRLD_END | -- |
 
 ## Asset Pipeline
 
@@ -48,6 +61,11 @@ Python scripts at project root convert PNGs to C arrays with VB 2bpp tile data:
 - `prepare_particles.py` -- bullet puff + shotgun group sprites
 - `prepare_shotgun_sprites.py` -- first-person shotgun weapon frames
 - `prepare_shotgun_pickup.py` -- shotgun pickup item sprite
+- `prepare_rocket_sprites.py` -- first-person rocket launcher weapon frames
+- `prepare_rocket_projectile.py` -- directional rocket projectile sprites (5 views)
+- `prepare_rocket_pickup.py` -- rocket launcher pickup sprite
+- `prepare_doom_sfx.py` -- convert Doom WAVs to 4-bit packed VB PCM audio
+- `make_into_4_colors_2/grit_all_frames.py` -- enemy sprite conversion (Imp, Demon)
 
 All generated files go into `src/vbdoom/assets/images/`. Tile arrays use `const unsigned int ... __attribute__((aligned(4)))`. Map arrays use `const unsigned short ... __attribute__((aligned(4)))`.
 
