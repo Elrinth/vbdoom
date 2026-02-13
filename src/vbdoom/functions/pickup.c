@@ -4,7 +4,16 @@
 #include "door.h"
 #include "doomgfx.h"
 #include "sndplay.h"
+#include "link.h"
+#include "teleport.h"
 #include "../assets/audio/doom_sfx.h"
+
+/* Respawn time in frames (~5 seconds at 20fps) */
+#define PICKUP_RESPAWN_TIME 100
+
+/* When respawnTimer reaches this value, start the teleport animation.
+ * 10 frames * 2 rate = 20 game frames of animation before pickup appears. */
+#define PICKUP_TELEPORT_START (TELEPORT_FRAME_COUNT * TELEPORT_ANIM_RATE)
 
 /* Global pickup array */
 Pickup g_pickups[MAX_PICKUPS];
@@ -116,6 +125,12 @@ void initPickups(void) {
     g_pickups[13].y = 8 * 256 + 128;
     g_pickups[13].type = PICKUP_WEAPON_ROCKET;
     g_pickups[13].active = true;
+
+    /* 14: Chaingun pickup, east corridor (29, 7) */
+    g_pickups[14].x = 29 * 256 + 128;
+    g_pickups[14].y = 7 * 256 + 128;
+    g_pickups[14].type = PICKUP_WEAPON_CHAINGUN;
+    g_pickups[14].active = true;
 }
 
 void initPickupsE1M2(void) {
@@ -379,9 +394,26 @@ void animatePickups(void) {
     u8 i;
     for (i = 0; i < MAX_PICKUPS; i++) {
         Pickup *p = &g_pickups[i];
+
+        /* Deathmatch respawn timer: count down and reactivate */
+        if (!p->active && p->respawnTimer > 0) {
+            p->respawnTimer--;
+            /* Trigger teleport animation right before respawn */
+            if (p->respawnTimer == PICKUP_TELEPORT_START) {
+                spawnTeleportFX(p->x, p->y);
+                playEnemySFX(SFX_TELEPORT, 80);  /* medium distance default */
+            }
+            if (p->respawnTimer == 0) {
+                p->active = true;
+                p->animFrame = 0;
+                p->animTimer = 0;
+            }
+            continue;
+        }
+
         if (!p->active) continue;
 
-        /* Only helmet and armor animate */
+        /* Only helmet, armor, and keycards animate */
         if (p->type == PICKUP_HELMET) {
             /* 4 frames ping-pong: 0,1,2,3,2,1,0,1,... */
             p->animTimer++;
@@ -400,6 +432,14 @@ void animatePickups(void) {
                 if (p->animFrame >= 4) p->animFrame = 0;
                 /* ping-pong: sequence is 0,1,2,1 */
             }
+        } else if (p->type >= PICKUP_KEY_RED && p->type <= PICKUP_KEY_BLUE) {
+            /* 6 frames straight loop: 0,1,2,3,4,5 */
+            p->animTimer++;
+            if (p->animTimer >= PICKUP_ANIM_RATE) {
+                p->animTimer = 0;
+                p->animFrame++;
+                if (p->animFrame >= 6) p->animFrame = 0;
+            }
         }
     }
 }
@@ -407,13 +447,16 @@ void animatePickups(void) {
 /* Get actual frame index for ping-pong animation */
 u8 getPickupAnimFrame(Pickup *p) {
     if (p->type == PICKUP_HELMET) {
-        /* Ping-pong: 0,1,2,3,2,1 */
+        /* Ping-pong: 0,1,2,3,2,1 (animFrame already wraps at 6) */
         static const u8 seq[] = {0, 1, 2, 3, 2, 1};
-        return seq[p->animFrame % 6];
+        return seq[p->animFrame];
     } else if (p->type == PICKUP_ARMOR) {
-        /* Ping-pong: 0,1,2,1 */
+        /* Ping-pong: 0,1,2,1 (animFrame already wraps at 4) */
         static const u8 seq[] = {0, 1, 2, 1};
-        return seq[p->animFrame % 4];
+        return seq[p->animFrame & 3];
+    } else if (p->type >= PICKUP_KEY_RED && p->type <= PICKUP_KEY_BLUE) {
+        /* Straight loop: 0,1,2,3,4,5 */
+        return p->animFrame;
     }
     return 0; /* static */
 }
@@ -491,18 +534,29 @@ bool updatePickups(u16 playerX, u16 playerY, u8 *ammo, u8 *health,
             case PICKUP_KEY_BLUE:
                 g_hasKeyBlue = 1;
                 break;
+            case PICKUP_WEAPON_CHAINGUN:
+                g_pickedUpWeapon = 5;  /* W_CHAINGUN */
+                break;
             }
 
-            p->active = false;
+            /* In deathmatch mode, pickups respawn after a timer instead of disappearing */
+            if (g_isMultiplayer && g_gameMode == GAMEMODE_DEATHMATCH) {
+                p->active = false;
+                p->respawnTimer = PICKUP_RESPAWN_TIME;
+            } else {
+                p->active = false;
+            }
             pickedUp = true;
             /* Only count weapons and helmets toward items% */
-            if (p->type == PICKUP_WEAPON_SHOTGUN || p->type == PICKUP_HELMET || p->type == PICKUP_WEAPON_ROCKET)
+            if (p->type == PICKUP_WEAPON_SHOTGUN || p->type == PICKUP_HELMET ||
+                p->type == PICKUP_WEAPON_ROCKET || p->type == PICKUP_WEAPON_CHAINGUN)
                 g_itemsCollected++;
 
             g_flashTimer = 3;
             g_flashType = 0;
 
-            if (p->type != PICKUP_WEAPON_SHOTGUN && p->type != PICKUP_WEAPON_ROCKET) {
+            if (p->type != PICKUP_WEAPON_SHOTGUN && p->type != PICKUP_WEAPON_ROCKET &&
+                p->type != PICKUP_WEAPON_CHAINGUN) {
                 playPlayerSFX(SFX_ITEM_UP);
             }
         }

@@ -169,7 +169,7 @@ u8 creditsScreen()
 
 		/* Scroll after initial delay */
 		if (frame >= SCROLL_DELAY && scrollY < maxScroll) {
-			if ((frame % SCROLL_EVERY) == 0) {
+			if ((frame & 1) == 0) {  /* SCROLL_EVERY == 2, so % 2 == & 1 */
 				scrollY++;
 				WA[31].my = scrollY;
 			}

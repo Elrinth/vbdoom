@@ -13,8 +13,9 @@ void mp_init(void);
 #define SONG_E1M1   1
 #define SONG_E1M2   2
 #define SONG_E1M3   3
-#define SONG_E1M5   4
-#define SONG_E1M6   5
+#define SONG_E1M4   4
+#define SONG_E1M5   5
+#define SONG_E1M6   6
 
 /* Master music volume (0-4).  Derived from settings.music (0-9) via
  * musicVolFromSetting().  Set to 0 to disable music entirely.
@@ -24,6 +25,10 @@ extern volatile u8 g_musicVolume;
 /* Raw settings.music value (0-9), kept in sync with g_musicVolume.
  * Used by gameLoop to reconstruct pause-menu settings. */
 extern u8 g_musicSetting;
+
+/* Raw settings.rumble value (0-9).  0 = off, >0 = rumble pak enabled.
+ * Used by gameLoop for damage/secret rumble and pause-menu reconstruction. */
+extern u8 g_rumbleSetting;
 
 /* Convert settings.music (0-9) to g_musicVolume.
  * Uses a reduced non-linear curve (max 4) to balance waveform
@@ -38,6 +43,9 @@ void musicStart(void);
 
 /* Stop playback and silence the music channel. */
 void musicStop(void);
+
+/* Returns 1 if the music sequencer is currently playing. */
+u8 isMusicPlaying(void);
 
 /* Called each frame to advance background music sequencer.
  * Pass isPlayMusic = true to enable music playback. */

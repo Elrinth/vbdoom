@@ -18,17 +18,40 @@
 #include "../assets/images/sprites/zombie_sgt/zombie_sgt_sprites.h"
 #include "../assets/images/sprites/imp/imp_sprites.h"
 #include "../assets/images/sprites/demon/demon_sprites.h"
+#include "../assets/images/sprites/commando/commando_sprites.h"
 #include "../assets/images/sprites/pickups/pickup_sprites.h"
 #include "../assets/images/sprites/faces/face_sprites.h"
 #include "projectile.h"
 #include "door.h"
+#include "rumble.h"
 #include "intermission.h"
 #include "menu_options.h"
+#include "link.h"
+#include "teleport.h"
 extern BYTE FontTiles[];
 #include <stdint.h>
 #include <stdbool.h>
 
 int rand(void);  /* forward declaration -- avoids pulling in full stdlib */
+
+/* Volume conversion LUTs: setting (0-9) <-> hardware (0-15) */
+static const u8 g_settingToHw[10] = {0,1,3,5,6,8,10,11,13,15};
+static const u8 g_hwToSetting[16] = {0,0,1,1,2,3,3,4,4,5,6,6,7,7,8,9};
+
+/* Rumble intensity table: maps setting (1-9) to {frequency, effectId, damageDuration, secretDuration}.
+ * Lower settings use gentle 160Hz + weak effect; higher use 400Hz + strong effect + longer duration. */
+typedef struct { u8 freq; u8 effect; u8 dmgDur; u8 secDur; } RumbleLevel;
+static const RumbleLevel g_rumbleLevels[9] = {
+    /* 1 */ {RUMBLE_FREQ_160HZ, 0x01,  3, 1},  /* very light */
+    /* 2 */ {RUMBLE_FREQ_160HZ, 0x0E,  4, 1},
+    /* 3 */ {RUMBLE_FREQ_160HZ, 0x1B,  5, 2},
+    /* 4 */ {RUMBLE_FREQ_240HZ, 0x28,  6, 2},
+    /* 5 */ {RUMBLE_FREQ_240HZ, 0x35,  7, 2},  /* medium */
+    /* 6 */ {RUMBLE_FREQ_320HZ, 0x42,  8, 3},
+    /* 7 */ {RUMBLE_FREQ_320HZ, 0x4F,  8, 3},
+    /* 8 */ {RUMBLE_FREQ_400HZ, 0x5C, 10, 3},
+    /* 9 */ {RUMBLE_FREQ_400HZ, 0x7B, 12, 4},  /* maximum */
+};
 
 /* Map data (defined in RayCasterData.h, compiled via RayCasterFixed.c) */
 extern u8 g_map[];
@@ -36,6 +59,7 @@ extern const u8 e1m1_map[];
 extern const u8 e1m2_map[];
 extern const u8 e1m3_map[];
 extern const u8 e1m4_map[];
+extern const u8 dm1_map[];
 
 /* Player spawn positions (must match RayCasterData.h / e1m2.h) */
 #define E1M1_SPAWN_X  (15 * 256 + 128)
@@ -50,6 +74,11 @@ extern const u8 e1m4_map[];
 #define E1M4_SPAWN_Y  (30 * 256 + 128)
 #define E1M4_SPAWN2_X (30 * 256 + 128)
 #define E1M4_SPAWN2_Y (27 * 256 + 128)
+
+/* DM Arena spawn points (4 total, defined in dm1.h) */
+extern const u16 dm_spawnX[];
+extern const u16 dm_spawnY[];
+extern const u16 dm_spawnA[];
 
 /* Precomputed constants -- no runtime float math needed.
  * fixedAngleRatioz = FTOFIX23_9(512.0f/360.0f) = 729
@@ -92,6 +121,7 @@ u8 updatePistolCount = 0;
 #define W_PISTOL 2
 #define W_SHOTGUN 3
 #define W_ROCKET 4
+#define W_CHAINGUN 5
 typedef struct {
 	bool hasWeapon;
 	u8 iWeapon;
@@ -107,6 +137,7 @@ Weapon weapons[] = {
 { true, W_PISTOL, true, 50,1,4},   /* attackFrames=4: ~12 frame refire delay (Doom-like) */
 { false, W_SHOTGUN, true, 0,2,5},
 { false, W_ROCKET, true, 0,3,5},   /* rocket launcher: ammo type 3 = RCKT */
+{ false, W_CHAINGUN, true, 0,1,3}, /* chaingun: ammo type 1 = BULL, attackFrames=3: idle→shoot1→shoot2→reset */
 };
 
 // 0 = chainsaw, 1 = fists, 2 = pistol, 3 = shotgun, 4 =
@@ -130,8 +161,9 @@ const s16 walkSwayYTBL[] = {0, 0, 1, 1, 1, 1, 1, 0, 0,-1,-1,-1,-1};
  * findBestWeapon: find best weapon with ammo (priority order: 3,2,1)
  */
 static u8 findBestWeapon(void) {
-	/* Priority: rocket (4) > shotgun (3) > pistol (2) > fists (1) */
+	/* Priority: rocket > chaingun > shotgun > pistol > fists */
 	if (weapons[W_ROCKET].hasWeapon && weapons[W_ROCKET].ammo > 0) return W_ROCKET;
+	if (weapons[W_CHAINGUN].hasWeapon && weapons[W_CHAINGUN].ammo > 0) return W_CHAINGUN;
 	if (weapons[W_SHOTGUN].hasWeapon && weapons[W_SHOTGUN].ammo > 0) return W_SHOTGUN;
 	if (weapons[W_PISTOL].hasWeapon && weapons[W_PISTOL].ammo > 0) return W_PISTOL;
 	return W_FISTS; /* always available */
@@ -144,6 +176,7 @@ static void switchToWeapon(u8 newWeapon) {
 	drawWeaponSlotNumbers(weapons[W_PISTOL].hasWeapon,
 	                     weapons[W_SHOTGUN].hasWeapon,
 	                     weapons[W_ROCKET].hasWeapon,
+	                     weapons[W_CHAINGUN].hasWeapon,
 	                     currentWeapon);
 	highlightWeaponHUD(currentWeapon);
 	weaponAnimation = 0;
@@ -158,7 +191,7 @@ void cycleNextWeapon() {
 	u8 next = currentWeapon;
 	do {
 		next++;
-		if (next > 4) next = 1; /* skip 0 (chainsaw) */
+		if (next > 5) next = 1; /* skip 0 (chainsaw) */
 		if (weapons[next].hasWeapon &&
 		    (!weapons[next].requiresAmmo || weapons[next].ammo > 0)) {
 			switchToWeapon(next);
@@ -182,8 +215,9 @@ static void autoSwitchOnEmpty(void) {
 }
 
 /* Set to 4 (or 2, 3, etc.) to start at that level for debugging. Use 1 for normal play. */
-#define START_LEVEL 4
+#define START_LEVEL 1
 
+u8 g_startLevel = START_LEVEL;  /* set by multiplayer menu, or default for single player */
 u8 currentLevel = 1;
 
 /* Restore all game worlds, palettes, BGMaps, and VRAM tile data.
@@ -273,6 +307,8 @@ static void restoreGameDisplay(u8 doomface, u8 weapon) {
 		loadShotgunSprites();
 	else if (weapon == W_ROCKET)
 		loadRocketLauncherSprites();
+	else if (weapon == W_CHAINGUN)
+		loadChaingunSprites();
 	else
 		loadPistolSprites();
 }
@@ -383,7 +419,81 @@ void loadLevel(u8 levelNum) {
      		registerSwitch(15, 3, SW_EXIT, 0);
      		registerSwitch(10, 10, SW_DOOR, 4);
      		registerSwitch(20, 10, SW_DOOR, 5);
-     	}
+     	} else if (levelNum == 7) {
+		/* DM Arena */
+		{ u16 row; for (row = 0; row < 32; row++) copymem((u8*)g_map + row * MAP_X, (const u8*)dm1_map + row * 32, 32); }
+		{ u16 i; for (i = 32 * MAP_X; i < MAP_CELLS; i++) ((u8*)g_map)[i] = 0; }
+		{ u16 row; for (row = 0; row < 32; row++) { u16 c; for (c = 32; c < MAP_X; c++) ((u8*)g_map)[row * MAP_X + c] = 0; } }
+		/* HOST uses spawn 0, JOIN uses spawn 1 */
+		if (g_isHost) {
+			fPlayerX = dm_spawnX[0];
+			fPlayerY = dm_spawnY[0];
+			fPlayerAng = dm_spawnA[0];
+		} else {
+			fPlayerX = dm_spawnX[1];
+			fPlayerY = dm_spawnY[1];
+			fPlayerAng = dm_spawnA[1];
+		}
+		/* No enemies in DM */
+		{ u8 ei; for (ei = 0; ei < MAX_ENEMIES; ei++) g_enemies[ei].active = false; }
+		/* DM pickups: weapons and ammo */
+		{ u8 pi; for (pi = 0; pi < MAX_PICKUPS; pi++) { g_pickups[pi].active = false; g_pickups[pi].respawnTimer = 0; } }
+		spawnPickup(PICKUP_WEAPON_SHOTGUN,  12 * 256 + 128, 16 * 256 + 128);
+		spawnPickup(PICKUP_WEAPON_CHAINGUN, 20 * 256 + 128, 16 * 256 + 128);
+		spawnPickup(PICKUP_WEAPON_ROCKET,   16 * 256 + 128, 12 * 256 + 128);
+		spawnPickup(PICKUP_HEALTH_LARGE,    10 * 256 + 128, 10 * 256 + 128);
+		spawnPickup(PICKUP_HEALTH_LARGE,    22 * 256 + 128, 22 * 256 + 128);
+		spawnPickup(PICKUP_AMMO_CLIP,       9 * 256 + 128, 19 * 256 + 128);
+		spawnPickup(PICKUP_AMMO_CLIP,       23 * 256 + 128, 13 * 256 + 128);
+		spawnPickup(PICKUP_SHELLS,          16 * 256 + 128, 20 * 256 + 128);
+		spawnPickup(PICKUP_ARMOR,           16 * 256 + 128, 9 * 256 + 128);
+		initDoors();
+		registerDoor(8, 14);
+		registerDoor(24, 14);
+		registerDoor(16, 6);
+		registerDoor(16, 26);
+	}
+
+	/* Set player 2 spawn points for multiplayer */
+	if (g_isMultiplayer) {
+		if (levelNum == 7) {
+			/* DM Arena: opposite spawns */
+			g_p2SpawnX = g_isHost ? dm_spawnX[1] : dm_spawnX[0];
+			g_p2SpawnY = g_isHost ? dm_spawnY[1] : dm_spawnY[0];
+			g_p2SpawnAngle = g_isHost ? dm_spawnA[1] : dm_spawnA[0];
+		} else if (levelNum == 1) {
+			/* E1M1: P2 near P1 start */
+			g_p2SpawnX = 17 * 256 + 128;
+			g_p2SpawnY = 28 * 256 + 128;
+			g_p2SpawnAngle = 512;
+		} else if (levelNum == 2) {
+			g_p2SpawnX = 17 * 256 + 128;
+			g_p2SpawnY = 28 * 256 + 128;
+			g_p2SpawnAngle = 512;
+		} else if (levelNum == 3) {
+			g_p2SpawnX = 17 * 256 + 128;
+			g_p2SpawnY = 28 * 256 + 128;
+			g_p2SpawnAngle = 0;
+		} else if (levelNum == 4) {
+			g_p2SpawnX = 28 * 256 + 128;
+			g_p2SpawnY = 30 * 256 + 128;
+			g_p2SpawnAngle = 768;
+		} else {
+			/* Default: same position offset */
+			g_p2SpawnX = fPlayerX + 256;
+			g_p2SpawnY = fPlayerY;
+			g_p2SpawnAngle = fPlayerAng;
+		}
+		/* Initialize player 2 at spawn */
+		g_player2X = g_p2SpawnX;
+		g_player2Y = g_p2SpawnY;
+		g_player2Angle = g_p2SpawnAngle;
+		g_player2Health = 100;
+		g_player2Alive = true;
+		g_p2AnimFrame = 0;
+		g_p2AnimTimer = 0;
+		g_p2LastFrame = 255;
+	}
 
 	/* Reset particles and projectiles for the new level */
 	initParticles();
@@ -487,7 +597,7 @@ u8 gameLoop()
 	WA[17].head = WRLD_END;
 
 	loadDoomGfxToMem();
-	loadLevel(START_LEVEL);     /* START_LEVEL: 1=normal, 4=E1M4 debug, etc. */
+	loadLevel(g_startLevel);    /* g_startLevel: set by multiplayer menu or START_LEVEL default */
 	loadParticleTiles();
 
     vbDisplayShow();
@@ -505,12 +615,17 @@ u8 gameLoop()
 	u16 currentArmour = 0;
 	u8 armorType = 0;  /* 0=none, 1=green (1/3 absorb), 2=blue (1/2 absorb) */
 
+	/* DM death/respawn: controls stop working for 2s, then respawn at random point */
+	u8 deathCooldown = 0;  /* >0 = dead, counts down each frame (40 = 2s at 20fps) */
+	bool g_firedRocketThisFrame = false;  /* set when local player fires a rocket */
+
 	/* HUD dirty tracking: only redraw when value changed (avoids redundant BGMap/copymem) */
 	u16 lastHealth = 0xFFFF;
 	u16 lastArmour = 0xFFFF;
 	u8 lastHasPistol = 0xFF;
 	u8 lastHasShotgun = 0xFF;
 	u8 lastHasRocket = 0xFF;
+	u8 lastHasChaingun = 0xFF;
 	u8 lastCurrentWeapon = 0xFF;
 	u16 lastCurrentAmmo = 0xFFFF;
 	u16 lastPistolAmmo = 0xFFFF;
@@ -563,6 +678,10 @@ u8 gameLoop()
 	loadWallTextures();
 
 	drawDoomUI(LAYER_UI, 0, 0);
+	if (g_isMultiplayer && g_gameMode == GAMEMODE_DEATHMATCH)
+		drawFragHUD(g_fragCount);
+	else
+		drawKeyCards(g_hasKeyRed, g_hasKeyYellow, g_hasKeyBlue);
 	drawUpdatedAmmo(ammo, currentAmmoType);
 	/* Initialize right-side digits for all ammo types */
 	drawSmallAmmo(weapons[W_PISTOL].ammo, 1);  /* BULL */
@@ -571,6 +690,7 @@ u8 gameLoop()
 	drawWeaponSlotNumbers(weapons[W_PISTOL].hasWeapon,
 	                     weapons[W_SHOTGUN].hasWeapon,
 	                     weapons[W_ROCKET].hasWeapon,
+	                     weapons[W_CHAINGUN].hasWeapon,
 	                     currentWeapon);
 	drawHealth(currentHealth);
 	drawArmour((u8)currentArmour);
@@ -580,6 +700,7 @@ u8 gameLoop()
 	lastHasPistol = weapons[W_PISTOL].hasWeapon;
 	lastHasShotgun = weapons[W_SHOTGUN].hasWeapon;
 	lastHasRocket = weapons[W_ROCKET].hasWeapon;
+	lastHasChaingun = weapons[W_CHAINGUN].hasWeapon;
 	lastCurrentWeapon = currentWeapon;
 	lastCurrentAmmo = weapons[currentWeapon].ammo;
 	lastPistolAmmo = weapons[W_PISTOL].ammo;
@@ -595,9 +716,13 @@ u8 gameLoop()
 
 	/* Settings struct for in-game options screen (pause) */
 	Settings pauseSettings;
-	pauseSettings.sfx = (u8)((u16)g_sfxVolume * 9 / 15);
+	pauseSettings.sfx = g_hwToSetting[g_sfxVolume & 0x0F];
 	pauseSettings.music = g_musicSetting;
-	pauseSettings.rumble = 0;
+	pauseSettings.rumble = g_rumbleSetting;
+
+	u8 g_damageRumbleTimer = 0;
+	u8 g_secretRumbleTimer = 0;
+	u16 frameCounter = 0;
 
 	/* mp_init() already called in main.c before title screen */
 	while(1) {
@@ -625,6 +750,35 @@ u8 gameLoop()
 
 		keyInputs = vbReadPad();
 		keyPressed = keyInputs & ~prevKeyInputs; /* newly pressed this frame */
+
+		g_firedRocketThisFrame = false;  /* reset per frame */
+
+		/* === DM DEATH COOLDOWN === */
+		if (deathCooldown > 0) {
+			deathCooldown--;
+			if (deathCooldown == 0 && g_isMultiplayer && g_gameMode == GAMEMODE_DEATHMATCH) {
+				/* Respawn at random DM spawn point */
+				u8 spIdx;
+				spIdx = (u8)(rand() & 3);  /* 0-3 */
+				fPlayerX = dm_spawnX[spIdx];
+				fPlayerY = dm_spawnY[spIdx];
+				fPlayerAng = dm_spawnA[spIdx];
+				currentHealth = 100;
+				/* Play teleport sound and spawn teleport effect */
+				playPlayerSFX(SFX_TELEPORT);
+				spawnTeleportFX(fPlayerX, fPlayerY);
+			}
+			/* Skip all input while dead */
+			keyInputs = 0;
+			keyPressed = 0;
+		}
+
+		/* Start death cooldown when health drops to 0 in DM */
+		if (currentHealth == 0 && deathCooldown == 0
+			&& g_isMultiplayer && g_gameMode == GAMEMODE_DEATHMATCH) {
+			deathCooldown = 40;  /* 2 seconds at 20fps */
+		}
+
 		// handle input last...
 		if (keyInputs & K_LU) {// Left Pad, Up
 			isMoving = true;
@@ -676,6 +830,11 @@ u8 gameLoop()
 				if (weapons[currentWeapon].ammo > 0) {
 				weaponAnimation = 1; // shoot
 				weapons[currentWeapon].ammo--;
+				/* Sync shared bullet ammo between pistol and chaingun */
+				if (currentWeapon == W_PISTOL || currentWeapon == W_CHAINGUN) {
+					weapons[W_PISTOL].ammo = weapons[currentWeapon].ammo;
+					weapons[W_CHAINGUN].ammo = weapons[currentWeapon].ammo;
+				}
 				isShooting = true;
 				/* Trigger PCM weapon fire sound */
 				if (currentWeapon == W_ROCKET) {
@@ -683,11 +842,12 @@ u8 gameLoop()
 				} else if (currentWeapon == W_SHOTGUN)
 					playPlayerSFX(SFX_SHOTGUN);
 				else
-					playPlayerSFX(SFX_PISTOL);
+					playPlayerSFX(SFX_PISTOL); /* pistol + chaingun share SFX */
 				drawUpdatedAmmo(weapons[currentWeapon].ammo, weapons[currentWeapon].ammoType);
 				if (currentWeapon == W_ROCKET) {
 					/* Rocket launcher: spawn projectile, no hitscan */
 					spawnRocket(fPlayerX, fPlayerY, fPlayerAng);
+					g_firedRocketThisFrame = true;
 				} else {
 					u8 hitIdx = playerShoot(fPlayerX, fPlayerY, fPlayerAng, currentWeapon);
 						if (ENEMY_JUST_KILLED(hitIdx)) {
@@ -770,32 +930,34 @@ u8 gameLoop()
 		} else {
 			drawDoomStage(0);
 		}*/
-		/* Door/switch activation (Select button -- requires fresh press) */
-		UpdateCenterRay(fPlayerX, fPlayerY, fPlayerAng);
-		if (keyPressed & K_SEL) {
-			u8 activateResult = playerActivate(fPlayerX, fPlayerY, fPlayerAng, currentLevel);
-			if (activateResult == 2) {
-				/* Hit a non-interactive wall -- play "umf" sound */
-				playPlayerSFX(SFX_PLAYER_UMF);
-			}
-			/* activateResult == 1: door/switch activated (sound in door.c) */
-			/* activateResult == 0: nothing in range, no sound */
-		}
+		/* Door/switch activation moved after TraceFrame for fresh center-ray data */
 
 		/* In-game pause: Start button opens options screen */
 		if (keyPressed & K_STA) {
 			optionsScreen(&pauseSettings);
 
 			/* Update volumes from potentially changed settings */
-			g_sfxVolume = (u8)((u16)pauseSettings.sfx * 15 / 9);
+			g_sfxVolume = g_settingToHw[pauseSettings.sfx];
 			g_musicSetting = pauseSettings.music;
 			g_musicVolume = musicVolFromSetting(pauseSettings.music);
+			g_rumbleSetting = pauseSettings.rumble;
+
+			/* Sync music playback with volume setting */
+			if (g_musicVolume == 0) {
+				musicStop();
+			} else if (!isMusicPlaying()) {
+				musicStart();
+			}
 
 			/* Restore all game VRAM, worlds, palettes, BGMaps */
 			restoreGameDisplay(doomface, currentWeapon);
 
 			/* Re-draw the full HUD (dirty flags will force health/armour/slots on next frame) */
 			drawDoomUI(LAYER_UI, 0, 0);
+			if (g_isMultiplayer && g_gameMode == GAMEMODE_DEATHMATCH)
+				drawFragHUD(g_fragCount);
+			else
+				drawKeyCards(g_hasKeyRed, g_hasKeyYellow, g_hasKeyBlue);
 			drawUpdatedAmmo(weapons[currentWeapon].ammo, weapons[currentWeapon].ammoType);
 			drawSmallAmmo(weapons[W_PISTOL].ammo, 1);
 			drawSmallAmmo(weapons[W_SHOTGUN].ammo, 2);
@@ -805,6 +967,7 @@ u8 gameLoop()
 			lastHasPistol = 0xFF;
 			lastHasShotgun = 0xFF;
 			lastHasRocket = 0xFF;
+			lastHasChaingun = 0xFF;
 			lastCurrentWeapon = 0xFF;
 			lastCurrentAmmo = weapons[currentWeapon].ammo;
 			lastPistolAmmo = weapons[W_PISTOL].ammo;
@@ -841,6 +1004,9 @@ u8 gameLoop()
 		/* Animate pickups (ping-pong for helmet/armor) */
 		animatePickups();
 
+		/* Update teleport visual effects */
+		updateTeleportFX();
+
 		/* Update projectiles (fireballs) */
 		updateProjectiles(fPlayerX, fPlayerY, fPlayerAng);
 
@@ -852,6 +1018,7 @@ u8 gameLoop()
 		                  &currentArmour, &armorType, &shellAmmo)) {
 			/* Something was picked up - update ammo and HUD (health/armour redrawn by per-frame dirty check) */
 			weapons[2].ammo = pickupAmmo;
+			weapons[5].ammo = pickupAmmo; /* chaingun shares bullet ammo with pistol */
 			weapons[3].ammo = shellAmmo;
 			/* Update big numbers (left side) for current weapon */
 			drawUpdatedAmmo(weapons[currentWeapon].ammo, weapons[currentWeapon].ammoType);
@@ -859,24 +1026,38 @@ u8 gameLoop()
 			drawSmallAmmo(weapons[2].ammo, 1);  /* BULL */
 			drawSmallAmmo(weapons[3].ammo, 2);  /* SHEL */
 			drawSmallAmmo(weapons[4].ammo, 3);  /* RCKT */
+			/* Update keycard / frag indicators in HUD */
+			if (g_isMultiplayer && g_gameMode == GAMEMODE_DEATHMATCH)
+				drawFragHUD(g_fragCount);
+			else
+				drawKeyCards(g_hasKeyRed, g_hasKeyYellow, g_hasKeyBlue);
 		}
 			/* Handle weapon pickups */
 			if (g_pickedUpWeapon > 0) {
 				weapons[g_pickedUpWeapon].hasWeapon = true;
 				if (g_pickedUpWeapon == W_ROCKET)
 					weapons[g_pickedUpWeapon].ammo = 2;  /* start with 2 rockets */
-				else
+				else if (g_pickedUpWeapon == W_CHAINGUN) {
+					/* Chaingun shares bullets with pistol; add 20 to shared pool */
+					u8 bullets = weapons[W_PISTOL].ammo + 20;
+					if (bullets > 200) bullets = 200;
+					weapons[W_PISTOL].ammo = bullets;
+					weapons[W_CHAINGUN].ammo = bullets;
+				} else
 					weapons[g_pickedUpWeapon].ammo = 8;  /* start with 8 shells */
 				currentWeapon = g_pickedUpWeapon;
 				nextWeapon = g_pickedUpWeapon;
 				if (g_pickedUpWeapon == W_ROCKET)
 					loadRocketLauncherSprites();
+				else if (g_pickedUpWeapon == W_CHAINGUN)
+					loadChaingunSprites();
 				else
 					loadShotgunSprites();
 				drawUpdatedAmmo(weapons[currentWeapon].ammo, weapons[currentWeapon].ammoType);
 				lastHasPistol = 0xFF;
 				lastHasShotgun = 0xFF;
 				lastHasRocket = 0xFF;
+				lastHasChaingun = 0xFF;
 				lastCurrentWeapon = 0xFF;
 				highlightWeaponHUD(currentWeapon);
 				weaponAnimation = 0;
@@ -900,7 +1081,30 @@ u8 gameLoop()
 					g_secretsFound++;
 				}
 			}
+
+			/* Subtle rumble when near an unfound secret door (check every 32 frames only) */
+			if (!g_isMultiplayer && pauseSettings.rumble > 0 && g_damageRumbleTimer == 0 &&
+			    (frameCounter & 0x1F) == 0) {
+				u8 di;
+				for (di = 0; di < g_numDoors; di++) {
+					if (g_doors[di].originalMap >= 6 && g_doors[di].originalMap <= 8 &&
+					    g_doors[di].state == DOOR_CLOSED) {
+						s16 sdx = (s16)playerTX - (s16)g_doors[di].tileX;
+						s16 sdy = (s16)playerTY - (s16)g_doors[di].tileY;
+						if (sdx * sdx + sdy * sdy <= 4) {
+							{
+								const RumbleLevel *rl = &g_rumbleLevels[pauseSettings.rumble - 1];
+								rumble_setFrequency(rl->freq);
+								rumble_playEffect(rl->effect);
+								g_secretRumbleTimer = rl->secDur;
+							}
+							break;
+						}
+					}
+				}
+			}
 		}
+		frameCounter++;
 
 		/* Update enemy sprite frames in VRAM -- distance-sorted rendering */
 		/* Compute 3 closest active enemies for rendering.
@@ -1004,8 +1208,12 @@ u8 gameLoop()
 				}
 			}
 
-			/* Build visible list and load frames */
-			g_numVisibleEnemies = (activeCount < MAX_VISIBLE_ENEMIES) ? activeCount : MAX_VISIBLE_ENEMIES;
+			/* Build visible list and load frames.
+			 * In multiplayer, reserve slot 4 for player 2 rendering. */
+			{
+				u8 maxSlots = g_isMultiplayer ? (MAX_VISIBLE_ENEMIES - 1) : MAX_VISIBLE_ENEMIES;
+				g_numVisibleEnemies = (activeCount < maxSlots) ? activeCount : maxSlots;
+			}
 			for (vi = 0; vi < MAX_VISIBLE_ENEMIES; vi++) {
 				if (vi < g_numVisibleEnemies) {
 					u8 realIdx = sorted[vi];
@@ -1022,6 +1230,8 @@ u8 gameLoop()
 							frameData = IMP_FRAMES[frameIdx];
 						else if (g_enemies[realIdx].enemyType == ETYPE_SERGEANT)
 							frameData = ZOMBIE_SGT_FRAMES[frameIdx];
+						else if (g_enemies[realIdx].enemyType == ETYPE_COMMANDO)
+							frameData = COMMANDO_FRAMES[frameIdx];
 						else
 							frameData = ZOMBIE_FRAMES[frameIdx];
 						loadEnemyFrame(vi, frameData);
@@ -1037,6 +1247,13 @@ u8 gameLoop()
 
 		TraceFrame(&fPlayerX, &fPlayerY, &fPlayerAng);
 
+		/* Door/switch activation (Select button) -- uses fresh center-ray from TraceFrame */
+		if (keyPressed & K_SEL) {
+			u8 activateResult = playerActivate(fPlayerX, fPlayerY, fPlayerAng, currentLevel);
+			if (activateResult == 2) {
+				playPlayerSFX(SFX_PLAYER_UMF);
+			}
+		}
 
 		//drawFixedDoomStage(0);
 		/*for (worldCount = 0; worldCount < 1; worldCount++) {
@@ -1064,7 +1281,7 @@ u8 gameLoop()
 					if (armorType >= 2)
 						armorAbsorb = dmg >> 1;     /* blue: absorb 1/2 */
 					else
-						armorAbsorb = (dmg + 2) / 3;  /* green: absorb 1/3, round up */
+						armorAbsorb = dmg / 3;      /* green: absorb 1/3, Doom P_DamageMobj */
 					if (armorAbsorb > (u8)currentArmour) armorAbsorb = (u8)currentArmour;
 					currentArmour -= armorAbsorb;
 					dmg -= armorAbsorb;
@@ -1091,6 +1308,24 @@ u8 gameLoop()
 				ouchTimer = 20;
 				if (dmg > 20)
 					ouchTimer |= 0x80;
+
+				/* Rumble on damage if rumble pak enabled (skip in multiplayer - same port as link) */
+				if (!g_isMultiplayer && pauseSettings.rumble > 0) {
+					const RumbleLevel *rl = &g_rumbleLevels[pauseSettings.rumble - 1];
+					rumble_setFrequency(rl->freq);
+					rumble_playEffect(rl->effect);
+					g_damageRumbleTimer = rl->dmgDur;
+				}
+			}
+
+			/* Decrement rumble timers and stop when expired (do not touch port in multiplayer) */
+			if (g_damageRumbleTimer > 0) {
+				g_damageRumbleTimer--;
+				if (g_damageRumbleTimer == 0 && !g_isMultiplayer) rumble_stop();
+			}
+			if (g_secretRumbleTimer > 0) {
+				g_secretRumbleTimer--;
+				if (g_secretRumbleTimer == 0 && g_damageRumbleTimer == 0 && !g_isMultiplayer) rumble_stop();
 			}
 
 			/* Decrement timers */
@@ -1152,7 +1387,8 @@ u8 gameLoop()
 				isShooting = true;
 			}
 			updatePistolCount++;
-			if (updatePistolCount > 1) {
+			/* Chaingun: every frame (fast). Rocket: every 3 frames (slow). Others: every 2. */
+			if (updatePistolCount > (currentWeapon == W_CHAINGUN ? 0 : (currentWeapon == W_ROCKET ? 2 : 1))) {
 				weaponAnimation++;
 				if (weaponAnimation >= weapons[currentWeapon].attackFrames) {
 					isShooting = false;
@@ -1201,6 +1437,8 @@ u8 gameLoop()
 					loadShotgunSprites();
 				else if (currentWeapon == W_ROCKET)
 					loadRocketLauncherSprites();
+				else if (currentWeapon == W_CHAINGUN)
+					loadChaingunSprites();
 			}
 			if (weaponChangeTimer >= weaponChangeTime) {
 				weaponChangeTimer = 0;
@@ -1211,10 +1449,176 @@ u8 gameLoop()
 		/* Update background music sequencer */
 		updateMusic(isPlayMusicBool);
 
-		/* Debug: draws player X, Y, angle over the HUD.
-		 * Uncomment to re-enable: drawPlayerInfo(&fPlayerX, &fPlayerY, &fPlayerAng); */
-		drawUseTargetDebug(g_centerWallTileX, g_centerWallTileY,
-			(g_centerWallType == 4 || (g_centerWallType >= 6 && g_centerWallType <= 11)) ? 1u : 0u);
+		/* === MULTIPLAYER STATE SYNC === */
+		if (g_isMultiplayer) {
+			u8 sendBuf[8], recvBuf[8];
+
+			/* Pack local state */
+			sendBuf[0] = (u8)(fPlayerX >> 8);
+			sendBuf[1] = (u8)(fPlayerX);
+			sendBuf[2] = (u8)(fPlayerY >> 8);
+			sendBuf[3] = (u8)(fPlayerY);
+			sendBuf[4] = (u8)((u16)fPlayerAng >> 8);
+			sendBuf[5] = (u8)((u16)fPlayerAng);
+			sendBuf[6] = 0;
+			if (isShooting) sendBuf[6] |= P2F_SHOOTING;
+			sendBuf[6] |= (currentWeapon << P2F_WEAPON_SHIFT) & P2F_WEAPON_MASK;
+			if (g_lastEnemyDamage > 0) sendBuf[6] |= P2F_TOOK_DAMAGE;
+			if (currentHealth == 0) sendBuf[6] |= P2F_DIED;
+			if (g_firedRocketThisFrame) sendBuf[6] |= P2F_FIRED_ROCKET;
+			sendBuf[7] = (u8)currentHealth;
+
+			/* Exchange state packets with remote player */
+			linkExchangeState(sendBuf, recvBuf);
+
+			/* Unpack remote state */
+			g_player2X = ((u16)recvBuf[0] << 8) | recvBuf[1];
+			g_player2Y = ((u16)recvBuf[2] << 8) | recvBuf[3];
+			g_player2Angle = ((u16)recvBuf[4] << 8) | recvBuf[5];
+			g_player2Flags = recvBuf[6];
+			g_player2Health = recvBuf[7];
+
+			/* Animate player 2 walk */
+			g_p2AnimTimer++;
+			if (g_p2AnimTimer > 4) {
+				g_p2AnimTimer = 0;
+				g_p2AnimFrame = (g_p2AnimFrame + 1) & 3;
+			}
+
+			/* Check if remote player is shooting at us (hitscan from P2 to local player) */
+			if (g_player2Flags & P2F_SHOOTING) {
+				/* Simple distance-based damage check */
+				s16 dx = (s16)g_player2X - (s16)fPlayerX;
+				s16 dy = (s16)g_player2Y - (s16)fPlayerY;
+				u32 dist = ((u32)((s32)dx * dx + (s32)dy * dy)) >> 8;
+				if (dist < HITSCAN_RANGE_DIST) {
+					/* P2 hit us -- apply damage */
+					u8 dmg = 5 + (g_p2AnimTimer & 7);  /* 5-12 damage per hit */
+					if (dmg > currentHealth) dmg = currentHealth;
+					currentHealth -= dmg;
+					g_flashTimer = 2;
+					g_flashType = 1;  /* damage flash */
+				}
+
+				/* Play P2's weapon sound at distance */
+				{
+					u8 p2Weapon = (g_player2Flags & P2F_WEAPON_MASK) >> P2F_WEAPON_SHIFT;
+					u8 p2SfxId;
+					u8 p2dist8 = (dist > 255) ? 255 : (u8)dist;
+					switch (p2Weapon) {
+						case W_FISTS:   p2SfxId = SFX_PUNCH; break;
+						case W_PISTOL:  p2SfxId = SFX_PISTOL; break;
+						case W_SHOTGUN: p2SfxId = SFX_SHOTGUN; break;
+						case W_CHAINGUN: p2SfxId = SFX_PISTOL; break;
+						case W_ROCKET:  p2SfxId = SFX_ROCKET_LAUNCH; break;
+						default:        p2SfxId = SFX_PISTOL; break;
+					}
+					playEnemySFX(p2SfxId, p2dist8);
+				}
+			}
+
+			/* Spawn P2's rocket locally so it's visible to us */
+			if (g_player2Flags & P2F_FIRED_ROCKET) {
+				spawnRocket(g_player2X, g_player2Y, (s16)g_player2Angle);
+				/* Mark the newly spawned rocket as P2-sourced (sourceEnemy=254)
+				 * so it can hit the local player on direct impact */
+				{
+					u8 pi;
+					for (pi = 0; pi < MAX_PROJECTILES; pi++) {
+						if (g_projectiles[pi].state == PROJ_FLYING &&
+							g_projectiles[pi].sourceEnemy == 255) {
+							/* This is the most recently spawned player rocket --
+							 * re-tag it as a P2 rocket */
+							g_projectiles[pi].sourceEnemy = 254;
+							break;
+						}
+					}
+				}
+			}
+
+			/* Handle remote player death (deathmatch frag tracking) */
+			if ((g_player2Flags & P2F_DIED) && g_player2Alive) {
+				g_player2Alive = false;
+				if (g_gameMode == GAMEMODE_DEATHMATCH) {
+					/* We fragged them (they died, possibly from our shot) */
+					if (g_fragCount < 99) g_fragCount++;
+				}
+			}
+
+			/* Respawn remote player after death (they send >0 health when alive) */
+			if (!g_player2Alive && g_player2Health > 0) {
+				g_player2Alive = true;
+				/* Show teleport effect and play sound at P2's new location */
+				spawnTeleportFX(g_player2X, g_player2Y);
+				{
+					s16 rdx = (s16)g_player2X - (s16)fPlayerX;
+					s16 rdy = (s16)g_player2Y - (s16)fPlayerY;
+					u32 rdist = (u32)(((s32)rdx * rdx + (s32)rdy * rdy) >> 8);
+					u8 rdist8 = (rdist > 255) ? 255 : (u8)rdist;
+					playEnemySFX(SFX_TELEPORT, rdist8);
+				}
+			}
+
+			/* === COOP ENEMY SYNC ===
+			 * HOST is authoritative for enemies. After player state exchange,
+			 * HOST sends compact enemy events (kills/attacks).
+			 * Format: 1 byte event count, then per event: index(1) + type(1).
+			 * Event types: 0=killed, 1=pain, 2=state change.
+			 * JOIN applies these events to local enemy state.
+			 * Enemy movement is deterministic (same update logic on both sides). */
+			if (g_gameMode == GAMEMODE_COOP) {
+				if (g_isHost) {
+					/* HOST: collect enemy events this frame and send */
+					u8 evtBuf[17];  /* max 8 events: 1 count + 8*(idx+type) */
+					u8 evtCount = 0;
+					u8 i;
+					for (i = 0; i < MAX_ENEMIES && evtCount < 8; i++) {
+						if (g_enemies[i].state == ES_DEAD && g_enemies[i].animFrame == 0 && g_enemies[i].stateTimer == 1) {
+							/* Just killed this frame */
+							evtBuf[1 + evtCount * 2] = i;
+							evtBuf[2 + evtCount * 2] = 0;  /* killed */
+							evtCount++;
+						} else if (g_enemies[i].state == ES_PAIN && g_enemies[i].stateTimer == 1) {
+							/* Just entered pain state */
+							evtBuf[1 + evtCount * 2] = i;
+							evtBuf[2 + evtCount * 2] = 1;  /* pain */
+							evtCount++;
+						}
+					}
+					evtBuf[0] = evtCount;
+					linkSendPacket(evtBuf, 1 + evtCount * 2);
+				} else {
+					/* JOIN: receive enemy events from HOST */
+					u8 evtCount;
+					evtCount = linkRecvByte();
+					if (evtCount > 8) evtCount = 8;  /* safety */
+					if (evtCount > 0) {
+						u8 evtBuf[16];
+						u8 i;
+						linkRecvPacket(evtBuf, evtCount * 2);
+						for (i = 0; i < evtCount; i++) {
+							u8 idx = evtBuf[i * 2];
+							u8 type = evtBuf[i * 2 + 1];
+							if (idx < MAX_ENEMIES) {
+								if (type == 0) {
+									/* Kill */
+									g_enemies[idx].state = ES_DEAD;
+									g_enemies[idx].animFrame = 0;
+									g_enemies[idx].animTimer = 0;
+									g_enemies[idx].health = 0;
+								} else if (type == 1) {
+									/* Pain */
+									g_enemies[idx].state = ES_PAIN;
+									g_enemies[idx].stateTimer = 0;
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+		/* Debug removed: drawPlayerInfo / drawUseTargetDebug */
 
 		/* Screen flash effect (pickup or damage) */
 		if (g_flashTimer > 0) {
@@ -1263,7 +1667,7 @@ u8 gameLoop()
 			{
 				if (currentLevel == 2) musicLoadSong(SONG_E1M2);
 				else if (currentLevel == 3) musicLoadSong(SONG_E1M3);
-				else if (currentLevel == 4) musicLoadSong(SONG_E1M3);  /* E1M4 uses E1M3 until e1m4.mid added */
+				else if (currentLevel == 4) musicLoadSong(SONG_E1M4);
 				else if (currentLevel == 5) musicLoadSong(SONG_E1M5);
 				else if (currentLevel == 6) musicLoadSong(SONG_E1M6);
 				musicStart();
@@ -1285,6 +1689,10 @@ u8 gameLoop()
 
 			/* Re-draw HUD (weapons, ammo, health carry over; health/armour/slots via per-frame dirty check) */
 			drawDoomUI(LAYER_UI, 0, 0);
+			if (g_isMultiplayer && g_gameMode == GAMEMODE_DEATHMATCH)
+				drawFragHUD(g_fragCount);
+			else
+				drawKeyCards(g_hasKeyRed, g_hasKeyYellow, g_hasKeyBlue);
 			drawUpdatedAmmo(weapons[currentWeapon].ammo, weapons[currentWeapon].ammoType);
 			drawSmallAmmo(weapons[W_PISTOL].ammo, 1);
 			drawSmallAmmo(weapons[W_SHOTGUN].ammo, 2);
@@ -1294,6 +1702,7 @@ u8 gameLoop()
 			lastHasPistol = 0xFF;
 			lastHasShotgun = 0xFF;
 			lastHasRocket = 0xFF;
+			lastHasChaingun = 0xFF;
 			lastCurrentWeapon = 0xFF;
 			lastCurrentAmmo = weapons[currentWeapon].ammo;
 			lastPistolAmmo = weapons[W_PISTOL].ammo;
@@ -1341,14 +1750,17 @@ u8 gameLoop()
 		if (weapons[W_PISTOL].hasWeapon != lastHasPistol ||
 		    weapons[W_SHOTGUN].hasWeapon != lastHasShotgun ||
 		    weapons[W_ROCKET].hasWeapon != lastHasRocket ||
+		    weapons[W_CHAINGUN].hasWeapon != lastHasChaingun ||
 		    currentWeapon != lastCurrentWeapon) {
 			drawWeaponSlotNumbers(weapons[W_PISTOL].hasWeapon,
 			                     weapons[W_SHOTGUN].hasWeapon,
 			                     weapons[W_ROCKET].hasWeapon,
+			                     weapons[W_CHAINGUN].hasWeapon,
 			                     currentWeapon);
 			lastHasPistol = weapons[W_PISTOL].hasWeapon;
 			lastHasShotgun = weapons[W_SHOTGUN].hasWeapon;
 			lastHasRocket = weapons[W_ROCKET].hasWeapon;
+			lastHasChaingun = weapons[W_CHAINGUN].hasWeapon;
 			lastCurrentWeapon = currentWeapon;
 		}
 

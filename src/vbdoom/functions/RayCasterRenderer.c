@@ -9,6 +9,10 @@
 #include "projectile.h"
 #include "door.h"
 #include "doomgfx.h"
+#include "link.h"
+#include "teleport.h"
+#include "../assets/images/sprites/marine/marine_sprites.h"
+#include "../assets/images/sprites/teleport/teleport_sprites.h"
 #include "../assets/images/sprites/pickups/pickup_sprites.h"
 #include "../assets/images/sprites/fireball/fireball_sprites.h"
 #include "../assets/images/rocket_projectile_sprites.h"
@@ -20,6 +24,9 @@ extern BYTE vb_doomMap[];
 /* Trig lookup tables (defined in RayCasterTables.h, compiled in RayCasterFixed.c) */
 extern const u8 g_cos[];
 extern const u8 g_sin[];
+
+/* Reciprocal LUT: g_recipViewZ[i] = (1<<16)/i. Replaces /viewZ divisions. */
+extern const u16 g_recipViewZ[];
 
 /* Map data (defined in RayCasterData.h, compiled in RayCasterFixed.c) */
 extern u8 g_map[];
@@ -117,19 +124,6 @@ static void worldToView(s16 dX, s16 dY, s16 *viewZ, s16 *viewX) {
                     *viewX = MulS(g_cachedCosInv, dX) + MulS(g_cachedSinInv, dY); break;
         }
     }
-}
-
-/* Cast center column only and update g_center* / g_wallSso for USE activation (current frame). */
-void UpdateCenterRay(u16 playerX, u16 playerY, s16 playerA)
-{
-	u8 sso_c, tn_c, tc_c;
-	u16 tso_c, tst_c;
-	Start(playerX, playerY, playerA);
-	Trace(192, &sso_c, &tn_c, &tc_c, &tso_c, &tst_c);
-	g_centerWallType = g_lastWallType;
-	g_centerWallTileX = g_lastWallTileX;
-	g_centerWallTileY = g_lastWallTileY;
-	g_wallSso[RAYCAST_CENTER_COL] = sso_c;
 }
 
 void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
@@ -423,12 +417,16 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
          * u16 startPos, drawPos;
          * s16 dbgViewZ = 0, dbgScrX = 0, dbgScrY = 0; */
 
-        for (ei = 0; ei < MAX_VISIBLE_ENEMIES; ei++) {
+        u8 maxEnemySlots = g_isMultiplayer ? (MAX_VISIBLE_ENEMIES - 1) : MAX_VISIBLE_ENEMIES;
+        for (ei = 0; ei < maxEnemySlots; ei++) {
             u8 realIdx = g_visibleEnemies[ei];
             EnemyState *e;
+            u16 rZ, recip;
 
-            /* 1 world per visible slot, 1 BGMap per visible slot */
-            worldNum = 30 - ei;                    /* slot 0 = world 30, slot 1 = world 29 */
+            /* 1 world per visible slot, 1 BGMap per visible slot.
+             * Closest enemy (slot 0) gets World 26 (drawn last = front),
+             * farthest (slot 4) gets World 30 (drawn first = back). */
+            worldNum = 26 + ei;                    /* slot 0 = world 26 (front), slot 4 = world 30 (back) */
             bgmapIdx = ENEMY_BGMAP_START + ei;     /* slot 0 = BGMap 3, slot 1 = BGMap 4 */
 
             scrX = 0;
@@ -452,9 +450,11 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
 
             if (viewZ <= 10) continue; /* behind player or too close */
 
-            /* Perspective projection -- 64x64 sprite (integer math)
+            /* Perspective projection -- 64x64 sprite using reciprocal LUT
              * enemyScale = 800/viewZ, so scaledW = 64*800/viewZ = 51200/viewZ */
-            scaledW = (s16)(51200 / (s32)viewZ);
+            rZ = (viewZ > 2047) ? 2047 : (u16)viewZ;
+            recip = g_recipViewZ[rZ];
+            scaledW = (s16)(((u32)51200 * recip) >> 16);
             scaledH = scaledW;
 
             /* Clamp dimensions */
@@ -463,8 +463,9 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
             if (scaledH < 1) scaledH = 1;
             if (scaledH > 224) scaledH = 224;
 
-            /* Screen position: center horizontally, feet at horizon (y=104) */
-            scrX = (s16)(192 + ((s32)viewX * 192) / (s32)viewZ) - (scaledW >> 1);
+            /* Screen position: center horizontally, feet at horizon (y=104)
+             * Split viewX*192/viewZ into two steps to avoid s32 overflow */
+            scrX = (s16)(192 + (s16)((((s32)viewX * (s32)recip) >> 8) * 192 >> 8)) - (scaledW >> 1);
             scrY = 104 - (s16)(((s32)scaledH * 85) >> 8);  /* 85/256 ~ 1/3 */
 
             /* Clamp screen position to safe range to prevent HW register overflow */
@@ -527,8 +528,9 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
                 if (scaledW < 1) continue;
 
                 /* Compute affine source X offset for left clipping
-                 * inverse_fixed(800/viewZ) = 512*viewZ/800 = viewZ*16/25 */
-                invScale = (f16)(((s32)viewZ << 4) / 25);
+                 * inverse_fixed(800/viewZ) = 512*viewZ/800 = viewZ*16/25
+                 * Use multiply-shift: viewZ*2621/4096 ≈ viewZ*16/25 */
+                invScale = (f16)(((u32)viewZ * 2621u) >> 12);
                 mxOffset = (clipL > 0) ? (s16)(((s32)clipL * (s32)invScale) >> 6) : 0;
                 myOffset = 0;
 
@@ -600,6 +602,218 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
 
     }
 
+    /* === PLAYER 2 RENDERING (multiplayer only) === */
+    if (g_isMultiplayer && g_player2Alive) {
+        s16 dX, dY, viewZ, viewX;
+        s16 scrX, scrY, scaledW, scaledH;
+        f16 invScale;
+        u8 worldNum = P2_WORLD_NUM;
+        u8 bgmapIdx = P2_BGMAP_IDX;
+        s16 myOffset;
+        u16 rZ, recip;
+
+        /* Disable world first */
+        WAM[worldNum << 4] = bgmapIdx | WRLD_AFFINE;
+
+        /* Compute delta from local player to player 2 */
+        dX = (s16)g_player2X - (s16)_playerX;
+        dY = (s16)g_player2Y - (s16)_playerY;
+
+        /* View-space transform */
+        worldToView(dX, dY, &viewZ, &viewX);
+
+        if (viewZ > 10) {
+            /* Perspective projection (same as enemy: 64x64 sprite) */
+            rZ = (viewZ > 2047) ? 2047 : (u16)viewZ;
+            recip = g_recipViewZ[rZ];
+            scaledW = (s16)(((u32)51200 * recip) >> 16);
+            scaledH = scaledW;
+
+            if (scaledW < 1) scaledW = 1;
+            if (scaledW > 384) scaledW = 384;
+            if (scaledH < 1) scaledH = 1;
+            if (scaledH > 224) scaledH = 224;
+
+            scrX = (s16)(192 + (s16)((((s32)viewX * (s32)recip) >> 8) * 192 >> 8)) - (scaledW >> 1);
+            scrY = 104 - (s16)(((s32)scaledH * 85) >> 8);
+
+            if (scrX < -384) scrX = -384;
+            if (scrX >  384) scrX =  384;
+            if (scrY < -224) scrY = -224;
+            if (scrY >  224) scrY =  224;
+
+            if (scrX + scaledW > 0 && scrX < 384 && scrY + scaledH > 0 && scrY < 208) {
+                /* Wall occlusion check */
+                u8 p2Sso;
+                u16 dummyStep;
+                s16 colStart, colEnd, ocCol;
+                s16 visLeft, visRight;
+                s16 clipL, clipR;
+                s16 mxOffset;
+                bool anyVisible;
+
+                if (viewZ >= MIN_DIST) {
+                    LookupHeight((u16)((viewZ - MIN_DIST) >> 2), &p2Sso, &dummyStep);
+                } else {
+                    p2Sso = HORIZON_HEIGHT;
+                }
+
+                colStart = scrX / RAYCAST_STEP;
+                if (colStart < 0) colStart = 0;
+                colEnd = (scrX + scaledW - 1) / RAYCAST_STEP;
+                if (colEnd >= RAYCAST_COLS) colEnd = RAYCAST_COLS - 1;
+
+                visLeft = -1;
+                visRight = -1;
+                anyVisible = false;
+                if (colStart < RAYCAST_COLS && colEnd >= 0) {
+                    for (ocCol = colStart; ocCol <= colEnd; ocCol++) {
+                        if (g_wallSso[ocCol] < p2Sso) {
+                            if (!anyVisible) visLeft = ocCol;
+                            visRight = ocCol;
+                            anyVisible = true;
+                        }
+                    }
+                }
+
+                if (anyVisible) {
+                    clipL = (visLeft * RAYCAST_STEP) - scrX;
+                    if (clipL < 0) clipL = 0;
+                    clipR = (scrX + scaledW) - ((visRight + 1) * RAYCAST_STEP);
+                    if (clipR < 0) clipR = 0;
+
+                    scrX += clipL;
+                    scaledW -= clipL + clipR;
+                    if (scaledW >= 1) {
+                        invScale = (f16)(((u32)viewZ * 2621u) >> 12);
+                        mxOffset = (clipL > 0) ? (s16)(((s32)clipL * (s32)invScale) >> 6) : 0;
+                        myOffset = 0;
+
+                        /* Compute direction index using public function */
+                        {
+                            u8 p2Dir = getSpriteDirection(g_player2X, g_player2Y,
+                                                          (s16)g_player2Angle, _playerX, _playerY);
+
+                            /* Get Marine walk frame for this direction */
+                            u8 walkPose = g_p2AnimFrame & 3;
+                            u8 marineFrame = MARINE_WALK_FRAMES[p2Dir][walkPose];
+
+                            /* Check if P2 is shooting -- use attack frames instead */
+                            if (g_player2Flags & P2F_SHOOTING) {
+                                marineFrame = MARINE_ATTACK_FRAMES[p2Dir][g_p2AnimFrame & 1];
+                            }
+
+                            /* Load Marine frame data if changed */
+                            if (marineFrame != g_p2LastFrame) {
+                                loadEnemyFrame(P2_RENDER_SLOT, MARINE_FRAMES[marineFrame]);
+                                g_p2LastFrame = marineFrame;
+                            }
+
+                            /* Write BGMap entries (same as enemy) */
+                            {
+                                u16 *bgm = (u16*)BGMap(bgmapIdx);
+                                u16 charBase = P2_CHAR_START;
+                                u8 row, c;
+                                if (p2Dir >= 5) {
+                                    for (row = 0; row < ZOMBIE_TILE_H; row++) {
+                                        for (c = 0; c < ZOMBIE_TILE_W; c++) {
+                                            bgm[row * 64 + c] = (charBase + row * ZOMBIE_TILE_W + (ZOMBIE_TILE_W - 1 - c)) | 0x2000;
+                                        }
+                                    }
+                                } else {
+                                    for (row = 0; row < ZOMBIE_TILE_H; row++) {
+                                        for (c = 0; c < ZOMBIE_TILE_W; c++) {
+                                            bgm[row * 64 + c] = charBase + row * ZOMBIE_TILE_W + c;
+                                        }
+                                    }
+                                }
+                            }
+
+                            /* Set world position and affine */
+                            WA[worldNum].gx = scrX;
+                            WA[worldNum].gy = scrY;
+                            WA[worldNum].mx = 0;
+                            WA[worldNum].my = 0;
+                            WA[worldNum].w = scaledW;
+                            WA[worldNum].h = scaledH;
+                            affine_enemy_scale(worldNum, invScale, mxOffset, myOffset);
+                            WAM[worldNum << 4] = WRLD_ON | bgmapIdx | WRLD_AFFINE;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /* === TELEPORT EFFECT RENDERING (deathmatch only, uses enemy slot 0) === */
+    if (g_isMultiplayer && g_gameMode == GAMEMODE_DEATHMATCH) {
+        TeleportEffect *fx = getActiveTeleportFX();
+        u8 tpWorldNum = 26;              /* enemy slot 0 */
+        u8 tpBgmapIdx = ENEMY_BGMAP_START; /* BGMap 3 */
+
+        if (fx) {
+            s16 tdX, tdY, tViewZ, tViewX;
+            s16 tScrX, tScrY, tScaledW, tScaledH;
+            u16 tRZ, tRecip;
+
+            tdX = (s16)fx->x - (s16)_playerX;
+            tdY = (s16)fx->y - (s16)_playerY;
+            worldToView(tdX, tdY, &tViewZ, &tViewX);
+
+            if (tViewZ > 10) {
+                tRZ = (tViewZ > 2047) ? 2047 : (u16)tViewZ;
+                tRecip = g_recipViewZ[tRZ];
+                tScaledW = (s16)(((u32)51200 * tRecip) >> 16);
+                tScaledH = tScaledW;
+                if (tScaledW < 1) tScaledW = 1;
+                if (tScaledW > 384) tScaledW = 384;
+                if (tScaledH < 1) tScaledH = 1;
+                if (tScaledH > 224) tScaledH = 224;
+
+                tScrX = (s16)(192 + (s16)((((s32)tViewX * (s32)tRecip) >> 8) * 192 >> 8)) - (tScaledW >> 1);
+                tScrY = 104 - (s16)(((s32)tScaledH * 85) >> 8);
+
+                if (tScrX < -384) tScrX = -384;
+                if (tScrX >  384) tScrX =  384;
+                if (tScrY < -224) tScrY = -224;
+                if (tScrY >  224) tScrY =  224;
+
+                if (tScrX + tScaledW > 0 && tScrX < 384 && tScrY + tScaledH > 0 && tScrY < 208) {
+                    f16 tInvScale = (f16)(((u32)tViewZ * 2621u) >> 12);
+
+                    /* Load teleport frame tile data into enemy slot 0 VRAM */
+                    loadEnemyFrame(0, TELEPORT_FRAMES[fx->frame]);
+
+                    /* Write BGMap entries (no flipping needed for teleport fog) */
+                    {
+                        u16 *bgm = (u16*)BGMap(tpBgmapIdx);
+                        u16 charBase = ZOMBIE_CHAR_START;
+                        u8 row, c;
+                        for (row = 0; row < ZOMBIE_TILE_H; row++) {
+                            for (c = 0; c < ZOMBIE_TILE_W; c++) {
+                                bgm[row * 64 + c] = charBase + row * ZOMBIE_TILE_W + c;
+                            }
+                        }
+                    }
+
+                    WA[tpWorldNum].gx = tScrX;
+                    WA[tpWorldNum].gy = tScrY;
+                    WA[tpWorldNum].mx = 0;
+                    WA[tpWorldNum].my = 0;
+                    WA[tpWorldNum].w = tScaledW;
+                    WA[tpWorldNum].h = tScaledH;
+                    affine_enemy_scale(tpWorldNum, tInvScale, 0, 0);
+                    WAM[tpWorldNum << 4] = WRLD_ON | tpBgmapIdx | WRLD_AFFINE;
+                } else {
+                    WAM[tpWorldNum << 4] = tpBgmapIdx | WRLD_AFFINE;
+                }
+            } else {
+                WAM[tpWorldNum << 4] = tpBgmapIdx | WRLD_AFFINE;
+            }
+        }
+        /* If no active teleport, world 26 stays disabled (from enemy rendering loop) */
+    }
+
     /* === PICKUP RENDERING === */
     {
         u8 pi, slot;
@@ -608,6 +822,7 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
         f16 invScale;   /* 7.9 fixed-point reciprocal for affine */
         u8 worldNum, bgmapIdx;
         s16 myOffset;   /* source Y offset for vertical door-gap clipping */
+        u16 rZ, recip;
 
         /* Disable all pickup worlds first (prevents ghost rendering) */
         for (slot = 0; slot < MAX_VISIBLE_PICKUPS; slot++) {
@@ -632,14 +847,15 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
 
             if (viewZ <= 10) continue; /* behind player or too close */
 
-            /* Perspective projection -- 32x24 source sprite.
-             * Weapon pickups (shotgun, rocket) use 2x scale for visibility. */
+            /* Perspective projection using reciprocal LUT */
+            rZ = (viewZ > 2047) ? 2047 : (u16)viewZ;
+            recip = g_recipViewZ[rZ];
             {
                 u16 scaleNumer = 400;
                 if (p->type == PICKUP_WEAPON_SHOTGUN || p->type == PICKUP_WEAPON_ROCKET)
                     scaleNumer = 800;
-                scaledW = (s16)((u32)32 * scaleNumer / (s32)viewZ);
-                scaledH = (s16)((u32)24 * scaleNumer / (s32)viewZ);
+                scaledW = (s16)(((u32)32 * scaleNumer * recip) >> 16);
+                scaledH = (s16)(((u32)24 * scaleNumer * recip) >> 16);
             }
 
             /* Clamp dimensions */
@@ -652,8 +868,8 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
              * groundY = 104 + 34133/viewZ — same for all pickups (floor doesn't move with sprite size).
              * Pickup BOTTOM sits at groundY, so top = groundY - scaledH.
              */
-            scrX = (s16)(192 + ((s32)viewX * 192) / (s32)viewZ) - (scaledW >> 1);
-            scrY = (s16)(104 + (s16)(34133 / (s32)viewZ)) - scaledH;
+            scrX = (s16)(192 + (s16)((((s32)viewX * (s32)recip) >> 8) * 192 >> 8)) - (scaledW >> 1);
+            scrY = (s16)(104 + (s16)(((u32)34133 * recip) >> 16)) - scaledH;
 
             /* Clamp screen position to safe range */
             if (scrX < -384) scrX = -384;
@@ -713,13 +929,11 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
                 if (scaledW < 1) continue;
 
                 /* Source X offset for left clipping.
-                 * invScale = 512*viewZ/scaleNumer: 400->viewZ*32/25, 800->viewZ*16/25 */
-                {
-                    u16 scaleNumer = 400;
-                    if (p->type == PICKUP_WEAPON_SHOTGUN || p->type == PICKUP_WEAPON_ROCKET)
-                        scaleNumer = 800;
-                    invScale = (f16)(((s32)viewZ << 9) / (s32)scaleNumer);
-                }
+                 * invScale = 512*viewZ/scaleNumer: 400->viewZ*5243/4096, 800->viewZ*2621/4096 */
+                if (p->type == PICKUP_WEAPON_SHOTGUN || p->type == PICKUP_WEAPON_ROCKET)
+                    invScale = (f16)(((u32)viewZ * 2621u) >> 12);  /* /800 */
+                else
+                    invScale = (f16)(((u32)viewZ * 5243u) >> 12);  /* /400 */
                 mxOffset = (clipL > 0) ? (s16)(((s32)clipL * (s32)invScale) >> 6) : 0;
                 myOffset = 0;
 
@@ -759,6 +973,8 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
                         pTileData = PICKUP_HELMET_FRAME_TABLE[getPickupAnimFrame(p)];
                     } else if (p->type == PICKUP_ARMOR) {
                         pTileData = PICKUP_ARMOR_FRAME_TABLE[getPickupAnimFrame(p)];
+                    } else if (p->type >= PICKUP_KEY_RED && p->type <= PICKUP_KEY_BLUE) {
+                        pTileData = PICKUP_KEYCARD_FRAME_TABLE[getPickupAnimFrame(p)];
                     } else {
                         pTileData = PICKUP_TILES[p->type];
                     }
@@ -810,6 +1026,7 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
         u8 srcW, srcH, mapW, mapH;
         const unsigned short *mapPtr;
         u16 mapOffset;
+        u16 rZ, recip;
 
         /* Disable particle world by default */
         WAM[PARTICLE_WORLD << 4] = PARTICLE_BGMAP | WRLD_AFFINE;
@@ -864,14 +1081,16 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
             srcW = tileW * 8; srcH = tileH * 8;
             scaleNumer = 400;
 
-            scaledW = (s16)(((s32)srcW * scaleNumer) / (s32)viewZ);
-            scaledH = (s16)(((s32)srcH * scaleNumer) / (s32)viewZ);
+            rZ = (viewZ > 2047) ? 2047 : (u16)viewZ;
+            recip = g_recipViewZ[rZ];
+            scaledW = (s16)(((u32)srcW * scaleNumer * recip) >> 16);
+            scaledH = (s16)(((u32)srcH * scaleNumer * recip) >> 16);
             if (scaledW < 1) scaledW = 1;
             if (scaledW > 200) scaledW = 200;
             if (scaledH < 1) scaledH = 1;
             if (scaledH > 200) scaledH = 200;
 
-            scrX = (s16)(192 + ((s32)viewX * 192) / (s32)viewZ) - (scaledW >> 1);
+            scrX = (s16)(192 + (s16)((((s32)viewX * (s32)recip) >> 8) * 192 >> 8)) - (scaledW >> 1);
             scrY = 104 - (scaledH >> 1);
 
             /* Clamp screen position to safe range */
@@ -901,7 +1120,8 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
             WA[PARTICLE_WORLD].w = scaledW;
             WA[PARTICLE_WORLD].h = scaledH;
 
-            invScale = (f16)(((s32)viewZ << 9) / (s32)scaleNumer);
+            /* 512*viewZ/400 = viewZ*5243/4096 */
+            invScale = (f16)(((u32)viewZ * 5243u) >> 12);
             affine_enemy_scale(PARTICLE_WORLD, invScale, 0, 0);
 
             WAM[PARTICLE_WORLD << 4] = WRLD_ON | PARTICLE_BGMAP | WRLD_AFFINE;
@@ -942,16 +1162,18 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
                 scaleNumer = 250;
             }
 
-            /* scaledW = srcW * scaleNumer / viewZ (all integer) */
-            scaledW = (s16)(((s32)srcW * scaleNumer) / (s32)viewZ);
-            scaledH = (s16)(((s32)srcH * scaleNumer) / (s32)viewZ);
+            /* scaledW = srcW * scaleNumer / viewZ using reciprocal LUT */
+            rZ = (viewZ > 2047) ? 2047 : (u16)viewZ;
+            recip = g_recipViewZ[rZ];
+            scaledW = (s16)(((u32)srcW * scaleNumer * recip) >> 16);
+            scaledH = (s16)(((u32)srcH * scaleNumer * recip) >> 16);
             if (scaledW < 1) scaledW = 1;
             if (scaledW > 200) scaledW = 200;
             if (scaledH < 1) scaledH = 1;
             if (scaledH > 200) scaledH = 200;
 
             /* Screen position: center at wall hit point, vertically centered */
-            scrX = (s16)(192 + ((s32)viewX * 192) / (s32)viewZ) - (scaledW >> 1);
+            scrX = (s16)(192 + (s16)((((s32)viewX * (s32)recip) >> 8) * 192 >> 8)) - (scaledW >> 1);
             scrY = 104 - (scaledH >> 1);
 
             /* Clamp screen position to safe range */
@@ -987,8 +1209,11 @@ void TraceFrame(u16 *playerX, u16 *playerY, s16 *playerA)
             WA[PARTICLE_WORLD].w = scaledW;
             WA[PARTICLE_WORLD].h = scaledH;
 
-            /* inverse_fixed(scaleNumer/viewZ) = 512*viewZ/scaleNumer */
-            invScale = (f16)(((s32)viewZ << 9) / (s32)scaleNumer);
+            /* inverse_fixed(scaleNumer/viewZ) = 512*viewZ/scaleNumer
+             * 250 -> viewZ*8389/4096, 400 -> viewZ*5243/4096 */
+            invScale = (scaleNumer == 250)
+                ? (f16)(((u32)viewZ * 8389u) >> 12)
+                : (f16)(((u32)viewZ * 5243u) >> 12);
             affine_enemy_scale(PARTICLE_WORLD, invScale, 0, 0);
 
             /* Enable world */

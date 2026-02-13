@@ -25,6 +25,7 @@
 #define PICKUP_KEY_RED         8
 #define PICKUP_KEY_YELLOW      9
 #define PICKUP_KEY_BLUE        10
+#define PICKUP_WEAPON_CHAINGUN 11
 
 /* Gameplay constants */
 #define PICKUP_RADIUS        80   /* collision radius (8.8 fixed-point units) */
@@ -51,6 +52,7 @@ typedef struct {
     u8   animFrame; /* current animation frame (for ping-pong pickups) */
     u8   animTimer; /* counts frames for animation */
     bool active;
+    u8   respawnTimer; /* >0 = item collected, counts down to respawn (DM only) */
 } Pickup;
 
 extern Pickup g_pickups[MAX_PICKUPS];

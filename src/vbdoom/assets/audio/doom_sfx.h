@@ -33,7 +33,19 @@ enum {
 	SFX_BARREL_EXPLODE = 25,
 	SFX_ELEVATOR_STP = 26,
 	SFX_STONE_MOVE = 27,
-	SFX_COUNT = 28
+	SFX_TELEPORT = 28,
+	SFX_DRUM_KICK = 29,
+	SFX_DRUM_SNARE = 30,
+	SFX_DRUM_HIHAT = 31,
+	SFX_DRUM_CRASH = 32,
+	SFX_DRUM_TOM_LOW = 33,
+	SFX_DRUM_TOM_BRIGHT = 34,
+	SFX_DRUM_CLAP = 35,
+	SFX_DRUM_SNARE_SIDEHIT = 36,
+	SFX_DRUM_SNARE2 = 37,
+	SFX_DRUM_CONGA = 38,
+	SFX_DRUM_TIMPANI = 39,
+	SFX_COUNT = 40
 };
 
 /* Sound entry: pointer to packed 4-bit data + sample count */
@@ -74,5 +86,17 @@ extern const u8 sfx_rocket_launch[];
 extern const u8 sfx_barrel_explode[];
 extern const u8 sfx_elevator_stp[];
 extern const u8 sfx_stone_move[];
+extern const u8 sfx_teleport[];
+extern const u8 sfx_drum_kick[];
+extern const u8 sfx_drum_snare[];
+extern const u8 sfx_drum_hihat[];
+extern const u8 sfx_drum_crash[];
+extern const u8 sfx_drum_tom_low[];
+extern const u8 sfx_drum_tom_bright[];
+extern const u8 sfx_drum_clap[];
+extern const u8 sfx_drum_snare_sidehit[];
+extern const u8 sfx_drum_snare2[];
+extern const u8 sfx_drum_conga[];
+extern const u8 sfx_drum_timpani[];
 
 #endif

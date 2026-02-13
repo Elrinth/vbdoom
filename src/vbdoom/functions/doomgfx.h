@@ -37,6 +37,7 @@ void loadFistSprites(void);
 void loadPistolSprites(void);
 void loadShotgunSprites(void);
 void loadRocketLauncherSprites(void);
+void loadChaingunSprites(void);
 
 void drawDoomFace(u8 *face);
 void drawDoomPistol(u8 bgmap, u16 x, u16 y, u8 pistolAnimation);
@@ -52,12 +53,17 @@ void drawArmour(u16 iArmour);
 
 void drawPlayerInfo(u16 *fPlayerX, u16 *fPlayerY, s16 *fPlayerAng);
 
-void drawUseTargetDebug(u8 tileX, u8 tileY, u8 isDoor);
-
 /* Draw Doom slot numbers (2,3,4 top; 5,6,7 bottom) for owned weapons, left of face */
-void drawWeaponSlotNumbers(u8 hasPistol, u8 hasShotgun, u8 hasRocket, u8 currentWeapon);
+void drawWeaponSlotNumbers(u8 hasPistol, u8 hasShotgun, u8 hasRocket, u8 hasChaingun, u8 currentWeapon);
 
 /* Update weapon HUD highlight: brighten active weapon's ammo type text + rect */
 void highlightWeaponHUD(u8 weaponIdx);
+
+/* Draw keycard indicators in HUD */
+void drawKeyCards(u8 hasRed, u8 hasYellow, u8 hasBlue);
+
+/* Draw FRAG count and label in HUD for deathmatch mode.
+ * Replaces keycard area. Count is 2-digit (0-99). */
+void drawFragHUD(u8 fragCount);
 
 #endif

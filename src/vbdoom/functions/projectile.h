@@ -30,7 +30,7 @@
 
 /* Rocket constants */
 #define ROCKET_SPEED          80     /* fast rocket (~3.3x fireball) */
-#define ROCKET_DIRECT_DAMAGE  80     /* simplified: (P_Random()%8+1)*20 average */
+#define ROCKET_DIRECT_DAMAGE_MAX  160  /* Doom: 20*(P_Random()%8+1) = 20-160 */
 #define ROCKET_SPLASH_RADIUS  384    /* fixed-point units (~1.5 tiles) */
 
 typedef struct {

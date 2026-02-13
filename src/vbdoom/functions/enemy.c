@@ -46,10 +46,14 @@ static u8 enemyRandom(void) {
 }
 
 /* Fast modulo for small unsigned values (0-255), avoids V810 division.
- * Uses multiply-shift to compute quotient, then subtracts. */
-#define FAST_MOD5(n)  ((u8)((n) - ((u16)((u16)(n) * 205u) >> 10) * 5u))
-#define FAST_MOD10(n) ((u8)((n) - ((u16)((u16)(n) * 205u) >> 11) * 10u))
-#define FAST_MOD13(n) ((u8)((n) - ((u16)(((u32)(n) * 316u) >> 12)) * 13u))
+ * Uses multiply-shift to compute quotient, then subtracts.
+ * NOTE: GCC statement expressions ensure argument is evaluated only once
+ *       (safe to pass function calls like enemyRandom()). */
+#define FAST_MOD3(n)  ({ u8 _v=(n); (u8)(_v - ((u16)((u16)_v * 171u) >> 9) * 3u); })
+#define FAST_MOD5(n)  ({ u8 _v=(n); (u8)(_v - ((u16)((u16)_v * 205u) >> 10) * 5u); })
+#define FAST_MOD8(n)  ((u8)((n) & 7u))
+#define FAST_MOD10(n) ({ u8 _v=(n); (u8)(_v - ((u16)((u16)_v * 205u) >> 11) * 10u); })
+#define FAST_MOD13(n) ({ u8 _v=(n); (u8)(_v - ((u16)(((u32)_v * 316u) >> 12)) * 13u); })
 
 /* ---- Doom-style direction tables (from p_enemy.c) ---- */
 
@@ -71,20 +75,54 @@ static const u8 diags[4] = {
     DI_NORTHWEST, DI_NORTHEAST, DI_SOUTHWEST, DI_SOUTHEAST
 };
 
-/* Fixed-point atan2 (0-1023 range) */
+/* Fixed-point atan2 (0-1023 range).
+ * Optimized: shift-normalize both components so the larger fits in 8 bits,
+ * then the division is u16 / u8 instead of the original s32 / s32. */
+/* Reciprocal LUT for fixedAtan2: g_recip8[i] = 32768/i for i=1..255 (512 bytes ROM).
+ * Replaces (minor<<7)/major with (minor * g_recip8[major]) >> 8. */
+static const u16 g_recip8[256] = {
+        0,32768,16384,10922, 8192, 6553, 5461, 4681, 4096, 3640, 3276, 2978, 2730, 2520, 2340, 2184,
+     2048, 1927, 1820, 1724, 1638, 1560, 1489, 1424, 1365, 1310, 1260, 1213, 1170, 1129, 1092, 1057,
+     1024,  992,  963,  936,  910,  885,  862,  840,  819,  799,  780,  762,  744,  728,  712,  697,
+      682,  668,  655,  642,  630,  618,  606,  595,  585,  574,  564,  555,  546,  537,  528,  520,
+      512,  504,  496,  489,  481,  474,  468,  461,  455,  448,  442,  436,  431,  425,  420,  414,
+      409,  404,  399,  394,  390,  385,  381,  376,  372,  368,  364,  360,  356,  352,  348,  344,
+      341,  337,  334,  330,  327,  324,  321,  318,  315,  312,  309,  306,  303,  300,  297,  295,
+      292,  289,  287,  284,  282,  280,  277,  275,  273,  270,  268,  266,  264,  262,  260,  258,
+      256,  254,  252,  250,  248,  246,  244,  242,  240,  239,  237,  235,  234,  232,  230,  229,
+      227,  225,  224,  222,  221,  219,  218,  217,  215,  214,  212,  211,  210,  208,  207,  206,
+      204,  203,  202,  201,  199,  198,  197,  196,  195,  193,  192,  191,  190,  189,  188,  187,
+      186,  185,  184,  183,  182,  181,  180,  179,  178,  177,  176,  175,  174,  173,  172,  171,
+      170,  169,  168,  168,  167,  166,  165,  164,  163,  163,  162,  161,  160,  159,  159,  158,
+      157,  156,  156,  155,  154,  153,  153,  152,  151,  151,  150,  149,  148,  148,  147,  146,
+      146,  145,  144,  144,  143,  143,  142,  141,  141,  140,  140,  139,  138,  138,  137,  137,
+      136,  135,  135,  134,  134,  133,  133,  132,  132,  131,  131,  130,  130,  129,  129,  128
+};
+
 static s16 fixedAtan2(s16 dy, s16 dx) {
     s16 angle;
-    s16 adx = dx < 0 ? -dx : dx;
-    s16 ady = dy < 0 ? -dy : dy;
+    u16 adx = (u16)(dx < 0 ? -dx : dx);
+    u16 ady = (u16)(dy < 0 ? -dy : dy);
+    u16 major, minor;
 
     if (adx == 0 && ady == 0) return 0;
 
-    if (adx >= ady) {
-        angle = (s16)(((s32)ady * 128) / (s32)adx);
-    } else {
-        angle = 256 - (s16)(((s32)adx * 128) / (s32)ady);
-    }
+    if (adx >= ady) { major = adx; minor = ady; }
+    else            { major = ady; minor = adx; }
 
+    /* Normalize: shift both right until major fits in 8 bits (max 255).
+     * This preserves the ratio minor/major while making the multiply cheap. */
+    while (major > 255) { major >>= 1; minor >>= 1; }
+
+    /* Compute ratio = minor * 128 / major via reciprocal LUT (division-free) */
+    if (major == 0)
+        angle = (adx >= ady) ? 0 : 256;
+    else if (adx >= ady)
+        angle = (s16)(((u32)minor * g_recip8[major]) >> 8);
+    else
+        angle = 256 - (s16)(((u32)minor * g_recip8[major]) >> 8);
+
+    /* Quadrant adjustment */
     if (dx >= 0 && dy < 0) {
         angle = 1024 - angle;
     } else if (dx < 0 && dy < 0) {
@@ -93,8 +131,7 @@ static s16 fixedAtan2(s16 dy, s16 dx) {
         angle = 512 - angle;
     }
 
-    angle &= 1023;
-    return angle;
+    return angle & 1023;
 }
 
 /* ---- Distance helper (returns sqrt-ish approx in fixed-point units) ---- */
@@ -362,6 +399,13 @@ void initEnemies(void) {
     g_enemies[12].active = true;
     g_enemies[12].enemyType = ETYPE_DEMON;
     g_enemies[12].health = DEMON_HEALTH;
+
+    /* Enemy 13: Commando (Chaingunner), exit room */
+    g_enemies[13].x = 25 * 256 + 128;
+    g_enemies[13].y = 2 * 256 + 128;
+    g_enemies[13].active = true;
+    g_enemies[13].enemyType = ETYPE_COMMANDO;
+    g_enemies[13].health = COMMANDO_HEALTH;
 }
 
 void initEnemiesE1M2(void) {
@@ -769,6 +813,8 @@ bool applyDamageToEnemy(EnemyState *e, u8 damage, u16 playerX, u16 playerY) {
         /* Drop item based on enemy type (IMP drops nothing, like Doom) */
         if (e->enemyType == ETYPE_SERGEANT) {
             spawnPickup(PICKUP_WEAPON_SHOTGUN, e->x, e->y);
+        } else if (e->enemyType == ETYPE_COMMANDO) {
+            spawnPickup(PICKUP_WEAPON_CHAINGUN, e->x, e->y);
         } else if (e->enemyType == ETYPE_ZOMBIEMAN) {
             spawnPickup(PICKUP_AMMO_CLIP, e->x, e->y);
         }
@@ -796,6 +842,7 @@ bool applyDamageToEnemy(EnemyState *e, u8 damage, u16 playerX, u16 playerY) {
         if (e->enemyType == ETYPE_SERGEANT) painchance = SGT_PAINCHANCE;
         else if (e->enemyType == ETYPE_IMP) painchance = IMP_PAINCHANCE;
         else if (e->enemyType == ETYPE_DEMON) painchance = DEMON_PAINCHANCE;
+        else if (e->enemyType == ETYPE_COMMANDO) painchance = COMMANDO_PAINCHANCE;
         if (enemyRandom() < painchance) {
             e->state = ES_PAIN;
             e->stateTimer = 0;
@@ -889,8 +936,8 @@ u8 playerShoot(u16 playerX, u16 playerY, s16 playerA, u8 weaponType) {
             target = hitscanFindEnemy(playerX, playerY, pelletAngle, 10);
 
             if (target != 255) {
-                /* Doom shotgun pellet damage: (P_Random()%5 + 1) * 3 = 3,6,9,12,15 */
-                pelletDmg[target] += (FAST_MOD5(enemyRandom()) + 1) * 3;
+                /* Doom P_GunShot: 5*(P_Random()%3 + 1) = 5,10,15 */
+                pelletDmg[target] += 5 * (FAST_MOD3(enemyRandom()) + 1);
                 if (anyHit == 255) anyHit = target;
             }
         }
@@ -905,8 +952,8 @@ u8 playerShoot(u16 playerX, u16 playerY, s16 playerA, u8 weaponType) {
 
         hitIdx = (anyKill != 255) ? anyKill : anyHit;
     } else {
-        /* ---- Pistol / Fist: single hitscan ---- */
-        /* Fist gets wider cone (64) for easier melee hits; pistol uses 32 */
+        /* ---- Pistol / Chaingun / Fist: single hitscan ---- */
+        /* Fist gets wider cone (64) for easier melee hits; pistol/chaingun use 32 */
         s16 cone = (weaponType == 1) ? 64 : 32;
         u8 target = hitscanFindEnemy(playerX, playerY, playerA & 1023, cone);
 
@@ -925,8 +972,8 @@ u8 playerShoot(u16 playerX, u16 playerY, s16 playerA, u8 weaponType) {
                 /* Fist: (P_Random()%10 + 1) * 2 = 2-20 */
                 damage = (FAST_MOD10(enemyRandom()) + 1) * 2;
             } else {
-                /* Pistol: (P_Random()%5 + 1) * 3 = 3-15 */
-                damage = (FAST_MOD5(enemyRandom()) + 1) * 3;
+                /* Doom P_GunShot: 5*(P_Random()%3 + 1) = 5,10,15 */
+                damage = 5 * (FAST_MOD3(enemyRandom()) + 1);
             }
             applyDamageToEnemy(&g_enemies[target], damage, playerX, playerY);
             hitIdx = target;
@@ -951,8 +998,10 @@ static void enemyFireAtPlayer(EnemyState *e, u16 playerX, u16 playerY, s16 playe
     /* Must have line of sight */
     if (!hasLineOfSight(e->x, e->y, playerX, playerY)) return;
 
-    /* IMPs use impAttack() instead of this function */
-    pellets = (e->enemyType == ETYPE_SERGEANT) ? 3 : 1;
+    /* IMPs use impAttack() instead of this function.
+     * Commando fires 2 rapid shots per attack frame, sergeant 3 pellets. */
+    pellets = (e->enemyType == ETYPE_SERGEANT) ? 3 :
+              (e->enemyType == ETYPE_COMMANDO) ? 2 : 1;
 
     for (p = 0; p < pellets; p++) {
         /* Doom-style spread: (P_Random() - P_Random()) scaled to angle range.
@@ -973,15 +1022,15 @@ static void enemyFireAtPlayer(EnemyState *e, u16 playerX, u16 playerY, s16 playe
 
             if (spread < 0) spread = -spread;
             if (spread < hitCone) {
-                /* Hit! Doom damage formula */
-                totalDamage += 2 + FAST_MOD5(enemyRandom());
+                /* Doom A_PosAttack: ((P_Random()%5)+1)*3 = 3,6,9,12,15 */
+                totalDamage += (FAST_MOD5(enemyRandom()) + 1) * 3;
             }
         }
     }
 
     if (totalDamage > 0) {
         g_lastEnemyDamage += totalDamage;
-        if (g_lastEnemyDamage > 25) g_lastEnemyDamage = 25;  /* per-frame cap */
+        if (g_lastEnemyDamage > 50) g_lastEnemyDamage = 50;  /* per-frame cap */
 
         /* Compute damage direction relative to player facing */
         {
@@ -995,11 +1044,16 @@ static void enemyFireAtPlayer(EnemyState *e, u16 playerX, u16 playerY, s16 playe
         }
     }
 
-    /* Shoot sound event -- PCM: use possessed_activity for enemy fire */
+    /* Shoot sound event -- each hitscan enemy uses its weapon sound */
     {
         u8 sdist = (u8)(dist > 4080 ? 255 : dist >> 4);
         if (sdist == 0) sdist = 1;
-        playEnemySFX(SFX_POSSESSED_ACTIVITY, sdist);
+        if (e->enemyType == ETYPE_COMMANDO)
+            playEnemySFX(SFX_SHOTGUN, sdist);
+        else if (e->enemyType == ETYPE_SERGEANT)
+            playEnemySFX(SFX_SHOTGUN, sdist);
+        else
+            playEnemySFX(SFX_PISTOL, sdist);  /* zombieman */
     }
 }
 
@@ -1017,10 +1071,10 @@ static void impAttack(EnemyState *e, u8 idx, u16 playerX, u16 playerY, s16 playe
 
     if (dist < IMP_MELEE_DIST * 2) {
         /* Melee claw attack */
-        u8 damage = (FAST_MOD5(enemyRandom()) + 1) * 3 + 3;  /* 6-18 */
+        u8 damage = (FAST_MOD8(enemyRandom()) + 1) * 3;  /* Doom A_TroopAttack: 3-24 */
         if (hasLineOfSight(e->x, e->y, playerX, playerY)) {
             g_lastEnemyDamage += damage;
-            if (g_lastEnemyDamage > 25) g_lastEnemyDamage = 25;  /* per-frame cap */
+            if (g_lastEnemyDamage > 50) g_lastEnemyDamage = 50;  /* per-frame cap */
             /* Compute damage direction */
             {
                 s16 angleToEnemy = (256 - fixedAtan2(dy, dx)) & 1023;
@@ -1053,10 +1107,10 @@ static void demonAttack(EnemyState *e, u8 idx, u16 playerX, u16 playerY, s16 pla
 
     /* Only melee -- check close range */
     if (dist < DEMON_MELEE_DIST * 2) {
-        u8 damage = (FAST_MOD10(enemyRandom()) + 1) * 2;  /* 2-20 */
+        u8 damage = (FAST_MOD10(enemyRandom()) + 1) * 4;  /* Doom A_SargAttack: 4-40 */
         if (hasLineOfSight(e->x, e->y, playerX, playerY)) {
             g_lastEnemyDamage += damage;
-            if (g_lastEnemyDamage > 25) g_lastEnemyDamage = 25;  /* per-frame cap */
+            if (g_lastEnemyDamage > 50) g_lastEnemyDamage = 50;  /* per-frame cap */
             /* Compute damage direction */
             {
                 s16 angleToEnemy = (256 - fixedAtan2(dy, dx)) & 1023;
@@ -1134,12 +1188,19 @@ void updateEnemies(u16 playerX, u16 playerY, s16 playerA) {
                 e->angle = (s16)(e->movedir * 128);
             }
 
-            /* Check if we should attack (Doom-style ranged check) */
-            if (dist < (s32)ENEMY_ATTACK_DIST &&
-                checkMissileRange(e, playerX, playerY)) {
-                e->state = ES_ATTACK;
-                e->stateTimer = 0;
-                e->animFrame = 0;
+            /* Check if we should attack (Doom-style ranged check).
+             * Demons are melee-only: use tighter range so they close the gap first. */
+            {
+                s32 attackDist = (e->enemyType == ETYPE_DEMON)
+                    ? (s32)DEMON_ATTACK_ENTER : (s32)ENEMY_ATTACK_DIST;
+                if (dist < attackDist &&
+                    checkMissileRange(e, playerX, playerY)) {
+                    e->state = ES_ATTACK;
+                    e->stateTimer = 0;
+                    e->animFrame = 0;
+                    if (e->enemyType == ETYPE_COMMANDO)
+                        e->movecount = 0; /* reset burst counter */
+                }
             }
 
             /* Walk animation */
@@ -1159,30 +1220,84 @@ void updateEnemies(u16 playerX, u16 playerY, s16 playerA) {
             e->angle = fixedAtan2(dy, dx);
 
             e->stateTimer++;
-            if (e->stateTimer >= ENEMY_SHOOT_RATE) {
-                e->stateTimer = 0;
-                if (e->enemyType == ETYPE_IMP || e->enemyType == ETYPE_DEMON) {
-                    u8 maxFrames = (e->enemyType == ETYPE_IMP) ?
-                        IMP_ATTACK_ANIM_FRAMES : DEMON_ATTACK_ANIM_FRAMES;
-                    e->animFrame++;
-                    if (e->animFrame >= maxFrames) e->animFrame = 0;
-                } else {
-                    e->animFrame = e->animFrame ? 0 : 1;
-                }
 
-                /* Fire at player */
-                if (e->enemyType == ETYPE_IMP)
-                    impAttack(e, i, playerX, playerY, playerA);
-                else if (e->enemyType == ETYPE_DEMON)
-                    demonAttack(e, i, playerX, playerY, playerA);
-                else
+            if (e->enemyType == ETYPE_IMP || e->enemyType == ETYPE_DEMON) {
+                /* 3-frame attack: cycle frames evenly across ENEMY_SHOOT_RATE,
+                 * fire on the last frame, then return to walk. */
+                u8 maxFrames = (e->enemyType == ETYPE_IMP) ?
+                    IMP_ATTACK_ANIM_FRAMES : DEMON_ATTACK_ANIM_FRAMES;
+                /* Both IMP and DEMON have 3 attack frames; 20/3=6, precomputed */
+                #define ATTACK_FRAME_LEN (ENEMY_SHOOT_RATE / 3)  /* =6, compiler-folded */
+                u8 frameLen = ATTACK_FRAME_LEN;
+
+                if (e->stateTimer >= frameLen) {
+                    e->stateTimer = 0;
+                    e->animFrame++;
+
+                    /* Fire on the last animation frame */
+                    if (e->animFrame == maxFrames - 1) {
+                        if (e->enemyType == ETYPE_IMP)
+                            impAttack(e, i, playerX, playerY, playerA);
+                        else
+                            demonAttack(e, i, playerX, playerY, playerA);
+                    }
+
+                    /* After last frame completes, return to walk */
+                    if (e->animFrame >= maxFrames) {
+                        e->state = ES_WALK;
+                        e->animTimer = 0;
+                        e->animFrame = 0;
+                        e->movecount = 4 + (enemyRandom() & 7);
+                    }
+                }
+            } else if (e->enemyType == ETYPE_COMMANDO) {
+                /* Commando (Chaingunner): rapid-fire burst -- fires every
+                 * animation frame for 3 cycles (6 shots total) with a
+                 * fast frame rate, then returns to walk. */
+                #define COMMANDO_BURST_CYCLES 3  /* number of 2-frame loops */
+                u8 frameLen = ENEMY_SHOOT_RATE / 6; /* much faster frames */
+                if (frameLen < 2) frameLen = 2;
+
+                if (e->stateTimer >= frameLen) {
+                    e->stateTimer = 0;
+                    e->animFrame++;
+
+                    /* Fire on EVERY frame of the burst */
                     enemyFireAtPlayer(e, playerX, playerY, playerA);
 
-                /* After firing, return to walk (Doom pattern: shoot then chase) */
-                e->state = ES_WALK;
-                e->animTimer = 0;
-                e->animFrame = 0;
-                e->movecount = 8 + (enemyRandom() & 15);
+                    if (e->animFrame >= COMMANDO_ATTACK_ANIM_FRAMES) {
+                        e->animFrame = 0;
+                        e->movecount++;
+                        /* After enough cycles, return to walk */
+                        if (e->movecount >= COMMANDO_BURST_CYCLES) {
+                            e->state = ES_WALK;
+                            e->animTimer = 0;
+                            e->animFrame = 0;
+                            e->movecount = 4 + (enemyRandom() & 7);
+                        }
+                    }
+                }
+            } else {
+                /* Zombieman/Sergeant: 2-frame attack (aim, fire) */
+                u8 frameLen = ENEMY_SHOOT_RATE / 2;
+                if (frameLen < 2) frameLen = 2;
+
+                if (e->stateTimer >= frameLen) {
+                    e->stateTimer = 0;
+                    e->animFrame++;
+
+                    if (e->animFrame == 1) {
+                        /* Fire on second frame */
+                        enemyFireAtPlayer(e, playerX, playerY, playerA);
+                    }
+
+                    if (e->animFrame >= ATTACK_ANIM_FRAMES) {
+                        e->state = ES_WALK;
+                        e->animTimer = 0;
+                        e->animFrame = 0;
+                        e->movecount = 4 + (enemyRandom() & 7);
+                    }
+                }
             }
             break;
         }
@@ -1190,7 +1305,7 @@ void updateEnemies(u16 playerX, u16 playerY, s16 playerA) {
         case ES_PAIN:
             e->angle = fixedAtan2(dy, dx);
             e->stateTimer++;
-            if (e->stateTimer >= 10) {
+            if (e->stateTimer >= 5) {
                 e->state = ES_WALK;
                 e->stateTimer = 0;
                 e->animFrame = 0;
@@ -1201,8 +1316,9 @@ void updateEnemies(u16 playerX, u16 playerY, s16 playerA) {
             u8 maxDeathFrames = DEATH_ANIM_FRAMES;
             if (e->enemyType == ETYPE_IMP) maxDeathFrames = IMP_DEATH_ANIM_FRAMES;
             else if (e->enemyType == ETYPE_DEMON) maxDeathFrames = DEMON_DEATH_ANIM_FRAMES;
+            else if (e->enemyType == ETYPE_COMMANDO) maxDeathFrames = COMMANDO_DEATH_ANIM_FRAMES;
             e->animTimer++;
-            if (e->animTimer >= 6) {
+            if (e->animTimer >= 4) {
                 e->animTimer = 0;
                 if (e->animFrame < maxDeathFrames - 1) {
                     e->animFrame++;
@@ -1233,6 +1349,8 @@ u8 getEnemySpriteFrame(u8 enemyIdx, u16 playerX, u16 playerY, s16 playerA) {
         return getImpSpriteFrame(enemyIdx, playerX, playerY, playerA);
     if (e->enemyType == ETYPE_DEMON)
         return getDemonSpriteFrame(enemyIdx, playerX, playerY, playerA);
+    if (e->enemyType == ETYPE_COMMANDO)
+        return getCommandoSpriteFrame(enemyIdx, playerX, playerY, playerA);
 
     switch (e->state) {
     case ES_IDLE:
@@ -1321,4 +1439,43 @@ u8 getDemonSpriteFrame(u8 enemyIdx, u16 playerX, u16 playerY, s16 playerA) {
     default:
         return 0;
     }
+}
+
+u8 getCommandoSpriteFrame(u8 enemyIdx, u16 playerX, u16 playerY, s16 playerA) {
+    EnemyState *e = &g_enemies[enemyIdx];
+    u8 dir = getEnemyDirection(enemyIdx, playerX, playerY, playerA);
+
+    switch (e->state) {
+    case ES_IDLE:
+        return COMMANDO_WALK_FRAMES[dir][0];
+
+    case ES_WALK:
+        return COMMANDO_WALK_FRAMES[dir][e->animFrame % COMMANDO_WALK_ANIM_FRAMES];
+
+    case ES_ATTACK: {
+        u8 pose = e->animFrame;
+        if (pose >= COMMANDO_ATTACK_ANIM_FRAMES) pose = 0;
+        return COMMANDO_ATTACK_FRAMES[dir][pose];
+    }
+
+    case ES_PAIN:
+        return COMMANDO_PAIN_FRAMES[dir];
+
+    case ES_DEAD:
+        if (e->animFrame < COMMANDO_DEATH_ANIM_FRAMES) {
+            return COMMANDO_DEATH_FRAMES[e->animFrame];
+        }
+        return COMMANDO_DEATH_FRAMES[COMMANDO_DEATH_ANIM_FRAMES - 1];
+
+    default:
+        return 0;
+    }
+}
+
+u8 getSpriteDirection(u16 sprX, u16 sprY, s16 sprAngle, u16 playerX, u16 playerY) {
+    s16 dx = (s16)sprX - (s16)playerX;
+    s16 dy = (s16)sprY - (s16)playerY;
+    s16 angleToSprite = fixedAtan2(dy, dx);
+    s16 relAngle = (angleToSprite - sprAngle + 576) & 1023;
+    return (u8)((relAngle >> 7) & 7);
 }

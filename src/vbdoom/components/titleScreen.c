@@ -140,7 +140,7 @@ u8 titleScreen()
 	while(1) {
 		keyInputs = vbReadPad();
 		if(keyInputs & (K_STA|K_A|K_B|K_SEL)) {
-			if (allowPushAgain == 1 && pos != 1 && pos != 2) {  /* pos 1=Load Game, pos 2=Multiplayer (disabled) */
+			if (allowPushAgain == 1 && pos != 1) {  /* pos 1=Load Game (disabled) */
 				playPlayerSFX(SFX_PISTOL);
 				break;
 			}

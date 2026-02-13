@@ -54,9 +54,8 @@ void timerHandle()
 		u16 idx = g_pcmPlayer.cursor;
 		u8 packed = g_pcmPlayer.data[idx >> 1];
 		u8 nib = (idx & 1) ? (packed & 0x0F) : (packed >> 4);
-		/* Apply master SFX volume (0-15) */
 		nib = (nib * g_sfxVolume) >> 4;
-		SND_REGS[0x04].SxLRV = (nib << 4) | nib;  /* equal L+R */
+		SND_REGS[0x04].SxLRV = (nib << 4) | nib;
 		g_pcmPlayer.cursor++;
 		if (g_pcmPlayer.cursor >= g_pcmPlayer.length) {
 			g_pcmPlayer.playing = 0;
@@ -64,12 +63,11 @@ void timerHandle()
 		}
 	}
 
-	/* ---- Enemy PCM (ch2): same pattern with distance + master volume ---- */
+	/* ---- Enemy PCM (ch2): distance attenuation + master SFX volume ---- */
 	if (g_pcmEnemy.playing) {
 		u16 idx = g_pcmEnemy.cursor;
 		u8 packed = g_pcmEnemy.data[idx >> 1];
 		u8 nib = (idx & 1) ? (packed & 0x0F) : (packed >> 4);
-		/* Apply distance attenuation, then master SFX volume */
 		u8 scaled = (nib * g_pcmEnemy.volume) >> 4;
 		scaled = (scaled * g_sfxVolume) >> 4;
 		SND_REGS[0x02].SxLRV = (scaled << 4) | scaled;
@@ -80,17 +78,9 @@ void timerHandle()
 		}
 	}
 
-	/* ---- Music tick: fractional accumulator for ~80% of original speed.
-	 * Original: += 2 per ISR tick.  80%: effective += 1.6 per tick.
-	 * Add 8 to fraction each tick; each time fraction >= 5, increment musicTick. */
-	{
-		static u8 musicFrac = 0;
-		musicFrac += 8;
-		while (musicFrac >= 5) {
-			g_musicTick++;
-			musicFrac -= 5;
-		}
-	}
+	/* ---- Music tick: simple 1:1 increment (10,000 Hz).
+	 * Tempo scaling moved to updateMusic() multiplier. */
+	g_musicTick++;
 
 	/* ---- Frame timing ---- */
 	g_frameTick++;

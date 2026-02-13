@@ -77,6 +77,18 @@ WORLD_SOUNDS = [
     ("barrel explode.wav",       "barrel_explode"),
     ("elevator_stp.wav",         "elevator_stp"),
     ("stone move.wav",           "stone_move"),
+    ("TELEPORT.wav",             "teleport"),
+    ("drum_kick.wav",            "drum_kick"),
+    ("drum_snare.wav",           "drum_snare"),
+    ("drum_hihat.wav",           "drum_hihat"),
+    ("drum_crash.wav",           "drum_crash"),
+    ("drum_tom_low.wav",         "drum_tom_low"),
+    ("drum_tom_bright.wav",      "drum_tom_bright"),
+    ("drum_clap.wav",            "drum_clap"),
+    ("drum_snare_sidehit.wav",   "drum_snare_sidehit"),
+    ("drum_snare2.wav",          "drum_snare2"),
+    ("drum_conga.wav",           "drum_conga"),
+    ("drum_timpani.wav",         "drum_timpani"),
 ]
 
 ALL_SOUNDS = PLAYER_SOUNDS + ENEMY_SOUNDS + WORLD_SOUNDS
@@ -84,38 +96,56 @@ ALL_SOUNDS = PLAYER_SOUNDS + ENEMY_SOUNDS + WORLD_SOUNDS
 
 def read_wav(filepath):
     """Read a WAV file and return sample rate + raw unsigned 8-bit samples.
-    Supports mono or stereo (mixes to mono), 8-bit or 16-bit."""
-    with wave.open(filepath, 'r') as w:
-        nch = w.getnchannels()
-        sw = w.getsampwidth()
-        rate = w.getframerate()
-        n_frames = w.getnframes()
-        raw = w.readframes(n_frames)
+    Supports mono or stereo (mixes to mono), 8-bit, 16-bit, or 32-bit float."""
+    try:
+        with wave.open(filepath, 'r') as w:
+            nch = w.getnchannels()
+            sw = w.getsampwidth()
+            rate = w.getframerate()
+            n_frames = w.getnframes()
+            raw = w.readframes(n_frames)
 
-        if sw == 1:
-            # 8-bit unsigned: 0-255, 128=silence
-            all_samples = list(raw)
-        elif sw == 2:
-            # 16-bit signed: convert to 8-bit unsigned
-            all_samples = []
-            for i in range(0, len(raw), 2):
-                s16 = struct.unpack_from('<h', raw, i)[0]
-                all_samples.append((s16 + 32768) >> 8)
+            if sw == 1:
+                # 8-bit unsigned: 0-255, 128=silence
+                all_samples = list(raw)
+            elif sw == 2:
+                # 16-bit signed: convert to 8-bit unsigned
+                all_samples = []
+                for i in range(0, len(raw), 2):
+                    s16 = struct.unpack_from('<h', raw, i)[0]
+                    all_samples.append((s16 + 32768) >> 8)
+            else:
+                raise ValueError(f"Unsupported sample width: {sw*8}-bit")
+
+            # Mix stereo to mono
+            if nch == 2:
+                mono = []
+                for i in range(0, len(all_samples), 2):
+                    if i + 1 < len(all_samples):
+                        mono.append((all_samples[i] + all_samples[i + 1]) >> 1)
+                    else:
+                        mono.append(all_samples[i])
+                all_samples = mono
+            elif nch != 1:
+                raise ValueError(f"Unsupported channel count: {nch}")
+
+            return rate, all_samples
+    except wave.Error:
+        # Fallback for IEEE float WAVs (format 3) using scipy
+        from scipy.io import wavfile as sciwav
+        rate, data = sciwav.read(filepath)
+        # scipy returns float32/float64 for float WAVs, int16/int32 for PCM
+        arr = np.array(data, dtype=np.float64)
+        if arr.ndim == 2:
+            arr = arr.mean(axis=1)  # mix stereo to mono
+        # Normalize float range (-1..1 or int range) to 0-255 unsigned 8-bit
+        if np.issubdtype(data.dtype, np.floating):
+            arr = np.clip(arr, -1.0, 1.0)
+            all_samples = [max(0, min(255, int(round((s + 1.0) * 127.5)))) for s in arr]
         else:
-            raise ValueError(f"Unsupported sample width: {sw*8}-bit")
-
-        # Mix stereo to mono
-        if nch == 2:
-            mono = []
-            for i in range(0, len(all_samples), 2):
-                if i + 1 < len(all_samples):
-                    mono.append((all_samples[i] + all_samples[i + 1]) >> 1)
-                else:
-                    mono.append(all_samples[i])
-            all_samples = mono
-        elif nch != 1:
-            raise ValueError(f"Unsupported channel count: {nch}")
-
+            # Integer PCM: scale to 0-255
+            info = np.iinfo(data.dtype)
+            all_samples = [max(0, min(255, int(round((s - info.min) / (info.max - info.min) * 255)))) for s in arr]
         return rate, all_samples
 
 

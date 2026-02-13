@@ -201,6 +201,22 @@ void updateProjectiles(u16 playerX, u16 playerY, s16 playerA) {
                 }
             }
 
+            /* Player collision for P2-fired rockets (sourceEnemy==254) */
+            if (!hitSomething && p->type == PROJ_TYPE_ROCKET && p->sourceEnemy == 254) {
+                pdx = (s16)p->x - (s16)playerX;
+                pdy = (s16)p->y - (s16)playerY;
+                if (pdx < 0) pdx = -pdx;
+                if (pdy < 0) pdy = -pdy;
+                if (pdx < 64 && pdy < 64) {
+                    /* Direct hit on local player from P2's rocket */
+                    u8 rDmg = (u8)(20 * ((projRandom() & 7) + 1));
+                    if (rDmg > 160) rDmg = 160;
+                    g_lastEnemyDamage += rDmg;
+                    if (g_lastEnemyDamage > 200) g_lastEnemyDamage = 200;
+                    hitSomething = 1;
+                }
+            }
+
             /* Player collision for enemy fireballs */
             if (!hitSomething && p->type == PROJ_TYPE_FIREBALL) {
                 pdx = (s16)p->x - (s16)playerX;
@@ -212,7 +228,7 @@ void updateProjectiles(u16 playerX, u16 playerY, s16 playerA) {
                     u8 damage = FIREBALL_DAMAGE_MIN +
                         (projRandom() % (FIREBALL_DAMAGE_MAX - FIREBALL_DAMAGE_MIN + 1));
                     g_lastEnemyDamage += damage;
-                    if (g_lastEnemyDamage > 25) g_lastEnemyDamage = 25;  /* per-frame cap */
+                    if (g_lastEnemyDamage > 50) g_lastEnemyDamage = 50;  /* per-frame cap */
 
                     /* Compute damage direction */
                     {
@@ -239,6 +255,8 @@ void updateProjectiles(u16 playerX, u16 playerY, s16 playerA) {
                 if (p->type == PROJ_TYPE_ROCKET) {
                     /* Rocket explosion: splash damage to all enemies and player */
                     u8 ei;
+                    /* Doom: 20*(P_Random()%8+1) = 20,40,60,...160 */
+                    u8 directDmg = (u8)(20 * ((projRandom() & 7) + 1));
                     playPlayerSFX(SFX_BARREL_EXPLODE);
 
                     /* Damage enemies in splash radius */
@@ -253,12 +271,12 @@ void updateProjectiles(u16 playerX, u16 playerY, s16 playerA) {
                         if (dist < ROCKET_SPLASH_RADIUS) {
                             u8 dmg;
                             if (hitSomething == 2) {
-                                /* Direct hit: full damage */
-                                dmg = ROCKET_DIRECT_DAMAGE;
+                                /* Direct hit: randomized Doom damage */
+                                dmg = directDmg;
                             } else {
                                 /* Splash: damage falls off with distance */
                                 dmg = (u8)((u16)(ROCKET_SPLASH_RADIUS - dist) >> 2);
-                                if (dmg > ROCKET_DIRECT_DAMAGE) dmg = ROCKET_DIRECT_DAMAGE;
+                                if (dmg > directDmg) dmg = directDmg;
                             }
                             if (dmg > 0) {
                                 applyDamageToEnemy(e, dmg, playerX, playerY);

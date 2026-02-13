@@ -11,7 +11,22 @@
 #include "sfx.h"
 #include "dph9.h"
 #include "../functions/sndplay.h"
+#include "../functions/timer.h"
 #include "../assets/audio/doom_sfx.h"
+
+/* Rumble intensity table (mirrors gameLoop.c): maps setting (1-9) to {freq, effect, dmgDur, secDur}. */
+typedef struct { u8 freq; u8 effect; u8 dmgDur; u8 secDur; } RumbleLevel;
+static const RumbleLevel g_rumbleLevels[9] = {
+    {RUMBLE_FREQ_160HZ, 0x01,  3, 1},
+    {RUMBLE_FREQ_160HZ, 0x0E,  4, 1},
+    {RUMBLE_FREQ_160HZ, 0x1B,  5, 2},
+    {RUMBLE_FREQ_240HZ, 0x28,  6, 2},
+    {RUMBLE_FREQ_240HZ, 0x35,  7, 2},
+    {RUMBLE_FREQ_320HZ, 0x42,  8, 3},
+    {RUMBLE_FREQ_320HZ, 0x4F,  8, 3},
+    {RUMBLE_FREQ_400HZ, 0x5C, 10, 3},
+    {RUMBLE_FREQ_400HZ, 0x7B, 12, 4},
+};
 
 extern BYTE title_screen_optionsTiles[];
 extern unsigned short title_screen_optionsMap[];
@@ -493,6 +508,7 @@ u8 optionsScreen(Settings *settings)
 					(*settings).music--;
 					g_musicSetting = (*settings).music;
 					g_musicVolume = musicVolFromSetting((*settings).music);
+					if (g_musicVolume == 0) musicStop();
 					playPlayerSFX(SFX_STONE_MOVE);
 				}
 			} else if (pos == 2) {
@@ -502,8 +518,9 @@ u8 optionsScreen(Settings *settings)
 						shouldRumble = 1;
 						rumbleTimer = 0;
 						if ((*settings).rumble > 0) {
-							rumble_setFrequency(RUMBLE_FREQ_160HZ);
-							rumble_playEffect(RUMBLE_CHAIN_EFFECT_1);
+							const RumbleLevel *rl = &g_rumbleLevels[(*settings).rumble - 1];
+							rumble_setFrequency(rl->freq);
+							rumble_playEffect(rl->effect);
 						}
 					}
 				}
@@ -518,18 +535,21 @@ u8 optionsScreen(Settings *settings)
 					}
 			} else if (pos == 1) {
 				if ((*settings).music < 9) {
+					u8 wasMuted = (g_musicVolume == 0) ? 1 : 0;
 					(*settings).music++;
 					g_musicSetting = (*settings).music;
 					g_musicVolume = musicVolFromSetting((*settings).music);
+					if (wasMuted && g_musicVolume > 0) musicStart();
 					playPlayerSFX(SFX_STONE_MOVE);
 				}
 			} else if (pos == 2) {
 					if ((*settings).rumble < 9) {
 						(*settings).rumble++;
 						playPlayerSFX(SFX_STONE_MOVE);
-						if ((*settings).rumble > 0) {
-							rumble_setFrequency(RUMBLE_FREQ_400HZ);
-							rumble_playEffect(RUMBLE_CHAIN_EFFECT_0);
+						{
+							const RumbleLevel *rl = &g_rumbleLevels[(*settings).rumble - 1];
+							rumble_setFrequency(rl->freq);
+							rumble_playEffect(rl->effect);
 						}
 						rumbleTimer = 0;
 						shouldRumble = 1;

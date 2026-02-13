@@ -11,11 +11,11 @@
 
 #define MAX_ENEMIES     21  /* E1M4 uses 21; other levels use up to 13 */
 #define MAX_VISIBLE_ENEMIES 5  /* only 5 can render at once (VRAM/BGMap slots) */
-#define ENEMY_SPEED     8     /* fixed-point movement speed per frame */
+#define ENEMY_SPEED     14    /* fixed-point movement speed per frame */
 #define ENEMY_ATTACK_DIST  2500  /* squared-distance/256 for ranged attack checks */
 #define ENEMY_MIN_DIST     150   /* minimum distance to player (don't walk closer) */
-#define ENEMY_WALK_RATE 6     /* frames between walk animation advances */
-#define ENEMY_SHOOT_RATE 45   /* frames between attack animation poses (~2.25s at 20fps) */
+#define ENEMY_WALK_RATE 3     /* frames between walk animation advances */
+#define ENEMY_SHOOT_RATE 20   /* frames between attack animation poses (~1s at 20fps) */
 #define ENEMY_SIGHT_DIST 3000 /* squared-distance/256 at which enemies notice player (~7 tiles) */
 
 /* Doom hitscan range: 2048 map units. In our 8.8 fixed-point (256=1 tile):
@@ -35,6 +35,7 @@
 #define ETYPE_SERGEANT   1
 #define ETYPE_IMP        2
 #define ETYPE_DEMON      3
+#define ETYPE_COMMANDO   4
 
 /* Per-type stats */
 #define ZOMBIE_HEALTH       20
@@ -47,6 +48,9 @@
 #define DEMON_HEALTH        150
 #define DEMON_PAINCHANCE    180   /* out of 256 */
 #define DEMON_MELEE_DIST    200   /* squared-dist/256 for bite range */
+#define DEMON_ATTACK_ENTER  600   /* squared-dist/256 to start attack anim (~1.5 tiles) */
+#define COMMANDO_HEALTH     70
+#define COMMANDO_PAINCHANCE 170   /* same as Sergeant */
 
 /* Enemy states */
 #define ES_IDLE   0  /* standing still, unaware of player */
@@ -231,6 +235,64 @@ static const u8 DEMON_PAIN_FRAMES[8] = {35, 36, 37, 38, 39, 38, 37, 36};
 
 static const u8 DEMON_DEATH_FRAMES[DEMON_DEATH_ANIM_FRAMES] = {40, 41, 42, 43, 44, 45};
 
+/*
+ * COMMANDO (Chaingunner / CPOS) frame lookup tables.
+ * 69 frames total. Layout (standard Doom CPOS, all 8 directions):
+ *
+ *   Walk: A-D x 8 dirs = frames 0-31 (4 walk poses per direction)
+ *     Dir 0 (front):       0, 8, 16, 24
+ *     Dir 1 (front-left):  1, 9, 17, 25
+ *     Dir 2 (left):        2, 10, 18, 26
+ *     Dir 3 (back-left):   3, 11, 19, 27
+ *     Dir 4 (back):        4, 12, 20, 28
+ *     Dir 5 (back-right):  5, 13, 21, 29
+ *     Dir 6 (right):       6, 14, 22, 30
+ *     Dir 7 (front-right): 7, 15, 23, 31
+ *
+ *   Attack: E-F x 8 dirs = frames 32-47 (2 attack poses per direction)
+ *     Dir 0: 32, 40   Dir 1: 33, 41   etc.
+ *
+ *   Pain: G x 8 dirs = frames 48-55
+ *   Death: H-T = frames 56-68 (13 frames, direction-independent)
+ */
+#define COMMANDO_WALK_ANIM_FRAMES   4
+#define COMMANDO_ATTACK_ANIM_FRAMES 2
+#define COMMANDO_DEATH_ANIM_FRAMES  13
+
+/* Walk frames: [direction][pose] -> sprite index.
+ * Letter A=dir*1+0..7, B=dir*1+8..15, C=dir*1+16..23, D=dir*1+24..31 */
+static const u8 COMMANDO_WALK_FRAMES[8][COMMANDO_WALK_ANIM_FRAMES] = {
+    { 0,  8, 16, 24},   /* dir 0: front */
+    { 1,  9, 17, 25},   /* dir 1: front-left */
+    { 2, 10, 18, 26},   /* dir 2: left */
+    { 3, 11, 19, 27},   /* dir 3: back-left */
+    { 4, 12, 20, 28},   /* dir 4: back */
+    { 5, 13, 21, 29},   /* dir 5: back-right */
+    { 6, 14, 22, 30},   /* dir 6: right */
+    { 7, 15, 23, 31},   /* dir 7: front-right */
+};
+
+/* Attack frames: [direction][pose] -> sprite index.
+ * E=32+dir, F=40+dir */
+static const u8 COMMANDO_ATTACK_FRAMES[8][COMMANDO_ATTACK_ANIM_FRAMES] = {
+    {32, 40},   /* dir 0: front */
+    {33, 41},   /* dir 1: front-left */
+    {34, 42},   /* dir 2: left */
+    {35, 43},   /* dir 3: back-left */
+    {36, 44},   /* dir 4: back */
+    {37, 45},   /* dir 5: back-right */
+    {38, 46},   /* dir 6: right */
+    {39, 47},   /* dir 7: front-right */
+};
+
+/* Pain: G+dir = 48+dir */
+static const u8 COMMANDO_PAIN_FRAMES[8] = {48, 49, 50, 51, 52, 53, 54, 55};
+
+/* Death: frames 56-68 (13 frames, direction-independent) */
+static const u8 COMMANDO_DEATH_FRAMES[COMMANDO_DEATH_ANIM_FRAMES] = {
+    56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68
+};
+
 /* ---- API ---- */
 
 /* Initialize all enemies (positions, state). Call once at level start. */
@@ -258,7 +320,7 @@ bool collidesWithAnyEnemy(u16 x, u16 y, u16 myRadius, u8 skipIdx);
 void alertAllEnemies(void);
 
 /* Hitscan: player shoots, checks if any enemy in the aiming cone is hit.
- * weaponType: 1=fist, 2=pistol, 3=shotgun.
+ * weaponType: 1=fist, 2=pistol, 3=shotgun, 5=chaingun.
  * Shotgun fires 7 pellets with Doom-style angular spread.
  * Returns index of a hit enemy (0-MAX_ENEMIES-1) or 255 if all miss.
  * Based on Doom's P_AimLineAttack + P_LineAttack (simplified). */
@@ -287,8 +349,15 @@ u8 getImpSpriteFrame(u8 enemyIdx, u16 playerX, u16 playerY, s16 playerA);
 /* Get Demon-specific sprite frame index (46-frame sheet) */
 u8 getDemonSpriteFrame(u8 enemyIdx, u16 playerX, u16 playerY, s16 playerA);
 
+/* Get Commando-specific sprite frame index (69-frame sheet) */
+u8 getCommandoSpriteFrame(u8 enemyIdx, u16 playerX, u16 playerY, s16 playerA);
+
 /* Apply damage to an enemy, handle kill/pain/drops/sounds. Returns true if killed. */
 bool applyDamageToEnemy(EnemyState *e, u8 damage, u16 playerX, u16 playerY);
+
+/* Get direction index (0-7) for a sprite at (sprX,sprY) facing sprAngle,
+ * as seen from the player at (playerX,playerY). Used for player 2 rendering. */
+u8 getSpriteDirection(u16 sprX, u16 sprY, s16 sprAngle, u16 playerX, u16 playerY);
 
 /* Approximate distance (Manhattan-ish) */
 u16 approxDist(s16 dx, s16 dy);

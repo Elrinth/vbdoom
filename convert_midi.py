@@ -7,7 +7,7 @@ Output per song (C header):
   - int   prefix_melody[N]  : (vel << 12) | (midi_note << 4)  for ch0
   - int   prefix_bass[N]    : (vel << 12) | (midi_note << 4)  for ch1
   - int   prefix_chords[N]  : (vel << 12) | (midi_note << 4)  for ch3
-  - int   prefix_drums[N]   : (tap << 12) | freq               for ch5 (NOISE)
+  - int   prefix_drums[N]   : SFX ID (doom_sfx.h) for PCM drum samples (0=silence)
   - u16   prefix_timing[N]  : shared duration in milliseconds per step
   - u8    prefix_arp[N]     : arpeggio offsets (optional, 0=none)
   - #define PREFIX_NOTE_COUNT N
@@ -79,66 +79,60 @@ MIDI_TO_VB_FREQ = [
 PAU = 0x000  # Silence
 
 # ----------------------------------------------------------------
-# General MIDI drum note to VB noise channel mapping
+# General MIDI drum note to PCM SFX ID mapping
 #
-# Based on VBeat LFSR analysis (by enthusi/PriorArt):
-#   Tap sequence lengths: 0=32767 1=1953 2=254 3=217 4=73 5=63 6=42 7=28
-#   Shorter = more tonal/pitched.  Longer = more noise-like.
-#
-# Each entry: (tap, decay, freq)
-#   tap:   3-bit LFSR feedback point (0-7), controls timbre
-#   decay: 2-bit envelope speed (0=very fast, 1=fast, 2=medium, 3=slow)
-#   freq:  10-bit frequency register for noise pitch (0x000-0x3FF)
-#
-# Packed output value = (tap << 12) | (decay << 10) | freq
+# All drums are now played as PCM samples on the player/enemy
+# channels (ch4/ch2), not the noise channel.  Each entry maps a
+# GM drum note number to an SFX_DRUM_* ID from doom_sfx.h.
+# The value stored in the music header is the SFX ID directly;
+# 0 = silence.
 # ----------------------------------------------------------------
 
 GM_DRUM_MAP = {
-    # Kick drums (MIDI 35-36): tonal tap7 (len=28), low freq, medium decay for more body
-    35: (7, 2, 0x020),   # Acoustic Bass Drum -- deep thud
-    36: (7, 2, 0x030),   # Bass Drum 1 -- punchy kick
+    # Kick drums (MIDI 35-36)
+    35: 28,   # Acoustic Bass Drum -> SFX_DRUM_KICK
+    36: 28,   # Bass Drum 1 -> SFX_DRUM_KICK
 
-    # Snare drums (MIDI 37-40): noisy tap1 (len=1953), medium freq, medium decay for presence
-    37: (2, 1, 0x180),   # Side Stick -- short click (tap2=254)
-    38: (1, 2, 0x100),   # Acoustic Snare -- more body
-    39: (1, 1, 0x0C0),   # Hand Clap -- sharp pop
-    40: (1, 2, 0x120),   # Electric Snare -- bright snare
+    # Snare drums (MIDI 37-40)
+    37: 35,   # Side Stick -> SFX_DRUM_SNARE_SIDEHIT
+    38: 29,   # Acoustic Snare -> SFX_DRUM_SNARE
+    39: 34,   # Hand Clap -> SFX_DRUM_CLAP
+    40: 36,   # Electric Snare -> SFX_DRUM_SNARE2
 
-    # Toms (MIDI 41-50): tonal tap6 (len=42) or tap7 (len=28), scaled freq
-    41: (6, 1, 0x040),   # Low Floor Tom
-    43: (6, 1, 0x060),   # High Floor Tom
-    45: (6, 1, 0x080),   # Low Tom
-    47: (7, 1, 0x060),   # Low-Mid Tom
-    48: (7, 1, 0x080),   # Hi-Mid Tom
-    50: (7, 1, 0x0A0),   # High Tom
+    # Toms (MIDI 41-50)
+    41: 32,   # Low Floor Tom -> SFX_DRUM_TOM_LOW
+    43: 32,   # High Floor Tom -> SFX_DRUM_TOM_LOW
+    45: 32,   # Low Tom -> SFX_DRUM_TOM_LOW
+    47: 33,   # Low-Mid Tom -> SFX_DRUM_TOM_BRIGHT
+    48: 33,   # Hi-Mid Tom -> SFX_DRUM_TOM_BRIGHT
+    50: 33,   # High Tom -> SFX_DRUM_TOM_BRIGHT
 
-    # Hi-hat (MIDI 42, 44, 46): white noise tap0 (len=32767), high freq
-    42: (0, 0, 0x300),   # Closed Hi-Hat -- very fast decay, crisp
-    44: (0, 0, 0x300),   # Pedal Hi-Hat -- same as closed
-    46: (0, 2, 0x300),   # Open Hi-Hat -- medium decay, sizzle
+    # Hi-hat (MIDI 42, 44, 46)
+    42: 30,   # Closed Hi-Hat -> SFX_DRUM_HIHAT
+    44: 30,   # Pedal Hi-Hat -> SFX_DRUM_HIHAT
+    46: 30,   # Open Hi-Hat -> SFX_DRUM_HIHAT
 
-    # Cymbals (MIDI 49-59): white noise tap0, high freq, slow decay
-    49: (0, 3, 0x380),   # Crash Cymbal 1 -- long wash
-    51: (0, 2, 0x340),   # Ride Cymbal 1 -- medium sustain
-    52: (0, 3, 0x3A0),   # Chinese Cymbal -- long wash
-    55: (0, 2, 0x360),   # Splash Cymbal -- medium
-    57: (0, 3, 0x390),   # Crash Cymbal 2 -- long wash
-    59: (0, 2, 0x350),   # Ride Cymbal 2 -- medium sustain
+    # Cymbals (MIDI 49-59)
+    49: 31,   # Crash Cymbal 1 -> SFX_DRUM_CRASH
+    51: 31,   # Ride Cymbal 1 -> SFX_DRUM_CRASH
+    52: 31,   # Chinese Cymbal -> SFX_DRUM_CRASH
+    55: 31,   # Splash Cymbal -> SFX_DRUM_CRASH
+    57: 31,   # Crash Cymbal 2 -> SFX_DRUM_CRASH
+    59: 31,   # Ride Cymbal 2 -> SFX_DRUM_CRASH
 
     # Miscellaneous
-    53: (0, 1, 0x320),   # Ride Bell -- short ping
-    54: (2, 0, 0x200),   # Tambourine -- tap2 (len=254), fast jingle
-    56: (3, 0, 0x180),   # Cowbell -- tap3 (len=217), short
+    53: 30,   # Ride Bell -> SFX_DRUM_HIHAT
+    54: 34,   # Tambourine -> SFX_DRUM_CLAP
+    56: 34,   # Cowbell -> SFX_DRUM_CLAP
 }
 
-# Default fallback for unmapped GM drum notes (slightly longer decay for presence)
-GM_DRUM_DEFAULT = (1, 2, 0x100)  # snare-like
+# Default fallback for unmapped GM drum notes
+GM_DRUM_DEFAULT = 29  # SFX_DRUM_SNARE
 
 
 def gm_drum_to_packed(midi_note):
-    """Convert a GM drum note number to packed (tap << 12) | (decay << 10) | freq."""
-    tap, decay, freq = GM_DRUM_MAP.get(midi_note, GM_DRUM_DEFAULT)
-    return (tap << 12) | ((decay & 0x03) << 10) | (freq & 0x3FF)
+    """Convert a GM drum note number to its PCM SFX ID (0 = silence)."""
+    return GM_DRUM_MAP.get(midi_note, GM_DRUM_DEFAULT)
 
 
 # ----------------------------------------------------------------
@@ -507,7 +501,7 @@ def merge_channels(span_lists, tpb, tempo_map, vel_scales=None,
     Consecutive identical entries are merged to save space.
 
     For melody/bass/chords: packed = (vel4 << 12) | (midi_note << 4)
-    For drums: packed = (tap << 12) | freq, or 0 for silence
+    For drums: packed = SFX ID from doom_sfx.h, or 0 for silence
     arp[]: u8 per step, (off1 << 4) | off2. All zeros if no arpeggio.
     """
     if vel_scales is None:
@@ -648,7 +642,7 @@ def write_header(prefix, melody, bass, chords, drums, timing, arp, output_path):
             f.write(",\n" if i + 12 < n else "\n")
         f.write("};\n\n")
 
-        # Drums (ch5 NOISE) - (tap << 12) | freq
+        # Drums - PCM SFX IDs (0 = silence)
         f.write(f"static const int {prefix}_drums[{n}] = {{\n")
         for i in range(0, n, 12):
             chunk = drums[i:i+12]
@@ -710,10 +704,9 @@ SONGS = [
         'vel_scales': [1.0, 1.0, 2.0],  # boost strings (vel 29-68 are quiet)
         'max_seconds': 120,  # song is ~1:08, no truncation needed
     },
-    # e1m1: rott_018.mid (Rise of the Triad) — replaces original e1m1
-    # Output written to music_e1m1.h so game still uses SONG_E1M1
+    # e1m1: Tcstage1.mid — replaces rott_018
     {
-        'midi': 'maybes/rott_018.mid',
+        'midi': 'maybes/Tcstage1.mid',
         'prefix': 'music_e1m1',
         'header': 'music_e1m1.h',
         'type': 'auto',
@@ -734,43 +727,45 @@ SONGS = [
         'vel_scales': [1.0, 1.0, 1.8],  # boost chords to be audible
         'max_seconds': 60,
     },
-    # e1m3: type-1 -- Track 2(ch1)=melody(63-74), Track 1(ch0)=bass(29-43),
-    #   Track 3(ch2)=chords(59-70)
+    # e1m3: metalgr2.mid
     {
-        'midi': 'e1m3.mid',
+        'midi': 'maybes/metalgr2.mid',
         'prefix': 'music_e1m3',
         'header': 'music_e1m3.h',
-        'type': 'tracks',
-        'melody': {'track': 2, 'channels': {1}},
-        'bass':   {'track': 1, 'channels': {0}},
-        'chords': {'track': 3, 'channels': {2}},
-        'drums':  'auto',
-        'vel_scales': [1.0, 1.0, 1.8],  # boost chords to be audible
-        'max_seconds': 60,
+        'type': 'auto',
+        'drums': 'auto',
+        'vel_scales': [1.0, 1.0, 1.8],
+        'max_seconds': 120,
     },
+    # e1m4: Castlevania SotN - Dracula's Castle
     {
-        'midi': 'e1m5.mid',
+        'midi': 'maybes/G_Castlevania_SotN_DraculasCastle.mid',
+        'prefix': 'music_e1m4',
+        'header': 'music_e1m4.h',
+        'type': 'auto',
+        'drums': 'auto',
+        'vel_scales': [1.0, 1.0, 1.8],
+        'max_seconds': 120,
+    },
+    # e1m5: King of the Mountain
+    {
+        'midi': 'maybes/King_of_the_Mountain.mid',
         'prefix': 'music_e1m5',
         'header': 'music_e1m5.h',
-        'type': 'tracks',
-        'melody': {'track': 2, 'channels': {1}},
-        'bass':   {'track': 1, 'channels': {0}},
-        'chords': {'track': 3, 'channels': {2}},
-        'drums':  'auto',
+        'type': 'auto',
+        'drums': 'auto',
         'vel_scales': [1.0, 1.0, 1.8],
-        'max_seconds': 60,
+        'max_seconds': 120,
     },
+    # e1m6: TF4 Stage 8
     {
-        'midi': 'e1m6.mid',
+        'midi': 'maybes/TF4Stage8.mid',
         'prefix': 'music_e1m6',
         'header': 'music_e1m6.h',
-        'type': 'tracks',
-        'melody': {'track': 2, 'channels': {1}},
-        'bass':   {'track': 1, 'channels': {0}},
-        'chords': {'track': 3, 'channels': {2}},
-        'drums':  'auto',
+        'type': 'auto',
+        'drums': 'auto',
         'vel_scales': [1.0, 1.0, 1.8],
-        'max_seconds': 60,
+        'max_seconds': 120,
     },
 ]
 

@@ -11,21 +11,23 @@
 #include "../assets/audio/music_e1m1.h"
 #include "../assets/audio/music_e1m2.h"
 #include "../assets/audio/music_e1m3.h"
+#include "../assets/audio/music_e1m4.h"
 #include "../assets/audio/music_e1m5.h"
 #include "../assets/audio/music_e1m6.h"
 
 /* ================================================================
- * Background Music -- 4-channel sequencer
+ * Background Music -- 3-channel waveform sequencer
  *
- * Ch 0 (WAVEDATA1, PIANO)     = melody
- * Ch 1 (WAVEDATA2, SQUARE)    = bass
- * Ch 3 (WAVEDATA4, TRIANGLE)  = chords
- * Ch 5 (NOISE)                = drums
+ * Ch 0 (WAVEDATA1, PIANO)     = melody   (waveform synthesis)
+ * Ch 1 (WAVEDATA2, SQUARE)    = bass     (waveform synthesis)
+ * Ch 3 (WAVEDATA4, TRIANGLE)  = chords   (waveform synthesis)
+ * (Drums removed for performance.)
  *
- * PCM SFX use dedicated channels (ch2 and ch4) that carry no music,
- * so SFX never interrupts or mutes any music channel.
+ * Volume:
+ *   - Waveform channels use g_musicVolume (0-4)
+ *   - Game SFX use g_sfxVolume (0-15)
  *
- * All 4 channels share one timing array (lock-step advance).
+ * All sequencer channels share one timing array (lock-step).
  * Timing values are in milliseconds; actual timing measured via
  * g_musicTick (10 kHz ISR counter) for rate-independent playback.
  *
@@ -39,23 +41,19 @@
  *   lower nibble = offset for 3rd note. 0x00 = no arpeggio.
  *   Player cycles: base, base+hi, base+lo at ~50Hz (frame rate).
  *
- * Drum values encode noise parameters:
- *   bits 14-12 = tap register (LFSR feedback point, 0-7)
- *   bits 11-10 = envelope decay speed (0=very fast, 3=slow)
- *   bits  9-0  = noise frequency register
- *   0 = silence
+ * Drum values are PCM SFX IDs (from doom_sfx.h). 0 = silence.
  * ================================================================ */
 
 #define MUS_NUM_CH     4   /* Total music channels */
 #define MUS_CH_MELODY  0   /* VB sound channel index */
 #define MUS_CH_BASS    1
 #define MUS_CH_CHORDS  3
-#define MUS_CH_DRUMS   5   /* Noise channel (hardware ch6, index 0x05) */
+/* Drums are PCM samples on ch2/ch4, no dedicated hw channel */
 
 /* Arpeggio phase rate: ticks between note changes.
- * ISR runs at ~10kHz nominal (~7kHz effective).
- * 140 ticks ≈ 20ms ≈ 1 frame at 50Hz = C64 PAL arpeggio rate. */
-#define ARP_PHASE_TICKS  140
+ * ISR runs at 10kHz; g_musicTick increments 1:1 with ISR.
+ * 88 ticks ≈ 8.8ms ≈ arpeggio phase at ~38Hz. */
+#define ARP_PHASE_TICKS  88
 
 /* MIDI note number to VB frequency register lookup table (128 entries).
  * Copied from dph9.h / convert_midi.py's proven VB note table.
@@ -91,6 +89,9 @@ volatile u8 g_musicVolume = 3;
 /* Raw settings.music value (0-9) for pause-menu reconstruction */
 u8 g_musicSetting = 5;
 
+/* Raw settings.rumble value (0-9) for pause-menu reconstruction */
+u8 g_rumbleSetting = 0;
+
 /* Sequencer state */
 static const int   *mus_ch[MUS_NUM_CH] = {0, 0, 0, 0};  /* [melody, bass, chords, drums] */
 static const u16   *mus_timing   = 0;        /* shared timing (ms per step) */
@@ -102,7 +103,8 @@ static u8           mus_playing   = 0;
 static u16          mus_prevFreq[MUS_NUM_CH] = {0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF};
 static u32          mus_noteStart = 0;       /* g_musicTick when step started */
 
-/* VB sound channel indices for our 4 music channels */
+/* VB sound channel indices for tonal music channels.
+ * Index 3 (drums) is unused -- drums are PCM via playMusicDrum(). */
 static const u8 mus_hw_ch[MUS_NUM_CH] = { 0x00, 0x01, 0x03, 0x05 };
 
 /* Music volume lookup table: settings (0-9) → g_musicVolume.
@@ -110,6 +112,15 @@ static const u8 mus_hw_ch[MUS_NUM_CH] = { 0x00, 0x01, 0x03, 0x05 };
  * plus 3 music channels play simultaneously vs 1 PCM channel.
  * This reduced non-linear curve (max 4) keeps music balanced with SFX. */
 static const u8 musVolTable[10] = {0, 1, 1, 2, 2, 3, 3, 3, 4, 4};
+
+/* Channel volume LUT: g_volLut[vel4][vol] = (vel4 * vol) / 15
+ * vel4 = 0..15 (4-bit velocity from MIDI), vol = 0..4 (g_musicVolume) */
+static const u8 g_volLut[16][5] = {
+    {0,0,0,0,0}, {0,0,0,0,0}, {0,0,0,0,0}, {0,0,0,0,0},
+    {0,0,0,0,1}, {0,0,0,1,1}, {0,0,0,1,1}, {0,0,0,1,1},
+    {0,0,1,1,2}, {0,0,1,1,2}, {0,0,1,2,2}, {0,0,1,2,2},
+    {0,0,1,2,3}, {0,0,1,2,3}, {0,0,1,2,3}, {0,1,2,3,4}
+};
 
 u8 musicVolFromSetting(u8 setting) {
 	if (setting > 9) setting = 9;
@@ -151,7 +162,7 @@ static u8 distToVol(u8 distByte) {
  *   4. Turn off all channels
  *   5. SSTOP=0 to allow sound
  *   6. Configure PCM channels with DC waveform, freq=0, max envelope
- *   7. Configure noise channel (ch5) for drums
+ *   7. Silence noise channel (ch5) -- unused, drums are now PCM
  * ---------------------------------------------------------------- */
 void mp_init(void) {
 	int i;
@@ -185,13 +196,9 @@ void mp_init(void) {
 	SND_REGS[0x01].SxRAM = 0x01;  /* ch1: WAVEDATA2 (SQUARE) */
 	SND_REGS[0x03].SxRAM = 0x03;  /* ch3: WAVEDATA4 (TRIANGLE) */
 
-	/* --- Configure noise channel (ch5) for drums --- */
-	/* Noise channel doesn't need SxRAM (no waveform bank).
-	 * Initial state: disabled, will be configured per-hit by musPlayDrum(). */
-	SND_REGS[0x05].SxINT = 0x00;  /* disabled until first drum hit */
+	/* --- Noise channel (ch5) -- unused, drums are now PCM --- */
+	SND_REGS[0x05].SxINT = 0x00;
 	SND_REGS[0x05].SxLRV = 0x00;
-	SND_REGS[0x05].SxEV0 = 0xF0;  /* max initial envelope */
-	SND_REGS[0x05].SxEV1 = 0x00;  /* no tap/envelope mod yet */
 
 	/* --- Configure PCM player channel (ch4 SWEEP) --- */
 	SND_REGS[0x04].SxRAM = 0x04;  /* use WAVEDATA5 */
@@ -313,6 +320,14 @@ void musicLoadSong(u8 songId) {
 			mus_timing    = music_e1m3_timing;
 			mus_noteCount = MUSIC_E1M3_NOTE_COUNT;
 			break;
+		case SONG_E1M4:
+			mus_ch[0]     = music_e1m4_melody;
+			mus_ch[1]     = music_e1m4_bass;
+			mus_ch[2]     = music_e1m4_chords;
+			mus_ch[3]     = music_e1m4_drums;
+			mus_timing    = music_e1m4_timing;
+			mus_noteCount = MUSIC_E1M4_NOTE_COUNT;
+			break;
 		case SONG_E1M5:
 			mus_ch[0]     = music_e1m5_melody;
 			mus_ch[1]     = music_e1m5_bass;
@@ -343,7 +358,6 @@ void musicLoadSong(u8 songId) {
 void musicStart(void) {
 	u8 i;
 	if (!mus_ch[0] || mus_noteCount == 0) return;
-	if (g_musicVolume == 0) return;  /* volume 0 = no music */
 
 	mus_currNote  = 0;
 	for (i = 0; i < MUS_NUM_CH; i++) {
@@ -360,7 +374,7 @@ static void musSilenceAll(void) {
 	SND_REGS[0x00].SxINT = 0x00;  /* ch0 melody */
 	SND_REGS[0x01].SxINT = 0x00;  /* ch1 bass */
 	SND_REGS[0x03].SxINT = 0x00;  /* ch3 chords */
-	SND_REGS[0x05].SxINT = 0x00;  /* ch5 noise/drums */
+	SND_REGS[0x05].SxINT = 0x00;  /* ch5 noise (unused) */
 }
 
 /* Stop playback, reset position, and silence all music channels. */
@@ -368,6 +382,10 @@ void musicStop(void) {
 	mus_playing  = 0;
 	mus_currNote = 0;
 	musSilenceAll();
+}
+
+u8 isMusicPlaying(void) {
+	return mus_playing;
 }
 
 /* Helper: play or silence one VB waveform sound channel (melody/bass/chords).
@@ -385,57 +403,6 @@ static void musPlayChannel(u8 hw_ch, u16 freq, u8 vol) {
 		SND_REGS[hw_ch].SxEV1 = 0x00;
 		SND_REGS[hw_ch].SxINT = 0x9F;  /* enable, no interval */
 	}
-}
-
-/* Helper: play a drum hit on the noise channel (ch5 / hw 0x05).
- *
- * drumVal encoding: (tap << 12) | (decay << 10) | freq
- *   bits 14-12 = tap register (LFSR feedback point, 0-7)
- *                Tap controls timbre via LFSR sequence length:
- *                0=32767(white noise) 1=1953 2=254 3=217
- *                4=73 5=63 6=42 7=28(tonal)
- *   bits 11-10 = envelope decay speed (0=very fast, 3=slow)
- *   bits  9-0  = noise frequency register
- *   0 = silence
- *
- * vol: master volume (0-15). */
-static void musPlayDrum(u16 drumVal, u8 vol) {
-	u8 tap;
-	u8 decay;
-	u16 freq;
-	u8 ev0;
-
-	if (drumVal == 0 || vol == 0) {
-		SND_REGS[0x05].SxINT = 0x00;
-		return;
-	}
-
-	tap   = (drumVal >> 12) & 0x07;
-	decay = (drumVal >> 10) & 0x03;
-	freq  = drumVal & 0x3FF;
-
-	/* Slightly boost drum volume so they cut through the mix on VB hardware */
-	if (vol < 15) {
-		u16 d = (u16)vol * 14 / 10;
-		vol = (u8)(d > 15 ? 15 : d);
-	}
-
-	/* SxEV0: bits 7-4 = initial volume (0xF = max),
-	 *        bit  3   = envelope direction (0 = decay),
-	 *        bits 2-0 = step interval (0=fastest ... 7=slowest).
-	 * We use decay value (0-3) to set step interval for different drum types:
-	 *   kick/snare:  fast decay (0-1)
-	 *   hihats:      very fast (0)
-	 *   open hihat:  medium (2)
-	 *   crash/ride:  slow (3) */
-	ev0 = 0xF0 | (decay + 1);  /* initial=15, decay dir=0, interval=decay+1 */
-
-	SND_REGS[0x05].SxEV0 = ev0;
-	SND_REGS[0x05].SxEV1 = (tap << 4) | 0x01;  /* tap bits + enable envelope */
-	SND_REGS[0x05].SxFQL = freq & 0xFF;
-	SND_REGS[0x05].SxFQH = (freq >> 8) & 0x03;
-	SND_REGS[0x05].SxLRV = (vol << 4) | vol;
-	SND_REGS[0x05].SxINT = 0x80;  /* enable channel (resets LFSR / re-triggers) */
 }
 
 /* Update background music sequencer.  Call from any loop at any rate.
@@ -456,15 +423,12 @@ void updateMusic(bool isPlayMusic) {
 	vol = g_musicVolume;
 	elapsed = g_musicTick - mus_noteStart;
 
-	/* Volume 0: keep sequencer advancing but silence the channels */
+	/* Volume 0: stop the sequencer entirely to save CPU */
 	if (vol == 0) {
-		/* Silence once (when transitioning from audible to muted) */
-		if (mus_prevFreq[0] != 0xFFFE) {
-			musSilenceAll();
-			for (i = 0; i < MUS_NUM_CH; i++)
-				mus_prevFreq[i] = 0xFFFE; /* sentinel: muted */
-		}
-	} else {
+		musicStop();
+		return;
+	}
+	{
 		/* Update melody, bass, chords (channels 0-2) */
 		for (i = 0; i < 3; i++) {
 			if (mus_ch[i]) {
@@ -479,7 +443,10 @@ void updateMusic(bool isPlayMusic) {
 				if (mus_arp && i == mus_arpCh) {
 					u8 arpByte = mus_arp[mus_currNote];
 					if (arpByte != 0 && midiNote > 0 && vel4 > 0) {
-						u8 phase = (u8)((elapsed / ARP_PHASE_TICKS) % 3);
+						/* elapsed/88 via multiply-shift, then %3 via multiply-shift */
+						u16 divRes = (u16)((elapsed * 745u) >> 16);
+						u8 q3 = (u8)(((u32)divRes * 171u) >> 9);
+						u8 phase = (u8)(divRes - (u16)q3 * 3u);
 						if (phase == 1)
 							midiNote += (arpByte >> 4) & 0x0F;
 						else if (phase == 2)
@@ -502,7 +469,7 @@ void updateMusic(bool isPlayMusic) {
 						if (freq == 0) {
 							musPlayChannel(mus_hw_ch[i], 0, 0);
 						} else {
-							chVol = (vel4 * vol) / 15;
+							chVol = g_volLut[vel4][vol];
 							if (chVol == 0) chVol = 1;
 							musPlayChannel(mus_hw_ch[i], freq, chVol);
 						}
@@ -512,14 +479,7 @@ void updateMusic(bool isPlayMusic) {
 			}
 		}
 
-		/* Update drums (channel 3 in our array, hw ch5 NOISE) */
-		if (mus_ch[3]) {
-			u16 raw = (u16)mus_ch[3][mus_currNote];
-			if (raw != mus_prevFreq[3]) {
-				musPlayDrum(raw, vol);
-				mus_prevFreq[3] = raw;
-			}
-		}
+		/* Drums removed for performance -- drum channel data is ignored */
 	}
 
 	/* Advance through steps whose duration has fully elapsed.
@@ -529,7 +489,7 @@ void updateMusic(bool isPlayMusic) {
 	 * to mus_noteStart instead of resetting it to g_musicTick. */
 	{
 		u8 skipCount = 0;
-		dur_ticks = (u32)mus_timing[mus_currNote] * 8;
+		dur_ticks = (u32)mus_timing[mus_currNote] * 5;
 
 		while (elapsed >= dur_ticks) {
 			mus_noteStart += dur_ticks;  /* preserve overshoot */
@@ -542,7 +502,7 @@ void updateMusic(bool isPlayMusic) {
 				mus_prevFreq[i] = (mus_arp && i == mus_arpCh) ? 0xFFFE : 0xFFFF;
 
 			elapsed = g_musicTick - mus_noteStart;
-			dur_ticks = (u32)mus_timing[mus_currNote] * 8;
+			dur_ticks = (u32)mus_timing[mus_currNote] * 5;
 
 			if (++skipCount > 8) break;  /* safety: max 8 steps per frame */
 		}

@@ -20,11 +20,13 @@ extern const unsigned int pickup_shotgunTiles[48];
 #include "pickup_armor.h"
 #include "pickup_shells.h"
 #include "pickup_rocket.h"
+#include "pickup_chaingun.h"
+#include "pickup_keycard.h"
 
 /* Indexed by pickup type: 0=clip, 1=health_sm, 2=health_lg, 3=shotgun,
- * 4=helmet, 5=armor, 6=shells, 7=rocket, 8=key_red, 9=key_yellow, 10=key_blue
- * Keys use placeholder art (ammo clip) until key sprites are added. */
-static const unsigned int* const PICKUP_TILES[11] = {
+ * 4=helmet, 5=armor, 6=shells, 7=rocket, 8=key_red, 9=key_yellow, 10=key_blue,
+ * 11=chaingun */
+static const unsigned int* const PICKUP_TILES[12] = {
     pickup_ammo_clipTiles,
     pickup_health_smallTiles,
     pickup_health_largeTiles,
@@ -33,9 +35,10 @@ static const unsigned int* const PICKUP_TILES[11] = {
     pickup_armor_000Tiles,
     pickup_shells_000Tiles,
     pickup_rocketTiles,
-    pickup_ammo_clipTiles,     /* key red placeholder */
-    pickup_health_smallTiles,  /* key yellow placeholder */
-    pickup_health_largeTiles   /* key blue placeholder */
+    pickup_keycard_000Tiles,   /* key red */
+    pickup_keycard_000Tiles,   /* key yellow (same art, VB can't show color) */
+    pickup_keycard_000Tiles,   /* key blue (same art, VB can't show color) */
+    pickup_chaingunTiles       /* chaingun pickup */
 };
 
 #endif /* __PICKUP_SPRITES_H__ */

@@ -14,7 +14,7 @@ typedef struct {
 	const u8 *data;    /* packed 4-bit sample pairs (high nibble first) */
 	u16 cursor;        /* current sample index (not byte index) */
 	u16 length;        /* total samples */
-	u8 volume;         /* 0-15, for distance attenuation */
+	u8 volume;         /* 0-15, for distance attenuation (game SFX) */
 	u8 playing;        /* 0 = idle, 1 = playing */
 } PCMStream;
 
@@ -23,7 +23,7 @@ extern volatile PCMStream g_pcmPlayer;  /* channel 4 (SWEEP) */
 extern volatile PCMStream g_pcmEnemy;   /* channel 2 (WAVE3) */
 
 /* Master SFX volume (0-15). Derived from settings.sfx (0-9).
- * Applied in the timer ISR to scale all PCM output. */
+ * Applied in the timer ISR to scale PCM game SFX output. */
 extern volatile u8 g_sfxVolume;
 
 /* Music sequencer tick counter.  Incremented at 10,000 Hz by ISR.

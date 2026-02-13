@@ -22,6 +22,9 @@ u8 g_hasKeyRed = 0;
 u8 g_hasKeyYellow = 0;
 u8 g_hasKeyBlue = 0;
 
+/* O(1) tile-to-door lookup.  0xFF = no door at this tile. */
+static u8 g_doorLookup[MAP_X * MAP_Y];
+
 void initDoors(void) {
     u8 i;
     g_numDoors = 0;
@@ -40,8 +43,8 @@ void initDoors(void) {
         g_switches[i].activated = 0;
     }
 
-    /* Doors and switches are registered manually in the level setup (Phase 7).
-     * This just initializes the arrays. */
+    /* Clear door lookup table (0xFF = no door) */
+    setmem((void*)g_doorLookup, 0xFF, MAP_X * MAP_Y);
 }
 
 /* Register a door at a map position (tile 4=door, 6/7/8=secret, 9/10/11=key door) */
@@ -57,6 +60,7 @@ void registerDoor(u8 tileX, u8 tileY) {
         g_doors[g_numDoors].openAmount = 0;
         g_doors[g_numDoors].timer = 0;
         g_doors[g_numDoors].originalMap = orig;
+        g_doorLookup[(u16)tileY * MAP_X + (u16)tileX] = g_numDoors;
         g_numDoors++;
     }
 }
@@ -121,12 +125,8 @@ void updateDoors(void) {
 }
 
 s8 findDoorAt(u8 tx, u8 ty) {
-    u8 i;
-    for (i = 0; i < g_numDoors; i++) {
-        if (g_doors[i].tileX == tx && g_doors[i].tileY == ty)
-            return (s8)i;
-    }
-    return -1;
+    u8 idx = g_doorLookup[(u16)ty * MAP_X + (u16)tx];
+    return (idx != 0xFF) ? (s8)idx : -1;
 }
 
 static s8 findSwitchAt(u8 tx, u8 ty) {
@@ -194,24 +194,8 @@ u8 playerActivate(u16 playerX, u16 playerY, s16 playerA, u8 levelNum) {
     u8 px = (u8)(playerX >> 8);
     u8 py = (u8)(playerY >> 8);
 
-    /* Run door-from-position check first so E1M4 spawn door (27,28) always works when standing beside it,
-     * regardless of center ray or view angle. */
+    /* Position-based door checks: tile in front, perpendicular, 4-adjacent, 8-neighbor */
     {
-        /* E1M4 spawn exit: guarantee door (27,28) opens when player is on door or any adjacent tile */
-        if (levelNum == 4) {
-            if ((px == 27 && py == 28) || (px == 28 && py == 28) || (px == 29 && py == 28) ||
-                (px == 26 && py == 28) || (px == 27 && py == 27) || (px == 27 && py == 29) ||
-                (px == 30 && py == 28) || (px == 30 && py == 29) || (px == 29 && py == 29) || (px == 28 && py == 29)) {
-                idx = findDoorAt(27, 28);
-                if (idx >= 0 && (g_doors[(u8)idx].state == DOOR_CLOSED || g_doors[(u8)idx].state == DOOR_CLOSING)) {
-                    u8 cell = g_map[(u16)28 * MAP_X + (u16)27];
-                    if (cell == 9 && !g_hasKeyRed)   { (void)0; }
-                    else if (cell == 10 && !g_hasKeyYellow) { (void)0; }
-                    else if (cell == 11 && !g_hasKeyBlue) { (void)0; }
-                    else { toggleDoor((u8)idx); return 1; }
-                }
-            }
-        }
         s8 fdx = 0, fdy = 0;
         s16 fa = playerA & 1023;
         if (fa < 128 || fa >= 896) fdy = 1;
@@ -231,23 +215,6 @@ u8 playerActivate(u16 playerX, u16 playerY, s16 playerA, u8 levelNum) {
                 if (g_doors[(u8)idx].state == DOOR_OPEN) { toggleDoor((u8)idx); return 1; }
                 if (g_doors[(u8)idx].state == DOOR_CLOSED || g_doors[(u8)idx].state == DOOR_CLOSING) {
                     toggleDoor((u8)idx); return 1;
-                }
-            }
-        }
-        /* Two steps in front (e.g. door at (27,28) when at (29,28) facing west) */
-        {
-            s16 cx2 = (s16)px + 2 * fdx;
-            s16 cy2 = (s16)py + 2 * fdy;
-            if (cx2 >= 0 && cx2 < (s16)MAP_X && cy2 >= 0 && cy2 < (s16)MAP_Y) {
-                u8 checkX2 = (u8)cx2;
-                u8 checkY2 = (u8)cy2;
-                idx = findDoorAt(checkX2, checkY2);
-                if (idx >= 0 && (g_doors[(u8)idx].state == DOOR_CLOSED || g_doors[(u8)idx].state == DOOR_CLOSING)) {
-                    u8 cell = g_map[(u16)checkY2 * MAP_X + (u16)checkX2];
-                    if (cell == 9 && !g_hasKeyRed)   { (void)0; }
-                    else if (cell == 10 && !g_hasKeyYellow) { (void)0; }
-                    else if (cell == 11 && !g_hasKeyBlue) { (void)0; }
-                    else { toggleDoor((u8)idx); return 1; }
                 }
             }
         }
@@ -333,6 +300,9 @@ u8 playerActivate(u16 playerX, u16 playerY, s16 playerA, u8 levelNum) {
         }
     }
 
+    /* Distance gate: require ~2.5 tiles proximity for center-ray activation */
+    if (g_wallSso[RAYCAST_CENTER_COL] < 50) return 0;
+
     /* Center ray: door or switch (for when not standing adjacent) */
     if (wt == WALL_TYPE_DOOR || (wt >= 6 && wt <= 11)) {
         if (wt == 9 && !g_hasKeyRed)   return 2;
@@ -342,21 +312,14 @@ u8 playerActivate(u16 playerX, u16 playerY, s16 playerA, u8 levelNum) {
         if (idx >= 0) { toggleDoor((u8)idx); return 1; }
     }
     if (wt == WALL_TYPE_SWITCH) {
-        if (g_wallSso[RAYCAST_CENTER_COL] < 25) return 0;
         idx = findSwitchAt(g_centerWallTileX, g_centerWallTileY);
         if (idx >= 0) { activateSwitch((u8)idx); return 1; }
     }
 
-    if (g_wallSso[RAYCAST_CENTER_COL] < 25) return 0;
     return 2;
 }
 
 u8 getDoorOpenAmount(u8 tileX, u8 tileY) {
-    u8 i;
-    for (i = 0; i < g_numDoors; i++) {
-        if (g_doors[i].tileX == tileX && g_doors[i].tileY == tileY) {
-            return g_doors[i].openAmount;
-        }
-    }
-    return 0;
+    u8 idx = g_doorLookup[(u16)tileY * MAP_X + (u16)tileX];
+    return (idx != 0xFF) ? g_doors[idx].openAmount : 0;
 }

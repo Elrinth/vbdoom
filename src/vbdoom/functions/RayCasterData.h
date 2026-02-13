@@ -83,6 +83,7 @@ const u8 e1m1_map[1024] = {
 #include "../assets/doom/e1m2.h"
 #include "../assets/doom/e1m3.h"
 #include "../assets/doom/e1m4.h"
+#include "../assets/doom/dm1.h"
 
 /* g_texture8 removed -- was unused and wasted 4KB of ROM */
 

@@ -13,6 +13,7 @@
 #include "../assets/images/pistol_sprites.h"
 #include "../assets/images/shotgun_sprites.h"
 #include "../assets/images/rocket_launcher_sprites.h"
+#include "../assets/images/sprites/chaingun/chaingun_sprites.h"
 
 extern BYTE vb_doomTiles[];
 extern BYTE vb_doomMap[];
@@ -49,6 +50,12 @@ void loadRocketLauncherSprites(void) {
 	/* Rocket launcher shares the same char region as shotgun (120+) */
 	u32 addr = 0x00078000 + (u32)ROCKET_LAUNCHER_CHAR_START * 16;
 	copymem((void*)addr, (void*)rocketLauncherTiles, ROCKET_LAUNCHER_TILE_BYTES);
+}
+
+void loadChaingunSprites(void) {
+	/* Chaingun shares the same char region as shotgun/rocket (120+) */
+	u32 addr = 0x00078000 + (u32)CHAINGUN_CHAR_START * 16;
+	copymem((void*)addr, (void*)chaingunTiles, CHAINGUN_TILE_BYTES);
 }
 
 void loadEnemyFrame(u8 enemyIdx, const unsigned int* tileData) {
@@ -181,25 +188,30 @@ u8 ones;
 u8 tens;
 u8 hundreds;
 
+/* Fast digit extraction without division (V810 div is ~38 cycles).
+ * Uses multiply-by-reciprocal: (n * 205) >> 11 ≈ n / 10 for n < 1024. */
+static void extractDigits(u16 val) {
+	u16 q = ((u32)val * 205) >> 11;  /* val / 10 */
+	ones = (u8)(val - q * 10);       /* val % 10 */
+	val = q;
+	q = ((u32)val * 205) >> 11;      /* val / 10 */
+	tens = (u8)(val - q * 10);
+	hundreds = (u8)q;
+}
+
 void drawHealth(u16 iHealth) {
-	ones = iHealth % 10;
-	tens = (iHealth / 10) % 10;
-	hundreds = (iHealth / 100) % 10;
+	extractDigits(iHealth);
 	drawBigUINumbers(1, ones, tens, hundreds, 1);
 }
 void drawArmour(u16 iArmour) {
-	ones = iArmour % 10;
-	tens = (iArmour / 10) % 10;
-	hundreds = (iArmour / 100) % 10;
+	extractDigits(iArmour);
 	drawBigUINumbers(2, ones, tens, hundreds, 1);
 }
 
 /* Draw right-side small digits for a specific ammo type (1=BULL, 2=SHEL, 3=RCKT, 4=CELL) */
 void drawSmallAmmo(u16 iAmmo, u8 iAmmoType) {
 	if (iAmmoType == 0) return;
-	ones = iAmmo % 10;
-	tens = (iAmmo / 10) % 10;
-	hundreds = (iAmmo / 100) % 10;
+	extractDigits(iAmmo);
 	drawPos = 3280-3072;
 	switch (iAmmoType) {
 		case 1: drawPos = 3280-128-3072; break;
@@ -222,9 +234,7 @@ void drawSmallAmmo(u16 iAmmo, u8 iAmmoType) {
 }
 
 void drawUpdatedAmmo(u16 iAmmo, u8 iAmmoType) {
-	ones = iAmmo % 10;
-	tens = (iAmmo / 10) % 10;
-	hundreds = (iAmmo / 100) % 10;
+	extractDigits(iAmmo);
 	drawBigUINumbers(0, ones, tens, hundreds, iAmmoType);
 	drawSmallAmmo(iAmmo, iAmmoType);
 }
@@ -234,7 +244,7 @@ void drawUpdatedAmmo(u16 iAmmo, u8 iAmmoType) {
  * Position: cols 17-19, rows 1-2 (2 tiles left, 1 down from face). Styles: 0=normal, 1=bright, 2=rectangled.
  * vb_doomMap: row 18=normal digits, 19=bright, 20=rectangled. Byte offset = ((18+style)*48 + digit) * 2.
  */
-void drawWeaponSlotNumbers(u8 hasPistol, u8 hasShotgun, u8 hasRocket, u8 currentWeapon) {
+void drawWeaponSlotNumbers(u8 hasPistol, u8 hasShotgun, u8 hasRocket, u8 hasChaingun, u8 currentWeapon) {
 	/* BGMap: 64 cols, 128 bytes/row. Top row (2,3,4) at row 1: 162,164,166. Bottom row (5,6,7) at row 2: 290,292,294 */
 	/* vb_doomMap byte offset for digit N, style S: ((18+S)*48 + N) * 2 */
 	u16 mapByteOff;
@@ -253,8 +263,8 @@ void drawWeaponSlotNumbers(u8 hasPistol, u8 hasShotgun, u8 hasRocket, u8 current
 	style = !hasShotgun ? 0 : (currentWeapon == 3) ? 2 : 1;
 	DRAW_SLOT(164, 3);
 
-	/* Slot 4 (chaingun): normal - not implemented */
-	style = 0;
+	/* Slot 4 (chaingun): rectangled if equipped, bright if owned, else normal */
+	style = !hasChaingun ? 0 : (currentWeapon == 5) ? 2 : 1;
 	DRAW_SLOT(166, 4);
 
 	/* Slot 5 (rocket): rectangled if equipped, bright if owned, else normal */
@@ -548,6 +558,39 @@ void drawWeapon(u8 iWeapon, s16 swayX, s16 swayY, u8 iFrame, u8 iWeaponChangeTim
 			blackY = lockedY + 1;
 			blackXOff = 1;
 		break;
+		case 5: // chaingun (3 frames: idle, shoot1, shoot2)
+			posX = 160;
+			if (iFrame == 0) {
+				xTiles = CHAINGUN_F0_XTILES;
+				rowCount = CHAINGUN_F0_ROWS;
+				lockedY = 192 - CHAINGUN_F0_ROWS * 8;
+				weapMapPtr = chaingunFrame0Map;
+				weapMapStride = CHAINGUN_F0_XTILES;
+				weapBlkMapPtr = chaingunBlkFrame0Map;
+				weapBlkStride = CHAINGUN_BLK_F0_XTILES;
+				blkRowCount = CHAINGUN_BLK_F0_ROWS;
+			} else if (iFrame == 1) {
+				xTiles = CHAINGUN_F1_XTILES;
+				rowCount = CHAINGUN_F1_ROWS;
+				lockedY = 192 - CHAINGUN_F1_ROWS * 8;
+				weapMapPtr = chaingunFrame1Map;
+				weapMapStride = CHAINGUN_F1_XTILES;
+				weapBlkMapPtr = chaingunBlkFrame1Map;
+				weapBlkStride = CHAINGUN_BLK_F1_XTILES;
+				blkRowCount = CHAINGUN_BLK_F1_ROWS;
+			} else {
+				xTiles = CHAINGUN_F2_XTILES;
+				rowCount = CHAINGUN_F2_ROWS;
+				lockedY = 192 - CHAINGUN_F2_ROWS * 8;
+				weapMapPtr = chaingunFrame2Map;
+				weapMapStride = CHAINGUN_F2_XTILES;
+				weapBlkMapPtr = chaingunBlkFrame2Map;
+				weapBlkStride = CHAINGUN_BLK_F2_XTILES;
+				blkRowCount = CHAINGUN_BLK_F2_ROWS;
+			}
+			blackY = lockedY + 1;
+			blackXOff = 1;
+		break;
 		default:
 		break;
 	}
@@ -672,21 +715,68 @@ void drawDoomFace(u8 *face)
 	copymem((void*)(BGMap(LAYER_UI)+428), (BYTE*)faceMap + 18, 6);
 }
 
-/* Debug: draw USE target tile (center ray) and door flag: tileX tileY isDoor (5 digits + 2 blanks).
- * Layout: "XX YY D" with blank tiles between for readability. */
-void drawUseTargetDebug(u8 tileX, u8 tileY, u8 isDoor) {
-	u16 sp = 96*18;
-	u16 blank = sp+20;  /* blank tile same as drawPlayerInfo */
-	u16 dp = 3*128;     /* row 3 = bottom of visible HUD */
-	u8 t0 = tileX / 10, t1 = tileX % 10;
-	u8 u0 = tileY / 10, u1 = tileY % 10;
-	copymem((void*)BGMap(LAYER_UI)+dp,     (void*)(vb_doomMap+sp+(t0*2)), 2);
-	copymem((void*)BGMap(LAYER_UI)+dp+2,   (void*)(vb_doomMap+sp+(t1*2)), 2);
-	copymem((void*)BGMap(LAYER_UI)+dp+4,   (void*)(vb_doomMap+blank), 2);
-	copymem((void*)BGMap(LAYER_UI)+dp+6,   (void*)(vb_doomMap+sp+(u0*2)), 2);
-	copymem((void*)BGMap(LAYER_UI)+dp+8,   (void*)(vb_doomMap+sp+(u1*2)), 2);
-	copymem((void*)BGMap(LAYER_UI)+dp+10,  (void*)(vb_doomMap+blank), 2);
-	copymem((void*)BGMap(LAYER_UI)+dp+12,  (void*)(vb_doomMap+sp+(isDoor*2)), 2);
+/* Draw keycard indicators: 3 small filled/empty tiles in the HUD area
+ * next to the weapon slots. Uses cols 20-22 (right of ARMS, left of face).
+ * Row 1 = Red key, Row 2 = Yellow key, Row 3 = Blue key.
+ * Offset in BGMap: col*2 + row*128.
+ * A non-zero entry from vb_doomMap shows a filled key indicator,
+ * zero (transparent) means not collected.
+ * We use tile index 18*48+20 = row 18 in the tilemap for a "%" char as placeholder,
+ * or simply use a solid tile from the tileset for key indicators. */
+void drawKeyCards(u8 hasRed, u8 hasYellow, u8 hasBlue) {
+	/* Place key indicators at BGMap col 20, rows 1-3 (right of weapon numbers).
+	 * BGMap offset = col*2 + row*128 */
+	u16 emptyTile = 0;  /* transparent/blank tile */
+	/* Use a small bright tile: we'll reuse the ":" character from the number set
+	 * (tile from row 18, col 10 in vb_doomMap = offset 18*96+20) as the key icon.
+	 * It shows up as a small bright dot. */
+	u16 keyTile;
+	copymem((void*)&keyTile, (void*)(vb_doomMap + 18*96 + 20), 2);  /* ":" tile */
+
+	/* Row 1, col 20 = byte offset 128 + 40 = 168 */
+	if (hasRed)
+		*((u16*)((void*)BGMap(LAYER_UI) + 168)) = keyTile;
+	else
+		*((u16*)((void*)BGMap(LAYER_UI) + 168)) = emptyTile;
+
+	/* Row 2, col 20 = byte offset 256 + 40 = 296 */
+	if (hasYellow)
+		*((u16*)((void*)BGMap(LAYER_UI) + 296)) = keyTile;
+	else
+		*((u16*)((void*)BGMap(LAYER_UI) + 296)) = emptyTile;
+
+	/* Row 3, col 20 = byte offset 384 + 40 = 424 */
+	if (hasBlue)
+		*((u16*)((void*)BGMap(LAYER_UI) + 424)) = keyTile;
+	else
+		*((u16*)((void*)BGMap(LAYER_UI) + 424)) = emptyTile;
+}
+
+void drawFragHUD(u8 fragCount) {
+	/* "FRAG" text: 4x1 tiles from vb_doom.png at tile (2, 7).
+	 * vb_doomMap byte offset = 7 * 96 + 2 * 2 = 676.
+	 * Draw at HUD BGMap col 33 (x=264), row 3 (bottom row).
+	 * BGMap offset = 3 * 128 + 33 * 2 = 450. */
+	copymem((void*)BGMap(LAYER_UI) + 450, (void*)(vb_doomMap + 676), 8);
+
+	/* Draw frag count (2 digits) at row 2, col 33 (above FRAG text).
+	 * BGMap offset = 2 * 128 + 33 * 2 = 322.
+	 * Use small digits from vb_doomMap row 19 (bright) = offset 19*96 */
+	{
+		u16 digitOff = 19 * 96;  /* row 19 = bright small digits */
+		u8 fragTens, fragOnes;
+		u16 q;
+		q = ((u32)fragCount * 205) >> 11;
+		fragOnes = fragCount - (u8)(q * 10);
+		fragTens = (u8)q;
+
+		if (fragTens > 0) {
+			*((u16*)((void*)BGMap(LAYER_UI) + 322)) = *((u16*)(vb_doomMap + digitOff + fragTens * 2));
+		} else {
+			*((u16*)((void*)BGMap(LAYER_UI) + 322)) = 0;  /* blank */
+		}
+		*((u16*)((void*)BGMap(LAYER_UI) + 324)) = *((u16*)(vb_doomMap + digitOff + fragOnes * 2));
+	}
 }
 
 void drawPlayerInfo(u16 *fPlayerX, u16 *fPlayerY, s16 *fPlayerAng) {

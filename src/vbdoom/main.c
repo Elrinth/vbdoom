@@ -3,7 +3,12 @@
 #include <settings.h>
 #include "functions/sndplay.h"
 #include "functions/timer.h"
+#include "functions/link.h"
 #include "components/intermission.h"
+#include "components/menu_multiplayer.h"
+
+/* Volume conversion LUT: setting (0-9) -> hardware (0-15) */
+static const u8 g_settingToHw[10] = {0,1,3,5,6,8,10,11,13,15};
 
 int main()
 {
@@ -11,7 +16,7 @@ int main()
 
 	Settings settings = {
 		9,
-		5,
+		3,
 		0
 	};
     initSystem();
@@ -19,7 +24,7 @@ int main()
     mp_init();  /* Initialize PCM audio before title screen (for menu SFX) */
 
     /* Map settings to hardware volume levels */
-    g_sfxVolume = (u8)((u16)settings.sfx * 15 / 9);
+    g_sfxVolume = g_settingToHw[settings.sfx];
     g_musicSetting = settings.music;
     g_musicVolume = musicVolFromSetting(settings.music);
 
@@ -32,6 +37,7 @@ int main()
     		scene = titleScreen();
     	if  (scene == 1) {
     		/* Switch to level music when entering the game */
+    		g_startLevel = 1;
     		musicLoadSong(SONG_E1M1);
     		musicStart();
 			/* Show the episode map before gameplay starts */
@@ -41,24 +47,42 @@ int main()
 			musicLoadSong(SONG_TITLE);
 			musicStart();
     	}
+    	if (scene == 3) {
+    		/* Multiplayer menu: returns level number (1-7) or 0 (cancel) */
+    		u8 mpLevel = multiplayerMenu();
+    		if (mpLevel > 0) {
+    			/* Start multiplayer game with selected level */
+    			g_startLevel = mpLevel;
+    			musicLoadSong(SONG_E1M1);
+    			musicStart();
+    			if (g_gameMode != GAMEMODE_DEATHMATCH)
+    				showIntermission();
+    			scene = gameLoop();
+    			/* Reset multiplayer state when returning */
+    			g_isMultiplayer = false;
+    			musicLoadSong(SONG_TITLE);
+    			musicStart();
+    		} else {
+    			scene = 0;  /* cancelled, return to title */
+    		}
+    	}
     	if (scene == 4) {
 			scene = optionsScreen(&settings);
 			/* Update volumes from potentially changed settings */
-			g_sfxVolume = (u8)((u16)settings.sfx * 15 / 9);
+			g_sfxVolume = g_settingToHw[settings.sfx];
 			g_musicSetting = settings.music;
 			g_musicVolume = musicVolFromSetting(settings.music);
-			/* No stop/start needed -- sequencer keeps running silently at vol 0
-			 * and resumes audibly when vol comes back. */
+			g_rumbleSetting = settings.rumble;
+			/* Sync music with volume setting */
+			if (g_musicVolume == 0) {
+				musicStop();
+			} else if (!isMusicPlaying()) {
+				musicStart();
+			}
 		}
     	if (scene == 5) {
     		scene = creditsScreen();
     	}
     }
-
-	//precautionScreen();
-	//languageSelectionScreen();
-
-
-
     return 0;
 }

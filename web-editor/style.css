@@ -196,7 +196,7 @@ header h1 { margin: 0 0 0.5rem 0; font-size: 1.25rem; }
 }
 .modal-content h3 { margin: 0 0 0.5rem 0; }
 .modal-content p { margin: 0.25rem 0; font-size: 0.9rem; }
-.modal-content textarea {
+.modal-content textarea:not(.export-section-textarea) {
   width: 800px;
   height: 400px;
   margin: 0.5rem 0;
@@ -224,6 +224,29 @@ header h1 { margin: 0 0 0.5rem 0; font-size: 1.25rem; }
 .integration-checklist .hint { margin: 0.5rem 0 0 0; font-size: 0.75rem; color: #888; }
 .modal-content .modal-buttons { display: flex; gap: 0.5rem; margin-top: 0.5rem; flex-wrap: wrap; }
 .modal-content-wide { max-width: 560px; }
+.modal-content-export { max-width: 900px; width: 900px; }
+
+/* Export sections */
+.export-sections { overflow-y: auto; max-height: 70vh; display: flex; flex-direction: column; gap: 0.6rem; padding-right: 0.25rem; }
+.export-section { border: 1px solid #444; border-radius: 6px; overflow: hidden; }
+.export-section-header {
+  display: flex; align-items: center; justify-content: space-between;
+  background: #1a2530; padding: 0.35rem 0.6rem; border-bottom: 1px solid #444;
+}
+.export-section-title { font-family: monospace; font-size: 0.82rem; font-weight: bold; color: #9cf; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.export-copy-btn {
+  flex-shrink: 0; margin-left: 0.5rem; padding: 0.2rem 0.65rem;
+  font-size: 0.75rem; font-weight: bold; letter-spacing: 0.04em;
+  background: #3a6; color: #fff; border: none; border-radius: 4px; cursor: pointer;
+  transition: background 0.15s;
+}
+.export-copy-btn:hover { background: #4b7; }
+.export-copy-btn.copied { background: #27a; }
+.export-section-textarea {
+  width: 100%; box-sizing: border-box; margin: 0; padding: 0.45rem 0.6rem;
+  font-family: monospace; font-size: 0.78rem; line-height: 1.35;
+  background: #111; color: #0f0; border: none; resize: vertical;
+}
 .help-content { font-size: 0.9rem; margin: 0.5rem 0; }
 .help-content ul { margin: 0.35rem 0; padding-left: 1.5rem; }
 .help-content p { margin: 0.5rem 0; }

@@ -327,10 +327,22 @@ bool hasLineOfSight(u16 fromX, u16 fromY, u16 toX, u16 toY)
         s16 err = (s16)dx - (s16)dy;
         while (x0 != x1 || y0 != y1) {
             s16 e2 = err * 2;
-            if (e2 > -(s16)dy) { err -= dy; x0 += sx; }
-            if (e2 <  (s16)dx) { err += dx; y0 += sy; }
+            u8 stepX = (e2 > -(s16)dy);
+            u8 stepY = (e2 <  (s16)dx);
+            if (stepX) { err -= dy; x0 += sx; }
+            if (stepY) { err += dx; y0 += sy; }
             /* Reached destination -- don't test the enemy's own tile */
             if (x0 == x1 && y0 == y1) break;
+            /* On diagonal steps, check both intermediate cardinal tiles
+             * to prevent LOS through wall corners. */
+            if (stepX && stepY) {
+                u8 tv1 = g_map[(u16)(u8)(y0 - sy) * MAP_X + (u16)(u8)x0];
+                u8 tv2 = g_map[(u16)(u8)y0 * MAP_X + (u16)(u8)(x0 - sx)];
+                if (tv1 != 0 && !(tv1 == WALL_TYPE_DOOR || (tv1 >= 6 && tv1 <= 11)))
+                    return false;
+                if (tv2 != 0 && !(tv2 == WALL_TYPE_DOOR || (tv2 >= 6 && tv2 <= 11)))
+                    return false;
+            }
             /* Door-aware wall check: allow LOS through half-open doors (4, 6-11) */
             {
                 u8 tv = g_map[(u16)(u8)y0 * MAP_X + (u16)(u8)x0];
