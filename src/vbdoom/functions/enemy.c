@@ -15,6 +15,25 @@ EnemyState g_enemies[MAX_ENEMIES];
 /* Frame counter from game loop -- used for distant enemy AI throttling */
 extern u16 g_levelFrames;
 
+/* LOS cache: "enemy sees player" per enemy, valid for 2 frames to cut hasLineOfSight calls */
+static bool s_losCache[MAX_ENEMIES];
+static u16 s_losCacheFrame[MAX_ENEMIES];
+
+static bool enemySeesPlayerCached(u8 idx, u16 playerX, u16 playerY) {
+    u8 j;
+    if (g_levelFrames == 0) {
+        for (j = 0; j < MAX_ENEMIES; j++) s_losCacheFrame[j] = 0;
+    }
+    if (s_losCacheFrame[idx] != 0 && (u16)(g_levelFrames - s_losCacheFrame[idx]) <= 2)
+        return s_losCache[idx];
+    {
+        bool r = hasLineOfSight(g_enemies[idx].x, g_enemies[idx].y, playerX, playerY);
+        s_losCache[idx] = r;
+        s_losCacheFrame[idx] = g_levelFrames;
+        return r;
+    }
+}
+
 /* Distance threshold for AI throttling: enemies farther than this
  * only get full AI updates every 4th frame.  ~8 map tiles squared. */
 #define ENEMY_FAR_DIST_SQ  2000000
@@ -263,13 +282,13 @@ static void enemyNewChaseDir(EnemyState *e, u8 idx, u16 playerX, u16 playerY) {
  * Returns true if the enemy should attack this frame.
  * Farther enemies are less likely to fire per frame.
  */
-static bool checkMissileRange(EnemyState *e, u16 playerX, u16 playerY) {
+static bool checkMissileRange(EnemyState *e, u8 idx, u16 playerX, u16 playerY) {
     s16 dx = (s16)playerX - (s16)e->x;
     s16 dy = (s16)playerY - (s16)e->y;
     u16 dist;
 
-    /* Must have line of sight */
-    if (!hasLineOfSight(e->x, e->y, playerX, playerY)) return false;
+    /* Must have line of sight (cached 2 frames) */
+    if (!enemySeesPlayerCached(idx, playerX, playerY)) return false;
 
     /* Approximate distance in fixed-point units */
     dist = approxDist(dx, dy);
@@ -889,7 +908,7 @@ static u8 hitscanFindEnemy(u16 playerX, u16 playerY, s16 aimAngle, s16 halfCone)
         dist = ((s32)dx * dx + (s32)dy * dy) >> 8;
         if (dist > HITSCAN_RANGE_DIST) continue;
 
-        if (!hasLineOfSight(playerX, playerY, e->x, e->y)) continue;
+        if (!enemySeesPlayerCached(i, playerX, playerY)) continue;
 
         if (dist < bestDist) {
             bestDist = dist;
@@ -988,15 +1007,15 @@ u8 playerShoot(u16 playerX, u16 playerY, s16 playerA, u8 weaponType) {
  * Zombieman: 1 bullet, 3-15 damage.
  * Sergeant: 3 pellets, each 3-15 damage.
  */
-static void enemyFireAtPlayer(EnemyState *e, u16 playerX, u16 playerY, s16 playerA) {
+static void enemyFireAtPlayer(EnemyState *e, u8 idx, u16 playerX, u16 playerY, s16 playerA) {
     s16 dx = (s16)playerX - (s16)e->x;
     s16 dy = (s16)playerY - (s16)e->y;
     u16 dist = approxDist(dx, dy);
     u8 pellets, p;
     u8 totalDamage = 0;
 
-    /* Must have line of sight */
-    if (!hasLineOfSight(e->x, e->y, playerX, playerY)) return;
+    /* Must have line of sight (cached 2 frames) */
+    if (!enemySeesPlayerCached(idx, playerX, playerY)) return;
 
     /* IMPs use impAttack() instead of this function.
      * Commando fires 2 rapid shots per attack frame, sergeant 3 pellets. */
@@ -1072,7 +1091,7 @@ static void impAttack(EnemyState *e, u8 idx, u16 playerX, u16 playerY, s16 playe
     if (dist < IMP_MELEE_DIST * 2) {
         /* Melee claw attack */
         u8 damage = (FAST_MOD8(enemyRandom()) + 1) * 3;  /* Doom A_TroopAttack: 3-24 */
-        if (hasLineOfSight(e->x, e->y, playerX, playerY)) {
+        if (enemySeesPlayerCached(idx, playerX, playerY)) {
             g_lastEnemyDamage += damage;
             if (g_lastEnemyDamage > 50) g_lastEnemyDamage = 50;  /* per-frame cap */
             /* Compute damage direction */
@@ -1108,7 +1127,7 @@ static void demonAttack(EnemyState *e, u8 idx, u16 playerX, u16 playerY, s16 pla
     /* Only melee -- check close range */
     if (dist < DEMON_MELEE_DIST * 2) {
         u8 damage = (FAST_MOD10(enemyRandom()) + 1) * 4;  /* Doom A_SargAttack: 4-40 */
-        if (hasLineOfSight(e->x, e->y, playerX, playerY)) {
+        if (enemySeesPlayerCached(idx, playerX, playerY)) {
             g_lastEnemyDamage += damage;
             if (g_lastEnemyDamage > 50) g_lastEnemyDamage = 50;  /* per-frame cap */
             /* Compute damage direction */
@@ -1194,7 +1213,7 @@ void updateEnemies(u16 playerX, u16 playerY, s16 playerA) {
                 s32 attackDist = (e->enemyType == ETYPE_DEMON)
                     ? (s32)DEMON_ATTACK_ENTER : (s32)ENEMY_ATTACK_DIST;
                 if (dist < attackDist &&
-                    checkMissileRange(e, playerX, playerY)) {
+                    checkMissileRange(e, i, playerX, playerY)) {
                     e->state = ES_ATTACK;
                     e->stateTimer = 0;
                     e->animFrame = 0;
@@ -1263,7 +1282,7 @@ void updateEnemies(u16 playerX, u16 playerY, s16 playerA) {
                     e->animFrame++;
 
                     /* Fire on EVERY frame of the burst */
-                    enemyFireAtPlayer(e, playerX, playerY, playerA);
+                    enemyFireAtPlayer(e, i, playerX, playerY, playerA);
 
                     if (e->animFrame >= COMMANDO_ATTACK_ANIM_FRAMES) {
                         e->animFrame = 0;
@@ -1288,7 +1307,7 @@ void updateEnemies(u16 playerX, u16 playerY, s16 playerA) {
 
                     if (e->animFrame == 1) {
                         /* Fire on second frame */
-                        enemyFireAtPlayer(e, playerX, playerY, playerA);
+                        enemyFireAtPlayer(e, i, playerX, playerY, playerA);
                     }
 
                     if (e->animFrame >= ATTACK_ANIM_FRAMES) {

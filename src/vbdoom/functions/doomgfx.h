@@ -53,6 +53,16 @@ void drawArmour(u16 iArmour);
 
 void drawPlayerInfo(u16 *fPlayerX, u16 *fPlayerY, s16 *fPlayerAng);
 
+void drawDebugMpP2(u16 p2x, u16 p2y);
+void drawDebugMpLink(u16 sendCnt, u16 recvCnt);
+void drawDebugMpLinkUpdates(u16 count);
+void drawDebugMpRecvChanged(u16 count);
+void drawDebugMpLinkTestRecv(u8 value);
+void drawDebugMpRecvRaw(u8 r0, u8 r1, u8 r2, u8 r3);
+void drawDebugMpApplied(u8 applied);
+void drawDebugMpSame(u8 same);
+void drawDebugMpPollRecv(u8 count);
+
 /* Draw Doom slot numbers (2,3,4 top; 5,6,7 bottom) for owned weapons, left of face */
 void drawWeaponSlotNumbers(u8 hasPistol, u8 hasShotgun, u8 hasRocket, u8 hasChaingun, u8 currentWeapon);
 

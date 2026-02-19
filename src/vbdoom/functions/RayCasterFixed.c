@@ -121,6 +121,9 @@ u8 g_centerWallType = 0;
 u8 g_centerWallTileX = 0;
 u8 g_centerWallTileY = 0;
 
+/* Cached view cos/sin for Trace distance (set once per frame in Start) */
+static u8 g_viewCos, g_viewSin, g_viewCosInv, g_viewSinInv;
+
 bool IsWall(u8 tileX, u8 tileY)
 {
     if(tileX > MAP_X - 1 || tileY > MAP_Y - 1)
@@ -137,6 +140,16 @@ u8 GetWallType(u8 tileX, u8 tileY)
         return 1;
     }
     return g_map[(u16)tileY * MAP_X + (u16)tileX];
+}
+
+/* Inline versions for hot path (CalculateDistance) to avoid call overhead */
+static inline bool IsWallInline(u8 tx, u8 ty) {
+    if (tx > MAP_X - 1 || ty > MAP_Y - 1) return true;
+    return g_map[(u16)ty * MAP_X + (u16)tx] != 0;
+}
+static inline u8 GetWallTypeInline(u8 tx, u8 ty) {
+    if (tx > MAP_X - 1 || ty > MAP_Y - 1) return 1;
+    return g_map[(u16)ty * MAP_X + (u16)tx];
 }
 
 void LookupHeight(u16 distance, u8* height, u16* step) {
@@ -188,7 +201,7 @@ void CalculateDistance(u16 rayX, u16 rayY, u16 rayA, s16* deltaX, s16* deltaY, u
             for(;;)
             {
                 tileY += tileStepY;
-                if(IsWall(tileX, tileY))
+                if(IsWallInline(tileX, tileY))
                 {
                     goto HorizontalHit;
                 }
@@ -204,7 +217,7 @@ void CalculateDistance(u16 rayX, u16 rayY, u16 rayA, s16* deltaX, s16* deltaY, u
             for(;;)
             {
                 tileX += tileStepX;
-                if(IsWall(tileX, tileY))
+                if(IsWallInline(tileX, tileY))
                 {
                     goto VerticalHit;
                 }
@@ -256,7 +269,7 @@ void CalculateDistance(u16 rayX, u16 rayY, u16 rayA, s16* deltaX, s16* deltaY, u
             while((tileStepY == 1 && (interceptY >> 8 < tileY)) || (tileStepY == -1 && (interceptY >> 8 >= tileY)))
             {
                 tileX += tileStepX;
-                if(IsWall(tileX, tileY))
+                if(IsWallInline(tileX, tileY))
                 {
                     goto VerticalHit;
                 }
@@ -265,7 +278,7 @@ void CalculateDistance(u16 rayX, u16 rayY, u16 rayA, s16* deltaX, s16* deltaY, u
             while((tileStepX == 1 && (interceptX >> 8 < tileX)) || (tileStepX == -1 && (interceptX >> 8 >= tileX)))
             {
                 tileY += tileStepY;
-                if(IsWall(tileX, tileY))
+                if(IsWallInline(tileX, tileY))
                 {
                     goto HorizontalHit;
                 }
@@ -279,7 +292,7 @@ HorizontalHit:
     hitY       = (tileY << 8) + (tileStepY == -1 ? 256 : 0);
     *textureNo = 0;
     *textureX  = interceptX & 0xFF;
-    g_lastWallType = GetWallType(tileX, tileY);
+    g_lastWallType = GetWallTypeInline(tileX, tileY);
     g_lastWallTileX = tileX;
     g_lastWallTileY = tileY;
     goto WallHit;
@@ -289,7 +302,7 @@ VerticalHit:
     hitY       = interceptY + (tileStepY == 1 ? 256 : 0);
     *textureNo = 1;
     *textureX  = interceptY & 0xFF;
-    g_lastWallType = GetWallType(tileX, tileY);
+    g_lastWallType = GetWallTypeInline(tileX, tileY);
     g_lastWallTileX = tileX;
     g_lastWallTileY = tileY;
     goto WallHit;
@@ -343,7 +356,7 @@ bool hasLineOfSight(u16 fromX, u16 fromY, u16 toX, u16 toY)
                 if (tv2 != 0 && !(tv2 == WALL_TYPE_DOOR || (tv2 >= 6 && tv2 <= 11)))
                     return false;
             }
-            /* Door-aware wall check: allow LOS through half-open doors (4, 6-11) */
+            /* One g_map read per step; getDoorOpenAmount only for door tiles (4, 6-11) */
             {
                 u8 tv = g_map[(u16)(u8)y0 * MAP_X + (u16)(u8)x0];
                 if (tv != 0) {
@@ -399,16 +412,16 @@ void Trace(u16 screenX, u8* screenY, u8* textureNo, u8* textureX, u16* textureY,
         switch(_viewQuarter)
         {
         case 0:
-            distance += MulS(LOOKUP8(g_cos, _viewAngle), deltaY);
+            distance += MulS(g_viewCos, deltaY);
             break;
         case 1:
-            distance -= MulS(LOOKUP8(g_cos, INVERT(_viewAngle)), deltaY);
+            distance -= MulS(g_viewCosInv, deltaY);
             break;
         case 2:
-            distance -= MulS(LOOKUP8(g_cos, _viewAngle), deltaY);
+            distance -= MulS(g_viewCos, deltaY);
             break;
         case 3:
-            distance += MulS(LOOKUP8(g_cos, INVERT(_viewAngle)), deltaY);
+            distance += MulS(g_viewCosInv, deltaY);
             break;
         }
 
@@ -424,16 +437,16 @@ void Trace(u16 screenX, u8* screenY, u8* textureNo, u8* textureX, u16* textureY,
         switch(_viewQuarter)
         {
         case 0:
-            distance += MulS(LOOKUP8(g_sin, _viewAngle), deltaX);
+            distance += MulS(g_viewSin, deltaX);
             break;
         case 1:
-            distance += MulS(LOOKUP8(g_sin, INVERT(_viewAngle)), deltaX);
+            distance += MulS(g_viewSinInv, deltaX);
             break;
         case 2:
-            distance -= MulS(LOOKUP8(g_sin, _viewAngle), deltaX);
+            distance -= MulS(g_viewSin, deltaX);
             break;
         case 3:
-            distance -= MulS(LOOKUP8(g_sin, INVERT(_viewAngle)), deltaX);
+            distance -= MulS(g_viewSinInv, deltaX);
             break;
         }
     if(distance >= MIN_DIST)
@@ -456,6 +469,10 @@ void Start(u16 playerX, u16 playerY, s16 playerA)
     _playerX     = playerX;
     _playerY     = playerY;
     _playerA     = playerA;
+    g_viewCos    = LOOKUP8(g_cos, _viewAngle);
+    g_viewSin    = LOOKUP8(g_sin, _viewAngle);
+    g_viewCosInv = LOOKUP8(g_cos, INVERT(_viewAngle));
+    g_viewSinInv = LOOKUP8(g_sin, INVERT(_viewAngle));
 }
 
 // Function to calculate the screen X, Y position and scale of an object

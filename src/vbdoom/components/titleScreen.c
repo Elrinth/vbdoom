@@ -8,7 +8,11 @@
 #include "titleScreen.h"
 #include <virtualboy_pixeldraw.h>
 #include "../functions/sndplay.h"
+#include "../functions/savegame.h"
 #include "../assets/audio/doom_sfx.h"
+
+/* Bump on every code change */
+#define GAME_VERSION "v0.24"
 
 extern BYTE title_screenTiles[];
 extern unsigned short title_screenMap[];
@@ -88,7 +92,7 @@ u8 titleScreen()
 	setmem((void*)BGMap(1), 0, 8192);
 	setmem((void*)BGMap(2), 0, 8192);
 	setmem((void*)BGMap(3), 0, 8192); /* clear previous data */
-	vbSetWorld(31, WRLD_ON|0, 0, 0, 0, 0, 0, 0, 320, 200);
+	vbSetWorld(31, WRLD_ON|0, 0, 0, 0, 0, 0, 0, 320, 224);  /* 224 so bottom row (version) is visible */
 	vbSetWorld(30, WRLD_ON|1, 0, 0, 0, 0, 0, 0, 32, 32); // skull
 	vbSetWorld(29, WRLD_ON|2, 0, 0, 0, 0, 0, 0, 32, 32); // skull blacks
 	vbSetWorld(28, WRLD_ON|3, 0, 0, 0, 0, 0, 0, 8, 8); // eyes
@@ -97,7 +101,7 @@ u8 titleScreen()
 	setmem((void*)BGMap(0), 0, 8192);
 	setmem((void*)BGMap(1), 0, 8192);
 	setmem((void*)BGMap(2), 0, 8192);
-	setmem((void*)BGMap(3), 0, 8192); /* clear previous data */
+	setmem((void*)BGMap(3), 0, 8192);
 	vbDisplayOn(); // turns the display on
 
 
@@ -117,6 +121,8 @@ u8 titleScreen()
 
 	drawDoomTitle(1);
 	clearTitleBorder();
+	/* Version on same BGMap(0) as title, in cleared bottom area (row 25); font in CharSeg3 from initSystem() */
+	printString(0, 0, 25, GAME_VERSION);
 	vbDisplayShow(); // shows the display
 
 	/* Only fade in on the very first visit (cold boot).
@@ -140,9 +146,18 @@ u8 titleScreen()
 	while(1) {
 		keyInputs = vbReadPad();
 		if(keyInputs & (K_STA|K_A|K_B|K_SEL)) {
-			if (allowPushAgain == 1 && pos != 1) {  /* pos 1=Load Game (disabled) */
-				playPlayerSFX(SFX_PISTOL);
-				break;
+			if (allowPushAgain == 1) {
+				if (pos == 1) {
+					/* Load Game: try load from SRAM; if valid, start game from save */
+					if (tryLoadGameFromSRAM()) {
+						playPlayerSFX(SFX_ITEM_UP);
+						break;
+					}
+					playPlayerSFX(SFX_PLAYER_UMF);
+				} else {
+					playPlayerSFX(SFX_PISTOL);
+					break;
+				}
 			}
 		} else if(keyInputs & (K_RU|K_LU)) {
 			if (allowPushAgain == 1) {
@@ -168,6 +183,7 @@ u8 titleScreen()
 		drawSkull(skullAnim, pos);
 		drawDoomTitle(1);
 		clearTitleBorder();
+		printString(0, 0, 25, GAME_VERSION);  /* redraw each frame (clearTitleBorder wipes row 25) */
 
 		if (count > 6) {
 			count = 0;
@@ -205,6 +221,6 @@ u8 titleScreen()
 	setmem((void*)BGMap(0), 0, 8192);
 	setmem((void*)BGMap(1), 0, 8192);
 	setmem((void*)BGMap(2), 0, 8192);
-	setmem((void*)BGMap(3), 0, 8192); /* clear previous data */
+	setmem((void*)BGMap(3), 0, 8192);
 	return (pos+1);
 }

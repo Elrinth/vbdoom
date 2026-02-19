@@ -26,6 +26,7 @@
 #include "rumble.h"
 #include "intermission.h"
 #include "menu_options.h"
+#include "savegame.h"
 #include "link.h"
 #include "teleport.h"
 extern BYTE FontTiles[];
@@ -79,6 +80,14 @@ extern const u8 dm1_map[];
 extern const u16 dm_spawnX[];
 extern const u16 dm_spawnY[];
 extern const u16 dm_spawnA[];
+
+#define MP_SHOOT_WARMUP 25  /* frames to skip P2 shoot reaction at game start (avoid stale link data) */
+#define P2_SHOOT_SOUND_COOLDOWN 8  /* max one P2 weapon sound per this many frames (throttle burst/duplicates) */
+#define P2_SHOOT_SOUND_ENABLED 0    /* temporary: 0 = disable remote player weapon sound for testing; set 1 to re-enable */
+#define LOCAL_SHOOT_SOUND_ENABLED 0 /* temporary test: 0 = disable local weapon/punch sound; set 1 to re-enable */
+#define FAKE_LINK_FOR_TEST 0        /* 1 = skip real link; drive P2 from local state (offset) for dev testing */
+#define LINK_TEST_1BYTE 0           /* 1 = diagnostic: exchange 1 byte/frame only, show recv on HUD */
+#define LINK_SYNC_GAMEPAD_ONLY 0   /* 1 = sync only gamepad (1 byte); P2 position derived from keys */
 
 /* Precomputed constants -- no runtime float math needed.
  * fixedAngleRatioz = FTOFIX23_9(512.0f/360.0f) = 729
@@ -615,6 +624,49 @@ u8 gameLoop()
 	u16 currentArmour = 0;
 	u8 armorType = 0;  /* 0=none, 1=green (1/3 absorb), 2=blue (1/2 absorb) */
 
+	/* Apply loaded save if we entered from Load Game on title */
+	{
+		const SaveState *s = getLoadedSave();
+		if (s != 0) {
+			u8 wi, pi, ei;
+			fPlayerX = s->playerX;
+			fPlayerY = s->playerY;
+			fPlayerAng = s->playerAngle;
+			currentHealth = s->health;
+			currentArmour = s->armour;
+			armorType = s->armorType;
+			g_hasKeyRed = s->hasKeyRed;
+			g_hasKeyYellow = s->hasKeyYellow;
+			g_hasKeyBlue = s->hasKeyBlue;
+			currentWeapon = s->currentWeapon;
+			nextWeapon = currentWeapon;   /* main loop draws nextWeapon; keep in sync so correct weapon shows */
+			for (wi = 0; wi < 6u; wi++) {
+				weapons[wi].hasWeapon = (s->weapons[wi].hasWeapon != 0);
+				weapons[wi].ammo = s->weapons[wi].ammo;
+			}
+			for (pi = 0; pi < SAVE_MAX_PICKUPS; pi++) {
+				g_pickups[pi].x = s->pickups[pi].x;
+				g_pickups[pi].y = s->pickups[pi].y;
+				g_pickups[pi].type = s->pickups[pi].type;
+				g_pickups[pi].animFrame = s->pickups[pi].animFrame;
+				g_pickups[pi].animTimer = s->pickups[pi].animTimer;
+				g_pickups[pi].active = (s->pickups[pi].active != 0);
+				g_pickups[pi].respawnTimer = s->pickups[pi].respawnTimer;
+			}
+			for (ei = 0; ei < SAVE_MAX_ENEMIES; ei++) {
+				g_enemies[ei].x = s->enemies[ei].x;
+				g_enemies[ei].y = s->enemies[ei].y;
+				g_enemies[ei].angle = s->enemies[ei].angle;
+				g_enemies[ei].state = s->enemies[ei].state;
+				g_enemies[ei].health = s->enemies[ei].health;
+				g_enemies[ei].movedir = s->enemies[ei].movedir;
+				g_enemies[ei].enemyType = s->enemies[ei].enemyType;
+				g_enemies[ei].active = (s->enemies[ei].active != 0);
+			}
+			clearLoadedSave();
+		}
+	}
+
 	/* DM death/respawn: controls stop working for 2s, then respawn at random point */
 	u8 deathCooldown = 0;  /* >0 = dead, counts down each frame (40 = 2s at 20fps) */
 	bool g_firedRocketThisFrame = false;  /* set when local player fires a rocket */
@@ -672,7 +724,18 @@ u8 gameLoop()
 
 	/* Load default face tiles into char memory (dynamic per-face loading) */
 	loadFaceFrame(1);  /* start with center-looking idle face */
-	loadPistolSprites();  /* default weapon = pistol (2) */
+	/* Load weapon tiles for current weapon (piston by default; shotgun/rocket/etc if we just applied a loaded save) */
+	if (currentWeapon == W_FISTS)
+		loadFistSprites();
+	else if (currentWeapon == W_SHOTGUN)
+		loadShotgunSprites();
+	else if (currentWeapon == W_ROCKET)
+		loadRocketLauncherSprites();
+	else if (currentWeapon == W_CHAINGUN)
+		loadChaingunSprites();
+	else
+		loadPistolSprites();
+	resetWeaponDrawState();  /* force first drawWeapon to redraw BGMap (avoids stale/corrupt layer after load) */
 
 	/* Load wall texture tiles into char memory */
 	loadWallTextures();
@@ -682,7 +745,7 @@ u8 gameLoop()
 		drawFragHUD(g_fragCount);
 	else
 		drawKeyCards(g_hasKeyRed, g_hasKeyYellow, g_hasKeyBlue);
-	drawUpdatedAmmo(ammo, currentAmmoType);
+	drawUpdatedAmmo(weapons[currentWeapon].ammo, weapons[currentWeapon].ammoType);
 	/* Initialize right-side digits for all ammo types */
 	drawSmallAmmo(weapons[W_PISTOL].ammo, 1);  /* BULL */
 	drawSmallAmmo(weapons[W_SHOTGUN].ammo, 2); /* SHEL */
@@ -725,7 +788,187 @@ u8 gameLoop()
 	u16 frameCounter = 0;
 
 	/* mp_init() already called in main.c before title screen */
+	static u8 didResetMultiplayerState = 0;
+	static u16 mpSyncFrames = 0;
+	static u16 lastP2X = 0, lastP2Y = 0;
+	static u16 linkUpdateCount = 0;
+	static u8 prevP2Shooting = 0;
+	static u8 prevWeaponAnimForSync = 0;
+	static u8 p2ShootSoundCooldown = 0;
+	static u8 p2ShootQuietFrames = 0;
+	static u8 lastRecvSeq = 0xFF;
+	static u8 prevRecvBuf[8];
 	while(1) {
+		/* === MULTIPLAYER LINK EXCHANGE AT FRAME START ===
+		 * Run first so joiner blocks in recv before host sends (receiver-wait-first like 3D BattleSnake). */
+		if (g_isMultiplayer) {
+			u8 sendBuf[8], recvBuf[8];
+			if (didResetMultiplayerState == 0) {
+				/* Re-init link so both sides start in-game exchange from a known state (fixes "no data sent"). */
+				linkInit();
+				linkDiscardRecvByte();
+				g_linkSendCount = 0;
+				g_linkRecvCount = 0;
+				{ u32 d; for (d = 0; d < 10000u; d++) { (void)0; } }  /* brief delay */
+				prevP2Shooting = 0;
+				prevWeaponAnimForSync = 0;
+				p2ShootSoundCooldown = 0;
+				p2ShootQuietFrames = 0;
+				lastRecvSeq = 0xFF;
+				g_mpFreshPacketCount = 0;
+				lastP2X = 0;
+				lastP2Y = 0;
+				linkUpdateCount = 0;
+				g_mpRecvBufChangedCount = 0;
+				setmem(prevRecvBuf, 0, 8);
+				setmem(g_mpLastRecvRaw, 0, 4);
+				g_mpLastApplied = 0;
+				didResetMultiplayerState = 1;
+			}
+			mpSyncFrames++;
+			sendBuf[0] = (u8)(fPlayerX >> 8);
+			sendBuf[1] = (u8)(fPlayerX);
+			sendBuf[2] = (u8)(fPlayerY >> 8);
+			sendBuf[3] = (u8)(fPlayerY);
+			sendBuf[4] = (u8)((u16)fPlayerAng >> 8);
+			sendBuf[5] = (u8)((u16)fPlayerAng);
+			sendBuf[6] = 0;
+			if (weaponAnimation == 1 && prevWeaponAnimForSync != 1) sendBuf[6] |= P2F_SHOOTING;
+			sendBuf[6] |= (currentWeapon << P2F_WEAPON_SHIFT) & P2F_WEAPON_MASK;
+			if (g_lastEnemyDamage > 0) sendBuf[6] |= P2F_TOOK_DAMAGE;
+			if (currentHealth == 0) sendBuf[6] |= P2F_DIED;
+			if (g_firedRocketThisFrame) sendBuf[6] |= P2F_FIRED_ROCKET;
+			sendBuf[6] |= ((mpSyncFrames & 1) << 7);
+			sendBuf[7] = (u8)currentHealth;
+			prevWeaponAnimForSync = weaponAnimation;
+			setmem(recvBuf, 0, 8);
+			vbWaitFrame(0);  /* frame sync so both host and joiner enter polling at same time (LEMUR) */
+#if LINK_TEST_1BYTE
+			/* Diagnostic: 1 byte/frame only. Host: delay, send, recv. Joiner: recv, delay, send. */
+			{
+				u32 d;
+				u8 testByte = (u8)(fPlayerX >> 8);
+				if (g_isHost) {
+					for (d = 0; d < 200000u; d++) { (void)0; }
+					linkSendByte(testByte);
+					g_linkTestRecv = linkRecvByte();
+				} else {
+					g_linkTestRecv = linkRecvByte();
+					for (d = 0; d < 200000u; d++) { (void)0; }
+					linkSendByte(testByte);
+				}
+			}
+#elif LINK_SYNC_GAMEPAD_ONLY
+			/* Sync only gamepad: pack pad into 1 byte, exchange; apply received keys to P2 position. */
+			{
+				u16 pad = vbReadPad();
+				u8 keyByte = 0;
+				if (pad & K_LU) keyByte |= 0x01;
+				if (pad & K_LD) keyByte |= 0x02;
+				if (pad & K_LL) keyByte |= 0x04;
+				if (pad & K_LR) keyByte |= 0x08;
+				if (pad & K_RL) keyByte |= 0x10;
+				if (pad & K_RR) keyByte |= 0x20;
+				if (pad & K_A)  keyByte |= 0x40;
+				if (pad & K_LT) keyByte |= 0x80;
+				{
+					u32 d;
+					u8 p2Keys;
+					if (g_isHost) {
+						p2Keys = linkRecvByte();
+						for (d = 0; d < 200000u; d++) { (void)0; }
+						linkSendByte(keyByte);
+					} else {
+						for (d = 0; d < 200000u; d++) { (void)0; }
+						linkSendByte(keyByte);
+						p2Keys = linkRecvByte();
+					}
+					/* Apply received keys to P2 position (same movement logic as local player) */
+					g_player2Alive = true;
+					{
+						s16 ang = (s16)g_player2Angle;
+						u16 spd = (p2Keys & 0x80) ? (movespeed * 2) : movespeed;
+						if (p2Keys & 0x01) fPlayerMoveForward(&g_player2X, &g_player2Y, ang, spd);
+						else if (p2Keys & 0x02) fPlayerMoveForward(&g_player2X, &g_player2Y, ang, -(s16)spd);
+						if (p2Keys & 0x04) fPlayerStrafe(&g_player2X, &g_player2Y, ang, -(s16)spd);
+						else if (p2Keys & 0x08) fPlayerStrafe(&g_player2X, &g_player2Y, ang, (s16)spd);
+						if (p2Keys & 0x10) {
+							g_player2Angle = (u16)((u32)(g_player2Angle + 1024u - (u16)turnRate) % 1024u);
+						} else if (p2Keys & 0x20) {
+							g_player2Angle = (u16)((u32)(g_player2Angle + (u16)turnRate) % 1024u);
+						}
+					}
+					g_player2Flags = (p2Keys & 0x40) ? P2F_SHOOTING : 0;
+					g_player2Health = 100;  /* not synced in gamepad-only mode */
+				}
+			}
+#elif FAKE_LINK_FOR_TEST
+			{
+				u16 offX = (u16)(2 * 256);
+				g_player2X = fPlayerX + offX;
+				g_player2Y = fPlayerY;
+				g_player2Angle = (u16)fPlayerAng;
+				g_player2Flags = (currentWeapon << P2F_WEAPON_SHIFT) & P2F_WEAPON_MASK;
+				if (weaponAnimation == 1) g_player2Flags |= P2F_SHOOTING;
+				if (g_lastEnemyDamage > 0) g_player2Flags |= P2F_TOOK_DAMAGE;
+				if (currentHealth == 0) g_player2Flags |= P2F_DIED;
+				if (g_firedRocketThisFrame) g_player2Flags |= P2F_FIRED_ROCKET;
+				g_player2Health = (u8)currentHealth;
+			}
+#else
+			{
+				/* Byte-by-byte exchange (receiver in 0x94 first). No vbWaitFrame in loop to avoid lag. */
+				u8 i, diff = 0, same = 1;
+				static u8 appliedThisFrame = 0;
+				appliedThisFrame = 0;
+				for (i = 0; i < 8; i++) {
+					linkExchangeOneByte(sendBuf[i], &recvBuf[i]);
+				}
+				{
+					u8 pollRecv = 8;
+					g_mpLastPollRecv = pollRecv;
+					g_mpLastRecvRaw[0] = recvBuf[0];
+					g_mpLastRecvRaw[1] = recvBuf[1];
+					g_mpLastRecvRaw[2] = recvBuf[2];
+					g_mpLastRecvRaw[3] = recvBuf[3];
+					if (pollRecv == 8) {
+						for (i = 0; i < 8; i++) { if (recvBuf[i] != prevRecvBuf[i]) diff = 1; }
+						if (diff) {
+							g_mpRecvBufChangedCount++;
+							if (g_mpRecvBufChangedCount > 99) g_mpRecvBufChangedCount = 99;
+						}
+						copymem(prevRecvBuf, recvBuf, 8);
+						for (i = 0; i < 8; i++) { if (recvBuf[i] != sendBuf[i]) same = 0; }
+						g_mpLastSame = same;
+						if ((recvBuf[0] | recvBuf[1] | recvBuf[2] | recvBuf[3]) != 0) {
+							appliedThisFrame = 1;
+							u8 recvSeq = recvBuf[6] >> 7;
+							if (recvSeq != lastRecvSeq) {
+								g_mpFreshPacketCount++;
+								if (g_mpFreshPacketCount > 99) g_mpFreshPacketCount = 99;
+							}
+							lastRecvSeq = recvSeq;
+							g_player2X = ((u16)recvBuf[0] << 8) | recvBuf[1];
+							g_player2Y = ((u16)recvBuf[2] << 8) | recvBuf[3];
+							g_player2Angle = ((u16)recvBuf[4] << 8) | recvBuf[5];
+							g_player2Flags = recvBuf[6] & 0x7F;
+							g_player2Health = recvBuf[7];
+							if (g_player2X != lastP2X || g_player2Y != lastP2Y) {
+								if (linkUpdateCount < 99) linkUpdateCount++;
+								lastP2X = g_player2X;
+								lastP2Y = g_player2Y;
+							}
+						}
+					}
+					g_mpLastApplied = appliedThisFrame;
+				}
+			}
+#endif
+		} else {
+			didResetMultiplayerState = 0;
+			mpSyncFrames = 0;
+		}
+
 		//drawDoomFace(LAYER_UI, 44, 0, doomface);
 		isMoving = false;
 	// clear 1 (weapon layer) and 2 (enemy layer) each frame...
@@ -779,7 +1022,7 @@ u8 gameLoop()
 			deathCooldown = 40;  /* 2 seconds at 20fps */
 		}
 
-		// handle input last...
+		/* Movement: same keyInputs for host and joiner; only disabled when deathCooldown > 0 (DM). */
 		if (keyInputs & K_LU) {// Left Pad, Up
 			isMoving = true;
 			fPlayerMoveForward(&fPlayerX, &fPlayerY, fPlayerAng, (isRunning?movespeed*2:movespeed));
@@ -836,6 +1079,7 @@ u8 gameLoop()
 					weapons[W_CHAINGUN].ammo = weapons[currentWeapon].ammo;
 				}
 				isShooting = true;
+#if LOCAL_SHOOT_SOUND_ENABLED
 				/* Trigger PCM weapon fire sound */
 				if (currentWeapon == W_ROCKET) {
 					playPlayerSFX(SFX_ROCKET_LAUNCH);
@@ -843,6 +1087,7 @@ u8 gameLoop()
 					playPlayerSFX(SFX_SHOTGUN);
 				else
 					playPlayerSFX(SFX_PISTOL); /* pistol + chaingun share SFX */
+#endif
 				drawUpdatedAmmo(weapons[currentWeapon].ammo, weapons[currentWeapon].ammoType);
 				if (currentWeapon == W_ROCKET) {
 					/* Rocket launcher: spawn projectile, no hitscan */
@@ -873,7 +1118,9 @@ u8 gameLoop()
 		} else {
 		 	weaponAnimation = 1; // punch!
 			isShooting = true;
+#if LOCAL_SHOOT_SOUND_ENABLED
 			playPlayerSFX(SFX_PUNCH);
+#endif
 			/* Try to hit an enemy first */
 			{
 				u8 hitIdx = playerShoot(fPlayerX, fPlayerY, fPlayerAng, currentWeapon);
@@ -934,7 +1181,43 @@ u8 gameLoop()
 
 		/* In-game pause: Start button opens options screen */
 		if (keyPressed & K_STA) {
-			optionsScreen(&pauseSettings);
+			SaveState saveState;
+			u8 wi, pi, ei;
+			saveState.level = currentLevel;
+			saveState.playerX = fPlayerX;
+			saveState.playerY = fPlayerY;
+			saveState.playerAngle = fPlayerAng;
+			saveState.health = (u8)currentHealth;
+			saveState.armour = currentArmour;
+			saveState.armorType = armorType;
+			saveState.hasKeyRed = g_hasKeyRed;
+			saveState.hasKeyYellow = g_hasKeyYellow;
+			saveState.hasKeyBlue = g_hasKeyBlue;
+			saveState.currentWeapon = currentWeapon;
+			for (wi = 0; wi < 6u; wi++) {
+				saveState.weapons[wi].hasWeapon = (u8)(weapons[wi].hasWeapon ? 1 : 0);
+				saveState.weapons[wi].ammo = weapons[wi].ammo;
+			}
+			for (pi = 0; pi < SAVE_MAX_PICKUPS; pi++) {
+				saveState.pickups[pi].x = g_pickups[pi].x;
+				saveState.pickups[pi].y = g_pickups[pi].y;
+				saveState.pickups[pi].type = g_pickups[pi].type;
+				saveState.pickups[pi].animFrame = g_pickups[pi].animFrame;
+				saveState.pickups[pi].animTimer = g_pickups[pi].animTimer;
+				saveState.pickups[pi].active = (u8)(g_pickups[pi].active ? 1 : 0);
+				saveState.pickups[pi].respawnTimer = g_pickups[pi].respawnTimer;
+			}
+			for (ei = 0; ei < SAVE_MAX_ENEMIES; ei++) {
+				saveState.enemies[ei].x = g_enemies[ei].x;
+				saveState.enemies[ei].y = g_enemies[ei].y;
+				saveState.enemies[ei].angle = g_enemies[ei].angle;
+				saveState.enemies[ei].state = g_enemies[ei].state;
+				saveState.enemies[ei].health = g_enemies[ei].health;
+				saveState.enemies[ei].movedir = g_enemies[ei].movedir;
+				saveState.enemies[ei].enemyType = g_enemies[ei].enemyType;
+				saveState.enemies[ei].active = (u8)(g_enemies[ei].active ? 1 : 0);
+			}
+			optionsScreen(&pauseSettings, true, &saveState);
 
 			/* Update volumes from potentially changed settings */
 			g_sfxVolume = g_settingToHw[pauseSettings.sfx];
@@ -996,7 +1279,9 @@ u8 gameLoop()
 		updateDoors();
 
 		// we actually only need to call this if x,y,ang changed...
-		updateEnemies(fPlayerX, fPlayerY, fPlayerAng);
+		/* In DM Arena (level 7) no enemies exist; skip update entirely */
+		if (!(g_isMultiplayer && g_gameMode == GAMEMODE_DEATHMATCH && currentLevel == 7))
+			updateEnemies(fPlayerX, fPlayerY, fPlayerAng);
 
 		/* Update particle animations */
 		updateParticles();
@@ -1449,35 +1734,8 @@ u8 gameLoop()
 		/* Update background music sequencer */
 		updateMusic(isPlayMusicBool);
 
-		/* === MULTIPLAYER STATE SYNC === */
+		/* === MULTIPLAYER P2 ANIMATE / SHOOT / COOP (link exchange already done at frame start) === */
 		if (g_isMultiplayer) {
-			u8 sendBuf[8], recvBuf[8];
-
-			/* Pack local state */
-			sendBuf[0] = (u8)(fPlayerX >> 8);
-			sendBuf[1] = (u8)(fPlayerX);
-			sendBuf[2] = (u8)(fPlayerY >> 8);
-			sendBuf[3] = (u8)(fPlayerY);
-			sendBuf[4] = (u8)((u16)fPlayerAng >> 8);
-			sendBuf[5] = (u8)((u16)fPlayerAng);
-			sendBuf[6] = 0;
-			if (isShooting) sendBuf[6] |= P2F_SHOOTING;
-			sendBuf[6] |= (currentWeapon << P2F_WEAPON_SHIFT) & P2F_WEAPON_MASK;
-			if (g_lastEnemyDamage > 0) sendBuf[6] |= P2F_TOOK_DAMAGE;
-			if (currentHealth == 0) sendBuf[6] |= P2F_DIED;
-			if (g_firedRocketThisFrame) sendBuf[6] |= P2F_FIRED_ROCKET;
-			sendBuf[7] = (u8)currentHealth;
-
-			/* Exchange state packets with remote player */
-			linkExchangeState(sendBuf, recvBuf);
-
-			/* Unpack remote state */
-			g_player2X = ((u16)recvBuf[0] << 8) | recvBuf[1];
-			g_player2Y = ((u16)recvBuf[2] << 8) | recvBuf[3];
-			g_player2Angle = ((u16)recvBuf[4] << 8) | recvBuf[5];
-			g_player2Flags = recvBuf[6];
-			g_player2Health = recvBuf[7];
-
 			/* Animate player 2 walk */
 			g_p2AnimTimer++;
 			if (g_p2AnimTimer > 4) {
@@ -1485,36 +1743,49 @@ u8 gameLoop()
 				g_p2AnimFrame = (g_p2AnimFrame + 1) & 3;
 			}
 
-			/* Check if remote player is shooting at us (hitscan from P2 to local player) */
-			if (g_player2Flags & P2F_SHOOTING) {
-				/* Simple distance-based damage check */
-				s16 dx = (s16)g_player2X - (s16)fPlayerX;
-				s16 dy = (s16)g_player2Y - (s16)fPlayerY;
-				u32 dist = ((u32)((s32)dx * dx + (s32)dy * dy)) >> 8;
-				if (dist < HITSCAN_RANGE_DIST) {
-					/* P2 hit us -- apply damage */
-					u8 dmg = 5 + (g_p2AnimTimer & 7);  /* 5-12 damage per hit */
-					if (dmg > currentHealth) dmg = currentHealth;
-					currentHealth -= dmg;
-					g_flashTimer = 2;
-					g_flashType = 1;  /* damage flash */
-				}
-
-				/* Play P2's weapon sound at distance */
-				{
-					u8 p2Weapon = (g_player2Flags & P2F_WEAPON_MASK) >> P2F_WEAPON_SHIFT;
-					u8 p2SfxId;
-					u8 p2dist8 = (dist > 255) ? 255 : (u8)dist;
-					switch (p2Weapon) {
-						case W_FISTS:   p2SfxId = SFX_PUNCH; break;
-						case W_PISTOL:  p2SfxId = SFX_PISTOL; break;
-						case W_SHOTGUN: p2SfxId = SFX_SHOTGUN; break;
-						case W_CHAINGUN: p2SfxId = SFX_PISTOL; break;
-						case W_ROCKET:  p2SfxId = SFX_ROCKET_LAUNCH; break;
-						default:        p2SfxId = SFX_PISTOL; break;
+			/* Check if remote player is shooting at us (hitscan from P2 to local player).
+			 * Only react on rising edge (0 -> 1) so one shot = one damage + one sound.
+			 * Debounce: require 2+ frames of "not shooting" before a new 1 counts (filters link noise).
+			 * Skip reaction for first MP_SHOOT_WARMUP frames to avoid stale link data at game start.
+			 * Sound is throttled by cooldown to avoid "tons" of shooting sound from burst/duplicates. */
+			{
+				u8 p2ShootingNow = (g_player2Flags & P2F_SHOOTING) ? 1 : 0;
+				if (p2ShootSoundCooldown > 0) p2ShootSoundCooldown--;
+				/* Use p2ShootQuietFrames from previous frames (before updating below) */
+				if (p2ShootingNow && !prevP2Shooting && mpSyncFrames > MP_SHOOT_WARMUP && p2ShootQuietFrames >= 2) {
+					s16 dx = (s16)g_player2X - (s16)fPlayerX;
+					s16 dy = (s16)g_player2Y - (s16)fPlayerY;
+					u32 dist = ((u32)((s32)dx * dx + (s32)dy * dy)) >> 8;
+					if (dist < HITSCAN_RANGE_DIST) {
+						u8 dmg = 5 + (g_p2AnimTimer & 7);  /* 5-12 damage per hit */
+						if (dmg > currentHealth) dmg = currentHealth;
+						currentHealth -= dmg;
+						g_flashTimer = 2;
+						g_flashType = 1;  /* damage flash */
 					}
-					playEnemySFX(p2SfxId, p2dist8);
+#if P2_SHOOT_SOUND_ENABLED
+					if (p2ShootSoundCooldown == 0) {
+						u8 p2Weapon = (g_player2Flags & P2F_WEAPON_MASK) >> P2F_WEAPON_SHIFT;
+						u8 p2SfxId;
+						u8 p2dist8 = (dist > 255) ? 255 : (u8)dist;
+						switch (p2Weapon) {
+							case W_FISTS:   p2SfxId = SFX_PUNCH; break;
+							case W_PISTOL:  p2SfxId = SFX_PISTOL; break;
+							case W_SHOTGUN: p2SfxId = SFX_SHOTGUN; break;
+							case W_CHAINGUN: p2SfxId = SFX_PISTOL; break;
+							case W_ROCKET:  p2SfxId = SFX_ROCKET_LAUNCH; break;
+							default:        p2SfxId = SFX_PISTOL; break;
+						}
+						playEnemySFX(p2SfxId, p2dist8);
+						p2ShootSoundCooldown = P2_SHOOT_SOUND_COOLDOWN;
+					}
+#endif
 				}
+				if (p2ShootingNow)
+					p2ShootQuietFrames = 0;
+				else if (p2ShootQuietFrames < 5)
+					p2ShootQuietFrames++;
+				prevP2Shooting = p2ShootingNow;
 			}
 
 			/* Spawn P2's rocket locally so it's visible to us */
@@ -1616,6 +1887,9 @@ u8 gameLoop()
 					}
 				}
 			}
+		} else {
+			didResetMultiplayerState = 0;  /* next multiplayer game gets fresh edge state */
+			mpSyncFrames = 0;
 		}
 
 		/* Debug removed: drawPlayerInfo / drawUseTargetDebug */
@@ -1780,6 +2054,20 @@ u8 gameLoop()
 		if (weapons[W_ROCKET].ammo != lastRocketAmmo) {
 			drawSmallAmmo(weapons[W_ROCKET].ammo, 3);
 			lastRocketAmmo = weapons[W_ROCKET].ammo;
+		}
+
+		if (g_isMultiplayer) {
+			drawDebugMpP2(g_player2X, g_player2Y);
+			drawDebugMpLink(g_linkSendCount, g_linkRecvCount);
+			drawDebugMpLinkUpdates(g_mpFreshPacketCount);
+			drawDebugMpRecvChanged(g_mpRecvBufChangedCount);
+			drawDebugMpRecvRaw(g_mpLastRecvRaw[0], g_mpLastRecvRaw[1], g_mpLastRecvRaw[2], g_mpLastRecvRaw[3]);
+			drawDebugMpApplied(g_mpLastApplied);
+			drawDebugMpSame(g_mpLastSame);
+			drawDebugMpPollRecv(g_mpLastPollRecv);
+#if LINK_TEST_1BYTE
+			drawDebugMpLinkTestRecv(g_linkTestRecv);
+#endif
 		}
 
 		/* Timer-based frame pacing: keeps emulator speed closer to hardware.

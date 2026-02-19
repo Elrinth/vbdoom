@@ -866,3 +866,118 @@ void drawPlayerInfo(u16 *fPlayerX, u16 *fPlayerY, s16 *fPlayerAng) {
 	}
 	copymem((void*)BGMap(LAYER_UI)+drawPos+8, (void*)(vb_doomMap+startPos+(ones*2)), 2);
 }
+
+/* Multiplayer debug HUD: P2 tile position (row 3, cols 0-4), spacing between X and Y */
+void drawDebugMpP2(u16 p2x, u16 p2y) {
+	u16 tx = p2x >> 8;
+	u16 ty = p2y >> 8;
+	u8 xTens = (u8)(tx / 10);
+	u8 xOnes = (u8)(tx % 10);
+	u8 yTens = (u8)(ty / 10);
+	u8 yOnes = (u8)(ty % 10);
+	u16 base = 384;  /* row 3 */
+	u16 sp = 96*18;
+
+	*((u16*)((void*)BGMap(LAYER_UI) + base + 0)) = *((u16*)(vb_doomMap + sp + (xTens*2)));
+	*((u16*)((void*)BGMap(LAYER_UI) + base + 2)) = *((u16*)(vb_doomMap + sp + (xOnes*2)));
+	*((u16*)((void*)BGMap(LAYER_UI) + base + 4)) = *((u16*)(vb_doomMap + sp + 20));  /* blank */
+	*((u16*)((void*)BGMap(LAYER_UI) + base + 6)) = *((u16*)(vb_doomMap + sp + (yTens*2)));
+	*((u16*)((void*)BGMap(LAYER_UI) + base + 8)) = *((u16*)(vb_doomMap + sp + (yOnes*2)));
+}
+
+/* Multiplayer debug HUD: link send/recv counts (row 3, cols 6-10), spacing between S and R */
+void drawDebugMpLink(u16 sendCnt, u16 recvCnt) {
+	u8 sTens = (u8)((sendCnt % 100) / 10);
+	u8 sOnes = (u8)(sendCnt % 10);
+	u8 rTens = (u8)((recvCnt % 100) / 10);
+	u8 rOnes = (u8)(recvCnt % 10);
+	u16 base = 396;  /* row 3, col 6 */
+	u16 sp = 96*18;
+
+	*((u16*)((void*)BGMap(LAYER_UI) + base + 0)) = *((u16*)(vb_doomMap + sp + (sTens*2)));
+	*((u16*)((void*)BGMap(LAYER_UI) + base + 2)) = *((u16*)(vb_doomMap + sp + (sOnes*2)));
+	*((u16*)((void*)BGMap(LAYER_UI) + base + 4)) = *((u16*)(vb_doomMap + sp + 20));  /* blank */
+	*((u16*)((void*)BGMap(LAYER_UI) + base + 6)) = *((u16*)(vb_doomMap + sp + (rTens*2)));
+	*((u16*)((void*)BGMap(LAYER_UI) + base + 8)) = *((u16*)(vb_doomMap + sp + (rOnes*2)));
+}
+
+/* Multiplayer debug HUD: link "updates" count (row 3, cols 11-12); increments when P2 position changes */
+void drawDebugMpLinkUpdates(u16 count) {
+	u8 tens = (u8)((count % 100) / 10);
+	u8 ones = (u8)(count % 10);
+	u16 base = 406;  /* row 3, col 11 */
+	u16 sp = 96*18;
+
+	*((u16*)((void*)BGMap(LAYER_UI) + base + 0)) = *((u16*)(vb_doomMap + sp + (tens*2)));
+	*((u16*)((void*)BGMap(LAYER_UI) + base + 2)) = *((u16*)(vb_doomMap + sp + (ones*2)));
+}
+
+/* Multiplayer debug HUD: recvBuf "changed" count (row 3, cols 13-14); increments when recvBuf differs from previous frame */
+void drawDebugMpRecvChanged(u16 count) {
+	u8 tens = (u8)((count % 100) / 10);
+	u8 ones = (u8)(count % 10);
+	u16 base = 410;  /* row 3, col 13 */
+	u16 sp = 96*18;
+
+	*((u16*)((void*)BGMap(LAYER_UI) + base + 0)) = *((u16*)(vb_doomMap + sp + (tens*2)));
+	*((u16*)((void*)BGMap(LAYER_UI) + base + 2)) = *((u16*)(vb_doomMap + sp + (ones*2)));
+}
+
+/* Multiplayer debug HUD: 1-byte link test received value (row 3, cols 15-16); only when LINK_TEST_1BYTE */
+void drawDebugMpLinkTestRecv(u8 value) {
+	u8 tens = (u8)((value % 100) / 10);
+	u8 ones = (u8)(value % 10);
+	u16 base = 414;  /* row 3, col 15 */
+	u16 sp = 96*18;
+
+	*((u16*)((void*)BGMap(LAYER_UI) + base + 0)) = *((u16*)(vb_doomMap + sp + (tens*2)));
+	*((u16*)((void*)BGMap(LAYER_UI) + base + 2)) = *((u16*)(vb_doomMap + sp + (ones*2)));
+}
+
+/* Multiplayer debug HUD: raw recvBuf first 4 bytes (row 3, cols 17-24); 2 digits per byte */
+void drawDebugMpRecvRaw(u8 r0, u8 r1, u8 r2, u8 r3) {
+	u8 t0, o0, t1, o1, t2, o2, t3, o3;
+	u16 base = 418;  /* row 3, col 17 */
+	u16 sp = 96*18;
+
+	t0 = (u8)((r0 % 100) / 10); o0 = (u8)(r0 % 10);
+	t1 = (u8)((r1 % 100) / 10); o1 = (u8)(r1 % 10);
+	t2 = (u8)((r2 % 100) / 10); o2 = (u8)(r2 % 10);
+	t3 = (u8)((r3 % 100) / 10); o3 = (u8)(r3 % 10);
+
+	*((u16*)((void*)BGMap(LAYER_UI) + base + 0))  = *((u16*)(vb_doomMap + sp + (t0*2)));
+	*((u16*)((void*)BGMap(LAYER_UI) + base + 2))  = *((u16*)(vb_doomMap + sp + (o0*2)));
+	*((u16*)((void*)BGMap(LAYER_UI) + base + 4))  = *((u16*)(vb_doomMap + sp + (t1*2)));
+	*((u16*)((void*)BGMap(LAYER_UI) + base + 6))  = *((u16*)(vb_doomMap + sp + (o1*2)));
+	*((u16*)((void*)BGMap(LAYER_UI) + base + 8))  = *((u16*)(vb_doomMap + sp + (t2*2)));
+	*((u16*)((void*)BGMap(LAYER_UI) + base + 10)) = *((u16*)(vb_doomMap + sp + (o2*2)));
+	*((u16*)((void*)BGMap(LAYER_UI) + base + 12)) = *((u16*)(vb_doomMap + sp + (t3*2)));
+	*((u16*)((void*)BGMap(LAYER_UI) + base + 14)) = *((u16*)(vb_doomMap + sp + (o3*2)));
+}
+
+/* Multiplayer debug HUD: applied flag 0 or 1 (row 3, col 25); 1 when recvBuf was applied this frame */
+void drawDebugMpApplied(u8 applied) {
+	u8 ones = (u8)(applied % 10);
+	u16 base = 434;  /* row 3, col 25 */
+	u16 sp = 96*18;
+
+	*((u16*)((void*)BGMap(LAYER_UI) + base + 0)) = *((u16*)(vb_doomMap + sp + (ones*2)));
+}
+
+/* Multiplayer debug HUD: same/echo flag 0 or 1 (row 3, col 26); 1 = recvBuf == sendBuf (echo) */
+void drawDebugMpSame(u8 same) {
+	u8 ones = (u8)(same % 10);
+	u16 base = 436;  /* row 3, col 26 */
+	u16 sp = 96*18;
+
+	*((u16*)((void*)BGMap(LAYER_UI) + base + 0)) = *((u16*)(vb_doomMap + sp + (ones*2)));
+}
+
+/* Multiplayer debug HUD: polling recv count 0-8 (row 3, col 27); bytes received this frame by linkExchangeStatePolling */
+void drawDebugMpPollRecv(u8 count) {
+	u8 ones = (u8)(count % 10);
+	u16 base = 438;  /* row 3, col 27 */
+	u16 sp = 96*18;
+
+	*((u16*)((void*)BGMap(LAYER_UI) + base + 0)) = *((u16*)(vb_doomMap + sp + (ones*2)));
+}

@@ -51,6 +51,12 @@ static void menuPrint(u16 col, u16 row, char *str) {
     vbPrint(0, col, row, str, 0);
 }
 
+/* Host debug: buffer and hex table for "P2 RX: 0x??" */
+static char hostRxBuf[] = "P2 RX: 0x00";
+static char hostAttemptBuf[] = "Try: 00";
+static char joinFrameBuf[] = "Frame: 00";
+static const char hex[] = "0123456789ABCDEF";
+
 /* Draw cursor ">" at a specific row, col 4. Clear previous positions. */
 static void drawCursor(u8 row, u8 numItems, u8 startRow) {
     u8 i;
@@ -142,14 +148,26 @@ static u8 screenConnecting(void) {
         if (keys & K_B && allowInput) return 255;
         if (!(keys & K_B)) allowInput = 1;
 
-        /* Recv first: if other side sent JOIN_REQ we become host; if they sent HOST_ACK we become joiner */
-        if (linkTryRecvByte(&recvByte, 80) == LINK_OK) {
-            if (recvByte == LINK_JOIN_REQ) {
-                linkSendByte(LINK_HOST_ACK);
-                return 1;  /* host */
-            }
-            if (recvByte == LINK_HOST_ACK) {
-                return 0;  /* joiner */
+        /* Recv first (longer window so joiner is in recv when host sends HOST_ACK): 3 attempts per frame */
+        {
+            u8 attempt;
+            for (attempt = 0; attempt < 3; attempt++) {
+                if (linkTryRecvByte(&recvByte, 1000) == LINK_OK) {
+                    if (recvByte == LINK_JOIN_REQ) {
+                        /* Delay so other side can enter its recv phase next frame */
+                        { u8 i; for (i = 0; i < 5; i++) { updateMusic(true); vbWaitFrame(0); } }
+                        /* Resend HOST_ACK 3x so joiner has several recv windows to catch it */
+                        linkSendByte(LINK_HOST_ACK);
+                        { u8 i; for (i = 0; i < 2; i++) { updateMusic(true); vbWaitFrame(0); } }
+                        linkSendByte(LINK_HOST_ACK);
+                        { u8 i; for (i = 0; i < 2; i++) { updateMusic(true); vbWaitFrame(0); } }
+                        linkSendByte(LINK_HOST_ACK);
+                        return 1;  /* host */
+                    }
+                    if (recvByte == LINK_HOST_ACK) {
+                        return 0;  /* joiner */
+                    }
+                }
             }
         }
 
@@ -303,6 +321,7 @@ static u8 screenLevelMode(void) {
     u8 section = 0;   /* 0=level select, 1=mode select */
     u8 allowInput = 0;
     u8 joinerConnected = 1;  /* set by unified screen before we get here */
+    u8 recvByte;
     u16 keys;
     u8 levelNums[] = {1, 2, 3, 4, 7};  /* actual level IDs */
 
@@ -315,6 +334,7 @@ static u8 screenLevelMode(void) {
     menuPrint(6, 13, "DM ARENA");
     drawCursor(0, 5, 5);
     menuPrint(6, 17, "P2 CONNECTED!");
+    menuPrint(6, 19, "WAITING P2... ");
 
     while (1) {
         keys = vbReadPad();
@@ -336,6 +356,7 @@ static u8 screenLevelMode(void) {
                         menuPrint(6, 12, "P2 CONNECTED!");
                     else
                         menuPrint(6, 12, "WAITING P2...");
+                    menuPrint(6, 19, "WAITING P2... ");
                     allowInput = 0;
                 }
             } else if (keys & K_B) {
@@ -381,6 +402,7 @@ static u8 screenLevelMode(void) {
                         menuPrint(6, 17, "P2 CONNECTED!");
                     else
                         menuPrint(6, 17, "WAITING P2...");
+                    menuPrint(6, 19, "WAITING P2... ");
                     allowInput = 0;
                 }
             } else if (keys & (K_RU | K_LU)) {
@@ -402,61 +424,131 @@ static u8 screenLevelMode(void) {
             }
         }
 
+        /* Link: try recv from joiner, update status line, send heartbeat */
+        if (linkTryRecvByte(&recvByte, 500) == LINK_OK) {
+            if (recvByte == LINK_JOINER_READY)
+                menuPrint(6, 19, "P2 READY!     ");
+            else
+                menuPrint(6, 19, "P2 RX OK      ");
+        } else {
+            menuPrint(6, 19, "WAITING P2... ");
+        }
+        if (section == 0)
+            linkTrySendByte(LINK_HOST_LEVEL_BASE + levelPos, 300);
+        else
+            linkTrySendByte(LINK_HOST_MODE_BASE + modePos, 300);
+
         updateMusic(true);
         vbWaitFrame(0);
     }
 }
 
+/* Host selection display strings (for joiner status line) */
+static const char * const joinLevelStr[] = { "HOST: E1M1 ", "HOST: E1M2 ", "HOST: E1M3 ", "HOST: E1M4 ", "HOST: DM   " };
+static const char * const joinModeStr[] = { "HOST: COOP ", "HOST: DM   " };
+
 /* JOIN waits for HOST to send level + mode. Returns level number or 0 on error.
- * Sends JOINER_READY repeatedly until we receive GAME_START so host can receive
- * ready at any time after confirming level/mode. */
+ * Tries recv first (heartbeat/selection), then sends JOINER_READY, then recv for GAME_START. */
 static u8 screenJoinWaitForLevel(void) {
     u8 levelNum;
+    u8 levelNum2;
     u8 mode;
     u8 byte;
     u16 keys;
     u8 allowInput = 0;
+    u8 joinFrameCount = 0;
 
     clearText();
     menuPrint(6, 7, "WAITING FOR HOST");
     menuPrint(6, 9, "TO SELECT LEVEL");
+    menuPrint(6, 11, "LINK: ---      ");
     menuPrint(6, 15, "B = CANCEL");
 
     byte = HW_REGS[CDRR];   /* discard leftover byte from handshake (e.g. HOST_ACK) */
 
-    /* Send JOINER_READY and check for GAME_START each iteration until host sends it */
     while (1) {
+        joinFrameCount = (joinFrameCount + 1) % 100;
+        joinFrameBuf[7] = '0' + (joinFrameCount / 10);
+        joinFrameBuf[8] = '0' + (joinFrameCount % 10);
+        menuPrint(6, 17, joinFrameBuf);
         keys = vbReadPad();
         if (keys & K_B && allowInput) return 0;  /* cancel */
         if (!(keys & K_B)) allowInput = 1;
 
-        linkTrySendByte(LINK_JOINER_READY, 500);   /* advertise ready so host can recv anytime */
-        if (linkTryRecvByte(&byte, 80) == LINK_OK && byte == LINK_GAME_START)
+        /* Recv first: host heartbeat/selection or GAME_START */
+        if (linkTryRecvByte(&byte, 12000) == LINK_OK) {
+            if (byte == LINK_GAME_START)
+                break;
+            if (byte >= LINK_HOST_LEVEL_BASE && byte <= LINK_HOST_LEVEL_BASE + 4)
+                menuPrint(6, 11, joinLevelStr[byte - LINK_HOST_LEVEL_BASE]);
+            else if (byte == LINK_HOST_MODE_BASE)
+                menuPrint(6, 11, joinModeStr[0]);
+            else if (byte == LINK_HOST_MODE_BASE + 1)
+                menuPrint(6, 11, joinModeStr[1]);
+            else if (byte == LINK_HOST_LISTENING)
+                menuPrint(6, 11, "HOST READY    ");
+            else if (byte == 1 || byte == 2 || byte == 3 || byte == 4 || byte == 7) {
+                /* Missed GAME_START; this byte is first level */
+                levelNum = byte;
+                levelNum2 = linkRecvByte();
+                if (levelNum != levelNum2) return 0;
+                mode = linkRecvByte();
+                goto got_level_mode;
+            }
+            else
+                menuPrint(6, 11, "LINK OK       ");
+        }
+        menuPrint(6, 13, "SENDING TO HOST ");
+        /* Send JOINER_READY many times so host (in recv) can catch us */
+        {
+            u8 k;
+            for (k = 0; k < 30; k++) {
+                linkTrySendByte(LINK_JOINER_READY, 1000);
+            }
+        }
+        /* Block until we receive one byte (host sends GAME_START) */
+        byte = linkRecvByte();
+        if (byte == LINK_GAME_START)
             break;
-
+        /* Missed GAME_START: host already sent it and we got first level byte here */
+        if (byte == 1 || byte == 2 || byte == 3 || byte == 4 || byte == 7) {
+            levelNum = byte;
+            levelNum2 = linkRecvByte();
+            if (levelNum != levelNum2) return 0;
+            mode = linkRecvByte();
+            goto got_level_mode;
+        }
         updateMusic(true);
         vbWaitFrame(0);
     }
+
 got_game_start:
 
     menuPrint(6, 11, "GAME START RECEIVED!");
     menuPrint(6, 13, "LOADING...");
 
-    /* Receive level number */
-    HW_REGS[CCR] = 0x94;  /* restart listening */
-    while (HW_REGS[CCR] & 0x02) {}  /* wait for transfer */
-    levelNum = HW_REGS[CDRR];
+    /* Short delay so host is in linkSendByte(levelNum) before we recv */
+    { u8 i; for (i = 0; i < 5; i++) { updateMusic(true); vbWaitFrame(0); } }
 
-    /* Receive game mode */
-    HW_REGS[CCR] = 0x94;  /* restart listening */
-    while (HW_REGS[CCR] & 0x02) {}  /* wait for transfer */
-    mode = HW_REGS[CDRR];
+    /* Receive level (twice), then mode; verify level bytes match */
+    levelNum = linkRecvByte();
+    levelNum2 = linkRecvByte();
+    if (levelNum != levelNum2) return 0;
+    mode = linkRecvByte();
+
+got_level_mode:
+    if (levelNum != 1 && levelNum != 2 && levelNum != 3 && levelNum != 4 && levelNum != 7)
+        return 0;
+    if (mode > 1)
+        return 0;
+    /* Deathmatch uses level 7 only; recover from corrupted level byte */
+    if (mode == GAMEMODE_DEATHMATCH && levelNum != 7)
+        levelNum = 7;
 
     g_gameMode = mode;
 
-    /* Send sync ack */
+    /* Send sync ack (blocking: joiner waits until host receives) */
     linkSendByte(LINK_SYNC_OK);
-
     return levelNum;
 }
 
@@ -502,57 +594,88 @@ u8 multiplayerMenu(void) {
             /* Give joiner time to enter wait screen */
             { u8 i; for (i = 0; i < 10; i++) { updateMusic(true); vbWaitFrame(0); } }
 
-            /* Wait for joiner READY before sending */
+            /* Sync: host sends once (blocking) so joiner receives; then joiner does send JOINER_READY while host is in recv */
+            linkSendByte(LINK_HOST_LISTENING);
+
+            /* Try recv with status: show each byte received (hex) or "Waiting P2..."; accept any first byte */
+            menuPrint(6, 19, "WAIT P2...     ");
             {
                 u8 readyByte;
-                u16 readyRetries = 0;
-                while (1) {
-                    if (linkTryRecvByte(&readyByte, 5000) == LINK_OK && readyByte == LINK_JOINER_READY)
-                        break;
+                u8 attempt;
+                for (attempt = 0; attempt < 60; attempt++) {
+                    hostAttemptBuf[5] = '0' + (attempt / 10);
+                    hostAttemptBuf[6] = '0' + (attempt % 10);
+                    menuPrint(6, 17, hostAttemptBuf);
+                    if (linkTryRecvByte(&readyByte, 5000) == LINK_OK) {
+                        hostRxBuf[9] = hex[readyByte >> 4];
+                        hostRxBuf[10] = hex[readyByte & 0xF];
+                        menuPrint(6, 19, hostRxBuf);
+                        goto joiner_ready;
+                    }
+                    menuPrint(6, 19, "Waiting P2...  ");
                     updateMusic(true);
                     vbWaitFrame(0);
-                    if (++readyRetries > 150) goto show_joiner_not_responding;
                 }
             }
 
-            /* Send each byte with retries */
+            /* Listen-only phase: many recv attempts over 20 frames so we overlap with joiner send */
             {
-                u16 retries;
-                retries = 0;
-                while (linkTrySendByte(LINK_GAME_START, 5000) != LINK_OK) {
-                    updateMusic(true);
+                u8 readyByte;
+                u8 listenFrame;
+                u8 listenAttempt;
+                for (listenFrame = 0; listenFrame < 20; listenFrame++) {
+                    hostAttemptBuf[5] = '0' + (listenFrame / 10);
+                    hostAttemptBuf[6] = '0' + (listenFrame % 10);
+                    menuPrint(6, 17, hostAttemptBuf);
+                    for (listenAttempt = 0; listenAttempt < 20; listenAttempt++) {
+                        if (linkTryRecvByte(&readyByte, 4000) == LINK_OK) {
+                            hostRxBuf[9] = hex[readyByte >> 4];
+                            hostRxBuf[10] = hex[readyByte & 0xF];
+                            menuPrint(6, 19, hostRxBuf);
+                            if (readyByte == LINK_JOINER_READY) goto joiner_ready;
+                        }
+                        updateMusic(true);
+                    }
                     vbWaitFrame(0);
-                    if (++retries > 150) break;
                 }
             }
+            /* Wait for joiner READY (more recv attempts and longer timeout per frame) */
             {
-                u16 retries;
-                retries = 0;
-                while (linkTrySendByte(levelNum, 5000) != LINK_OK) {
-                    updateMusic(true);
+                u8 readyByte;
+                u16 readyRetries = 0;
+                u8 attempts;
+                while (1) {
+                    hostAttemptBuf[5] = '0' + ((readyRetries / 10) % 10);
+                    hostAttemptBuf[6] = '0' + (readyRetries % 10);
+                    menuPrint(6, 17, hostAttemptBuf);
+                    for (attempts = 0; attempts < 20; attempts++) {
+                        if (linkTryRecvByte(&readyByte, 4000) == LINK_OK) {
+                            hostRxBuf[9] = hex[readyByte >> 4];
+                            hostRxBuf[10] = hex[readyByte & 0xF];
+                            menuPrint(6, 19, hostRxBuf);
+                            if (readyByte == LINK_JOINER_READY) goto joiner_ready;
+                        }
+                        updateMusic(true);
+                    }
                     vbWaitFrame(0);
-                    if (++retries > 150) break;
+                    if (++readyRetries > 300) goto show_joiner_not_responding;
                 }
+joiner_ready: ;
             }
-            {
-                u16 retries;
-                retries = 0;
-                while (linkTrySendByte(g_gameMode, 5000) != LINK_OK) {
-                    updateMusic(true);
-                    vbWaitFrame(0);
-                    if (++retries > 150) break;
-                }
-            }
+
+            /* Brief delay so joiner is in recv window when we send */
+            { u8 i; for (i = 0; i < 5; i++) { updateMusic(true); vbWaitFrame(0); } }
+
+            /* Send GAME_START (blocking: host waits until joiner receives) */
+            menuPrint(6, 19, "Sending...     ");
+            linkSendByte(LINK_GAME_START);
+            linkSendByte(levelNum);
+            linkSendByte(levelNum);  /* send twice so joiner can verify */
+            linkSendByte(g_gameMode);
             {
                 u8 syncByte;
-                u16 ackRetries = 0;
-                while (1) {
-                    if (linkTryRecvByte(&syncByte, 5000) == LINK_OK && syncByte == LINK_SYNC_OK)
-                        break;  /* got sync ack, proceed to game */
-                    updateMusic(true);
-                    vbWaitFrame(0);
-                    if (++ackRetries > 200) goto show_joiner_not_responding;
-                }
+                syncByte = linkRecvByte();
+sync_ok: ;
             }
             goto host_success;
 

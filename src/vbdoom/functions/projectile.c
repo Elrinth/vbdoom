@@ -7,6 +7,8 @@
 #include "sndplay.h"
 #include "../assets/audio/doom_sfx.h"
 
+#define PROJECTILE_IMPACT_SOUND_ENABLED 0  /* temporary test: 0 = disable rocket/impact sounds; set 1 to re-enable */
+
 /* Global projectile array */
 Projectile g_projectiles[MAX_PROJECTILES];
 
@@ -257,8 +259,9 @@ void updateProjectiles(u16 playerX, u16 playerY, s16 playerA) {
                     u8 ei;
                     /* Doom: 20*(P_Random()%8+1) = 20,40,60,...160 */
                     u8 directDmg = (u8)(20 * ((projRandom() & 7) + 1));
+#if PROJECTILE_IMPACT_SOUND_ENABLED
                     playPlayerSFX(SFX_BARREL_EXPLODE);
-
+#endif
                     /* Damage enemies in splash radius */
                     for (ei = 0; ei < MAX_ENEMIES; ei++) {
                         EnemyState *e = &g_enemies[ei];
@@ -300,7 +303,9 @@ void updateProjectiles(u16 playerX, u16 playerY, s16 playerA) {
                         }
                     }
                 } else {
+#if PROJECTILE_IMPACT_SOUND_ENABLED
                     playPlayerSFX(SFX_PROJECTILE_CONTACT);
+#endif
                 }
                 continue;
             }

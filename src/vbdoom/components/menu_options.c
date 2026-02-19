@@ -5,12 +5,14 @@
 #include <controller.h>
 #include <text.h>
 #include <languages.h>
+#include <stdbool.h>
 #include "menu_options.h"
 #include <virtualboy_pixeldraw.h>
 #include "rumble.h"
 #include "sfx.h"
 #include "dph9.h"
 #include "../functions/sndplay.h"
+#include "../functions/savegame.h"
 #include "../functions/timer.h"
 #include "../assets/audio/doom_sfx.h"
 
@@ -32,7 +34,7 @@ extern BYTE title_screen_optionsTiles[];
 extern unsigned short title_screen_optionsMap[];
 
 
-void drawOptionsSkull(u8 index, u16 posY) {
+void drawOptionsSkull(u8 index, u16 posY, bool fiveRows) {
 
 	u16 mapIndex = 1000; // 25*40
 
@@ -40,7 +42,9 @@ void drawOptionsSkull(u8 index, u16 posY) {
 	u16 x = 28;
 	u16 pos = y*128 + x;
 
-	WA[29].gy = WA[30].gy = WA[31].gy + 118+((posY==3?4:posY)*16);
+	/* fiveRows: in-game has SAVE GAME + BACK (pos 0..4). Title has 4 rows (pos 0..3). */
+	u16 rowOff = fiveRows ? (posY * 16) : (u16)((posY == 3 ? 4 : posY) * 16);
+	WA[29].gy = WA[30].gy = WA[31].gy + 118 + rowOff;
 	/* +32 so skull stays centered (world is now full 384px, content offset 32px) */
 	WA[29].gx = WA[30].gx = WA[31].gx + 62 + 32;
 
@@ -414,8 +418,12 @@ void audioLoop(Settings *settings) {
 	}*/
 }
 
-u8 optionsScreen(Settings *settings)
+u8 optionsScreen(Settings *settings, bool inGame, const SaveState *saveState)
 {
+	const bool showSave = inGame && (saveState != 0);
+	const u8 maxPos = showSave ? 4 : 3;
+	const u8 backPos = maxPos;
+
 	setmem((void*)BGMap(0), 0, 8192);
 	setmem((void*)BGMap(1), 0, 8192);
 	setmem((void*)BGMap(2), 0, 8192);
@@ -468,6 +476,7 @@ u8 optionsScreen(Settings *settings)
 	u8 shouldRumble = 0;
 	u8 rumbleTimer = 0;
 	u8 rumbleTime = 16;
+	u8 savedMessageTimer = 0;
 
 	u16 keyInputs;
 
@@ -477,9 +486,16 @@ u8 optionsScreen(Settings *settings)
 	while(1) {
 		keyInputs = vbReadPad();
 
-		if(keyInputs & (K_STA|K_A|K_B|K_SEL) && pos == 3  && allowPushAgain == 1) {
-			playPlayerSFX(SFX_PISTOL);
-			break;
+		if (keyInputs & (K_STA|K_A|K_B|K_SEL) && allowPushAgain == 1) {
+			if (pos == backPos) {
+				playPlayerSFX(SFX_PISTOL);
+				break;
+			}
+			if (showSave && pos == 3) {
+				saveGameToSRAM(saveState);
+				playPlayerSFX(SFX_ITEM_UP);
+				savedMessageTimer = 40;
+			}
 		} else if(keyInputs & (K_RU|K_LU)) {
 			if (allowPushAgain == 1) {
 				allowPushAgain = 0;
@@ -491,7 +507,7 @@ u8 optionsScreen(Settings *settings)
 		} else if(keyInputs & (K_RD|K_LD)) {
 			if (allowPushAgain == 1) {
 				allowPushAgain = 0;
-				if (pos < 3) {
+				if (pos < maxPos) {
 					playPlayerSFX(SFX_ELEVATOR_STP);
 					pos++;
 				}
@@ -577,8 +593,16 @@ u8 optionsScreen(Settings *settings)
 		}*/
 
 		//drawDoomImage();
-		drawOptionsSkull(skullAnim, pos);
+		drawOptionsSkull(skullAnim, pos, showSave);
 		drawOptionsScreen(1);
+		if (showSave) {
+			printString(0, 10, 19, "SAVE GAME");
+			printString(0, 10, 21, "BACK");
+		}
+		if (savedMessageTimer > 0) {
+			printString(0, 12, 11, "SAVED!");
+			savedMessageTimer--;
+		}
 		hideNumbers();
 		drawNumbers(settings);
 

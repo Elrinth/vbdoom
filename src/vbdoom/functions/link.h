@@ -25,11 +25,16 @@
 #define LINK_JOINER_READY 0xDD  /* sent by JOINER when on wait screen */
 #define LINK_GAME_START   0xBB  /* sent by HOST before level/mode data */
 
+/* Host heartbeat/selection (sent by HOST during level/mode select) */
+#define LINK_HOST_LEVEL_BASE  0xE0  /* + levelPos 0..4 => E1M1..DM */
+#define LINK_HOST_MODE_BASE  0xE8  /* + 0=COOP, 1=DEATHMATCH */
+#define LINK_HOST_LISTENING  0xF0  /* host about to listen for JOINER_READY; syncs joiner recv/send */
+
 /* Transfer result codes */
 #define LINK_OK         0
 #define LINK_TIMEOUT    1
 
-/* ---- Globals ---- */
+/* ---- Globals (single source of truth: defined in link.c, declared here; set by menu, read by gameLoop and link.c; do not shadow) ---- */
 extern bool g_isMultiplayer;   /* true when a multiplayer session is active */
 extern bool g_isHost;          /* true = HOST, false = JOIN */
 extern u8   g_gameMode;        /* GAMEMODE_COOP or GAMEMODE_DEATHMATCH */
@@ -49,6 +54,19 @@ extern bool g_player2Alive;
 #define P2F_TOOK_DAMAGE  0x10
 #define P2F_DIED         0x20
 #define P2F_FIRED_ROCKET 0x40   /* set on the frame P2 fires a rocket */
+
+/* ---- Debug: link activity (for multiplayer HUD) ---- */
+extern u16  g_linkSendCount;  /* bytes sent (wraps at 65535) */
+extern u16  g_linkRecvCount;  /* bytes received */
+extern u8   g_linkTestRecv;   /* last byte received in 1-byte link test mode (LINK_TEST_1BYTE) */
+
+/* ---- Multiplayer debug/recv state (single copy for HUD and exchange) ---- */
+extern u16  g_mpFreshPacketCount;
+extern u16  g_mpRecvBufChangedCount;
+extern u8   g_mpLastRecvRaw[4];
+extern u8   g_mpLastApplied;
+extern u8   g_mpLastSame;
+extern u8   g_mpLastPollRecv;
 
 /* ---- Frag tracking ---- */
 extern u8   g_fragCount;       /* kills by local player */
@@ -77,6 +95,9 @@ extern u8   g_p2LastFrame;     /* last loaded Marine frame (skip if same) */
 /* Initialize link cable hardware registers. */
 void linkInit(void);
 
+/* Discard any stale byte in receive register. Call once after linkInit() when entering in-game. */
+void linkDiscardRecvByte(void);
+
 /* Blocking send: write 1 byte as master. */
 void linkSendByte(u8 data);
 
@@ -102,5 +123,15 @@ void linkRecvPacket(u8 *buf, u8 len);
  * HOST sends first then receives; JOIN receives first then sends.
  * sendBuf and recvBuf must both be 8 bytes. */
 void linkExchangeState(u8 *sendBuf, u8 *recvBuf);
+
+/* Exchange 8 bytes one at a time (receiver before sender each byte); use if packet exchange fails. */
+void linkExchangeStateByteByByte(u8 *sendBuf, u8 *recvBuf);
+
+/* Exchange one byte (receiver in 0x94 first). Use with vbWaitFrame(0) after each call for frame-synced 8-byte exchange. */
+void linkExchangeOneByte(u8 toSend, u8 *recvOut);
+
+/* Polling-based exchange: both sides try recv/send in a loop (works like menu in LEMUR).
+ * Returns number of bytes received (0-8). Only apply recvBuf when return is 8. */
+u8  linkExchangeStatePolling(u8 *sendBuf, u8 *recvBuf);
 
 #endif

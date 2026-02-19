@@ -9,11 +9,13 @@ C project targeting the NEC V810 CPU via `v810-gcc` and the `libgccvb` library.
 
 ## Build System
 
-- **IDE**: VBDE (`C:\vbde\VBDE.exe`). Build is triggered through the GUI; there is no Makefile.
+- **IDE**: VBDE (`C:\vbde\VBDE.exe`). Build is triggered through the GUI.
+- **Command-line build**: Run VBDE's build script so the build uses msys bash and Unix `find` (otherwise ROM can be 0 kB). From project root: `C:\vbde\system\batch\build.bat c:\vbde\my_projects\vbdoom\src\vbdoom` (or the equivalent path to `src\vbdoom`). Do not add a project-root Makefile—that would switch to "custom makefile" and still require msys.
 - **Compiler**: `C:\vbde\system\msys32\v810\v810-win32\bin\v810-gcc.exe`
 - **Source root**: `src/vbdoom/` -- the IDE auto-discovers every `.c` file in the tree.
 - **Include paths**: `C:\vbde\libs\libgccvb`, plus `functions/`, `assets/languages/`, `.` relative to source root.
 - **Output**: `src/vbdoom/build/output.vb`
+- **After making any code/asset change**: Bump `GAME_VERSION` in `src/vbdoom/components/titleScreen.c`, then run the compile command: `C:\vbde\system\batch\build.bat c:\vbde\my_projects\vbdoom\src\vbdoom` so the user can RELOAD ROM in the emulator.
 
 ## Display Constraints
 
@@ -68,6 +70,10 @@ Python scripts at project root convert PNGs to C arrays with VB 2bpp tile data:
 - `make_into_4_colors_2/grit_all_frames.py` -- enemy sprite conversion (Imp, Demon)
 
 All generated files go into `src/vbdoom/assets/images/`. Tile arrays use `const unsigned int ... __attribute__((aligned(4)))`. Map arrays use `const unsigned short ... __attribute__((aligned(4)))`.
+
+## Version Bump
+
+- **Every time you make any code or asset change** in the project, bump the title screen version so the user can see which build is loaded. In `src/vbdoom/components/titleScreen.c`, increment `GAME_VERSION` (e.g. `"v0.3"` → `"v0.4"`). Bump once per request/session that includes edits, not per individual file.
 
 ## Coding Conventions
 
